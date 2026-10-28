@@ -13,6 +13,7 @@ dependencies = [
     "uvicorn[standard]>=0.30.0",
     "pydantic>=2.8.0",
     "pydantic-settings>=2.4.0",
+    "python-multipart>=0.0.9",
     "supabase>=2.8.0",
     "gotrue>=2.8.0",
     "pyjwt[crypto]>=2.9.0",
@@ -44,3 +45,4 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "A", "C4"]
 ignore = ["B008"]
+

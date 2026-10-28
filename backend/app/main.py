@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1 import auth, health, users
+from app.api.v1 import admin, auth, doctors, health, users
 from app.api.v1.api import api_router
 from app.core.config import settings
 
@@ -25,10 +25,12 @@ if settings.BACKEND_CORS_ORIGINS:
 # Include v1 API router (/api/v1/...)
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-# Also expose direct convenience top-level routes (/health, /me, /auth)
+# Also expose direct convenience top-level routes (/health, /me, /auth, /doctors, /admin)
 app.include_router(health.router)
 app.include_router(users.router)
 app.include_router(auth.router)
+app.include_router(doctors.router)
+app.include_router(admin.router)
 
 
 @app.get("/", summary="Root index")
@@ -38,3 +40,4 @@ def root_index():
         "health_check": "/health",
         "docs": "/docs",
     }
+
