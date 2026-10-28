@@ -84,14 +84,27 @@ Or via Supabase CLI:
 supabase db push
 ```
 
-### 5. Run the Backend API
+### 5. Seed Demo Data & Local Test Accounts
+Populate 3 specialties, 10 demo Bangladesh doctors (approved, pending, suspended), and 3 core test accounts:
+```bash
+python backend/scripts/seed.py
+```
+
+#### Demo Test Accounts (Local / Development Use Only)
+| Role | Email | Password | Details |
+| :--- | :--- | :--- | :--- |
+| **Admin** | `admin@medimatch.test` | `AdminPass123!` | Platform administrator with review privileges |
+| **Doctor** | `doctor@medimatch.test` | `DoctorPass123!` | Verified consultant cardiologist in Dhaka |
+| **Patient** | `patient@medimatch.test` | `PatientPass123!` | Standard patient user |
+
+### 6. Run the Backend API
 ```bash
 python -m uvicorn backend.app.main:app --reload --port 8000
 ```
 - Interactive API Docs: `http://localhost:8000/docs`
 - Health check: `http://localhost:8000/health`
 
-### 6. Run the Automated Tests
+### 7. Run the Automated Tests
 ```bash
 python -m pytest backend/tests/ -v
 ```
@@ -106,3 +119,4 @@ python -m pytest backend/tests/ -v
 5. **Doctor Verification Enforcement**: Only doctors with `verification_status = 'approved'` are ever visible or bookable by patients.
 6. **Strict Row-Level Security (RLS)**: Every user table has least-privilege RLS policies.
 7. **PII Sanitization**: Personal identifiers (names, emails, phones) are stripped before sending symptom descriptions to LLMs or vector embeddings.
+
