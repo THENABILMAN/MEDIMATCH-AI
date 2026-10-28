@@ -70,3 +70,4 @@ def doctor_token(doctor_user_id: str) -> str:
 @pytest.fixture
 def admin_token(admin_user_id: str) -> str:
     return create_mock_jwt(admin_user_id, "admin@medimatch.test", UserRole.ADMIN, "System Admin")
+

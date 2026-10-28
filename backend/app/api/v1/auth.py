@@ -30,3 +30,4 @@ def register_doctor(payload: RegisterDoctorRequest):
 )
 def login(payload: LoginRequest):
     return login_service(payload)
+

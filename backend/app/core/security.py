@@ -76,3 +76,4 @@ def verify_supabase_token(token: str) -> Dict[str, Any]:
             detail=f"Invalid authentication token: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
+

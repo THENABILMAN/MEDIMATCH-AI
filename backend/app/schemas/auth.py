@@ -35,3 +35,4 @@ class TokenResponse(BaseModel):
     user_id: str
     role: UserRole
     full_name: Optional[str] = None
+

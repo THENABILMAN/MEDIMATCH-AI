@@ -223,3 +223,4 @@ def login_service(req: LoginRequest) -> TokenResponse:
         role=profile.role,
         full_name=profile.full_name,
     )
+

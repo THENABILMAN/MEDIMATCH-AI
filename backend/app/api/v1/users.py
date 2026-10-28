@@ -21,3 +21,4 @@ def update_me(
         payload=payload,
         email=current_user.email,
     )
+

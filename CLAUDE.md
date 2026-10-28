@@ -70,6 +70,9 @@ python -m pip install -r backend/requirements.txt
 # Run migrations against Supabase database
 python backend/app/run_migrations.py
 
+# Seed specialties, 10 demo doctors, and 3 test accounts
+python backend/scripts/seed.py
+
 # Run development server
 python -m uvicorn backend.app.main:app --reload --port 8000
 
@@ -107,10 +110,15 @@ flutter run
   - FastAPI JWT verification, `get_current_user`, and `require_role(...)` dependencies
   - Endpoints: `GET /health`, `POST /auth/register-patient`, `POST /auth/register-doctor`, `POST /auth/login`, `GET /me`, `PATCH /me`
   - 14/14 automated tests passing (RBAC, unauthenticated 401, role-escalation prevention, PostgreSQL RLS isolation)
-- [ ] **Phase 2: Doctor Catalog, Embeddings & Vector Indexing**
-  - Doctor profile endpoints
-  - Text embedding pipeline
-  - Pinecone index setup & Supabase synchronization worker
+- [x] **Phase 2: Doctor Profiles, Admin Verification & Public Search**
+  - Migration `00003_doctor_credentials_and_storage.sql`: `doctor_credentials` table, RLS, and private Supabase storage bucket `doctor-credentials`
+  - Doctor endpoints (`/doctors/me/profile`, `/doctors/me/credentials`) with automatic status reset to `pending` upon material profile edits
+  - Admin endpoints (`/admin/doctors?status=pending`, `/admin/doctors/{id}/approve`, `/reject`, `/suspend` with reason tracking)
+  - Paginated admin audit logs (`/admin/audit-logs`) and full CRUD for medical specialties (`/admin/specialties`)
+  - Anonymous-safe public search (`GET /doctors/search`, `GET /doctors/{id}`) enforcing `verification_status = 'approved'` and sanitizing private fields
+  - Lifecycle event hooks in `app/services/doctor_events.py` (`on_doctor_approved`, `on_doctor_updated`, `on_doctor_suspended`)
+  - Deterministic seed script (`backend/scripts/seed.py`) with 3 specialties, 10 Bangladesh demo doctors, and 3 test accounts
+  - 31/31 automated tests passing across RBAC, public search filters, admin approvals, and RLS
 - [ ] **Phase 3: Safety Guardrails & AI Symptom Assistant**
   - Rule-based deterministic emergency triage & tests
   - LangGraph conversational agent (OpenRouter LLM)
@@ -131,5 +139,8 @@ flutter run
 - **2026-10-28**: Adopted hybrid search strategy: Pinecone provides semantic specialty/service similarity, Supabase PostgreSQL acts as authoritative store for verification and availability filtering.
 - **2026-10-28**: Enforced immutable audit logs where inserts are restricted to backend service-role and reads restricted to administrators.
 - **2026-10-28**: Implemented strict schema level (`extra="forbid"`) and trigger level guards preventing any user from self-escalating role to `admin` or self-approving `verification_status`.
+- **2026-10-28**: Designed public doctor search (`/doctors/search` and `/doctors/{id}`) to be anonymous-safe (accessible without authentication) to minimize patient onboarding friction, strictly filtering for `verification_status = 'approved'` and never exposing credential paths or personal phone numbers.
+- **2026-10-28**: Any material modification to a doctor profile by a doctor automatically resets status to `pending`, logs a `DOCTOR_MATERIAL_PROFILE_UPDATE` audit event, and fires `on_doctor_updated`.
+- **2026-10-28**: Added doctor lifecycle event hooks in `app/services/doctor_events.py` for future Pinecone vector index synchronization.
 
 

@@ -29,3 +29,4 @@ def log_audit_event(
         admin_client.table("audit_logs").insert(data).execute()
     except Exception as e:
         logger.error(f"Failed to record audit log: {e}")
+

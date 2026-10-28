@@ -67,3 +67,4 @@ class UserMeResponse(BaseModel):
     phone: Optional[str] = None
     doctor_profile: Optional[DoctorProfileRead] = None
     created_at: Optional[datetime] = None
+

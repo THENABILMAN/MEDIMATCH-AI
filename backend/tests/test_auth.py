@@ -104,3 +104,4 @@ def test_rbac_admin_can_access_admin_route(client: TestClient, admin_token: str)
     response = client.get("/test-rbac/admin-only", headers=headers)
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["message"] == "Welcome Admin"
+

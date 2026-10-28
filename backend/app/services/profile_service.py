@@ -132,3 +132,4 @@ def update_user_profile(user_id: str, payload: ProfileUpdate, email: Optional[st
             )
 
     return get_user_profile(user_id, email)
+

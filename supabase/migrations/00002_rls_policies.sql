@@ -262,3 +262,4 @@ CREATE POLICY "audit_logs_no_update" ON public.audit_logs
 DROP POLICY IF EXISTS "audit_logs_no_delete" ON public.audit_logs;
 CREATE POLICY "audit_logs_no_delete" ON public.audit_logs
     FOR DELETE USING (false);
+
