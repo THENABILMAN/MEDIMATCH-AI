@@ -1,0 +1,135 @@
+# CLAUDE.md — MediMatch AI Development Guidelines
+
+## Project Summary
+MediMatch AI is an AI-powered doctor recommendation and appointment booking platform designed to connect patients with verified medical specialists. Patients can describe symptoms naturally to an intelligent conversational assistant, which clarifies details safely and guides them to appropriate doctors. The system leverages hybrid semantic search with Pinecone and Supabase PostgreSQL to offer verified doctor comparisons, live scheduling, and seamless booking across web and mobile platforms.
+
+---
+
+## Technology Stack
+- **Backend API**: FastAPI (Python 3.12+)
+- **Database & Auth**: Supabase (PostgreSQL, Supabase Auth, Row-Level Security)
+- **Vector Search Index**: Pinecone
+- **AI Orchestration & LLM**: LangGraph, OpenRouter
+- **Web Frontend**: React + TypeScript (Vite)
+- **Mobile Frontend**: Flutter (Dart)
+
+---
+
+## Repository Layout
+```text
+MEDIMATCH-AI/
+├── backend/
+│   ├── app/
+│   │   ├── core/           # Config, security, logging
+│   │   ├── api/            # API routes and endpoints
+│   │   ├── models/         # Pydantic schemas and database models
+│   │   ├── services/       # AI triage, LangGraph agent, search, bookings
+│   │   └── main.py         # Application entry point & /health endpoint
+│   ├── tests/              # Pytest test suite
+│   ├── pyproject.toml      # Python dependencies and build config
+│   └── requirements.txt    # Frozen / pinned dependencies
+├── web/                    # React + TypeScript frontend (Vite)
+├── mobile/                 # Flutter mobile application
+├── supabase/
+│   └── migrations/         # Supabase SQL schema migrations and RLS policies
+├── docs/                   # Documentation, specifications, and architecture plans
+├── .env.example            # Canonical environment variable reference
+├── CLAUDE.md               # Project instructions and status tracking
+└── README.md               # Developer onboarding and runbook
+```
+
+---
+
+## Non-Negotiable Rules
+1. **Source of Truth**: Supabase Postgres is the single source of truth. Pinecone is exclusively a search index; always re-fetch current doctor records directly from Supabase before returning results to clients.
+2. **Secret Isolation**: Never expose service-role keys, Pinecone API keys, or OpenRouter keys to any frontend (Web or Mobile). All credentials must be kept strictly on the backend and loaded via environment variables.
+3. **Medical Safety**: The AI assistant must never diagnose, prescribe treatments, or reassure patients that serious symptoms are harmless. It only helps find suitable, qualified doctors.
+4. **Deterministic Emergency Triage**: Emergency detection must be rule-based (deterministic keyword and regex checks backed by comprehensive tests), never delegated solely to an LLM.
+5. **Doctor Verification Enforcement**: Only doctors with `verification_status = 'approved'` may ever be recommended or searchable by patients.
+6. **Row-Level Security (RLS)**: Every table containing user data must have RLS enabled with strict least-privilege policies.
+7. **Privacy Preservation**: Minimize personal data sent to LLM/embedding providers; never send patient names, phone numbers, email addresses, or identifying credentials.
+
+---
+
+## Conventions
+- **Code Quality**: Strict Python type hints everywhere, Pydantic v2 models for data validation and configuration (`pydantic-settings`).
+- **Formatting & Linting**: Ruff for linting and code formatting; follow PEP 8 standards.
+- **Testing**: Write unit and integration tests with `pytest`. Ensure high test coverage for safety rules and authorization checks before committing.
+- **Git Commits**: Small, atomic commits with clear imperative messages (e.g., `feat: add rule-based emergency triage`, `fix: enforce approved status in search query`).
+- **Folder Names**: Lowercase with underscores (`snake_case`) for Python packages/modules; `kebab-case` for docs and non-code folders.
+
+---
+
+## Commands
+
+### Backend
+```bash
+# Install dependencies
+python -m pip install -r backend/requirements.txt
+
+# Run migrations against Supabase database
+python backend/app/run_migrations.py
+
+# Run development server
+python -m uvicorn backend.app.main:app --reload --port 8000
+
+# Run all test suites
+python -m pytest backend/tests/ -v
+
+# Run formatting & linting
+ruff check backend/
+ruff format backend/
+```
+
+### Web
+```bash
+cd web
+npm install
+npm run dev
+npm run build
+```
+
+### Mobile
+```bash
+cd mobile
+flutter pub get
+flutter run
+```
+
+---
+
+## Current Status
+
+- [x] **Phase 1: Foundation, Database Architecture & Security**
+  - Supabase schema migrations: `profiles`, `specialties`, `doctor_profiles`, `doctor_specialties`, `availability_slots`, `appointments`, `conversations`, `messages`, `patient_symptom_sessions`, `audit_logs`
+  - Trigger on `auth.users` creating `profiles` row with role default `patient` and admin escalation prevention
+  - Row-Level Security (RLS) policies on every table with least-privilege access
+  - FastAPI JWT verification, `get_current_user`, and `require_role(...)` dependencies
+  - Endpoints: `GET /health`, `POST /auth/register-patient`, `POST /auth/register-doctor`, `POST /auth/login`, `GET /me`, `PATCH /me`
+  - 14/14 automated tests passing (RBAC, unauthenticated 401, role-escalation prevention, PostgreSQL RLS isolation)
+- [ ] **Phase 2: Doctor Catalog, Embeddings & Vector Indexing**
+  - Doctor profile endpoints
+  - Text embedding pipeline
+  - Pinecone index setup & Supabase synchronization worker
+- [ ] **Phase 3: Safety Guardrails & AI Symptom Assistant**
+  - Rule-based deterministic emergency triage & tests
+  - LangGraph conversational agent (OpenRouter LLM)
+  - PII sanitization & safety guardrail tests
+- [ ] **Phase 4: Hybrid Search & Appointment Booking Engine**
+  - Pinecone semantic search + Supabase filters
+  - Live doctor slot management & concurrency protection
+- [ ] **Phase 5: Web Application**
+  - React (Vite + TypeScript) portals for Patient, Doctor, and Admin
+- [ ] **Phase 6: Mobile App & Production Deployment**
+  - Flutter app for Patient and Doctor workflows
+  - End-to-end integration test suite & deployment readiness
+
+---
+
+## Decisions Log
+- **2026-10-28**: Repository initialized with skeleton structure, `/health` endpoint, Pydantic Settings configuration, comprehensive `.gitignore`, and `.env.example`.
+- **2026-10-28**: Adopted hybrid search strategy: Pinecone provides semantic specialty/service similarity, Supabase PostgreSQL acts as authoritative store for verification and availability filtering.
+- **2026-10-28**: Enforced immutable audit logs where inserts are restricted to backend service-role and reads restricted to administrators.
+- **2026-10-28**: Implemented strict schema level (`extra="forbid"`) and trigger level guards preventing any user from self-escalating role to `admin` or self-approving `verification_status`.
+
+
