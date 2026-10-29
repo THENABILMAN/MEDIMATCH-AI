@@ -76,6 +76,9 @@ python backend/scripts/seed.py
 # Run development server
 python -m uvicorn backend.app.main:app --reload --port 8000
 
+# Run interactive AI symptom assistant terminal CLI
+python backend/scripts/chat_cli.py
+
 # Run all test suites
 python -m pytest backend/tests/ -v
 
@@ -119,10 +122,16 @@ flutter run
   - Lifecycle event hooks in `app/services/doctor_events.py` (`on_doctor_approved`, `on_doctor_updated`, `on_doctor_suspended`)
   - Deterministic seed script (`backend/scripts/seed.py`) with 3 specialties, 10 Bangladesh demo doctors, and 3 test accounts
   - 31/31 automated tests passing across RBAC, public search filters, admin approvals, and RLS
-- [ ] **Phase 3: Safety Guardrails & AI Symptom Assistant**
-  - Rule-based deterministic emergency triage & tests
-  - LangGraph conversational agent (OpenRouter LLM)
-  - PII sanitization & safety guardrail tests
+- [x] **Phase 3: Safety Guardrails & AI Symptom Assistant**
+  - Externalized rule-based emergency detection in `backend/app/ai/data/emergency_patterns.json` covering 6 clinical categories in English, Bengali script, and transliterated Banglish
+  - Deterministic safety triage node short-circuiting the graph immediately on emergency detection, returning a 999 escalation alert with zero doctor recommendations
+  - Output guard sanitizing any unauthorized diagnosis claims or drug prescription phrasing from LLM responses
+  - PII redaction layer (`privacy.py`) masking patient names, phone numbers (BD + international), and emails before submitting prompts to external LLMs
+  - LangGraph conversational workflow (`graph.py`) with typed state, single-question follow-ups bounded at max 3 rounds, and verified DB specialty mapping with General Medicine fallback
+  - PostgreSQL-backed checkpointer (`MemorySaver` / `PostgresSaver`) maintaining conversational state across dialogue turns
+  - Patient chat API (`POST /chat/conversations`, `POST /chat/conversations/{id}/messages`, `GET /chat/conversations/{id}`) enforcing strict patient ownership and mandatory medical disclaimer
+  - Interactive terminal CLI (`backend/scripts/chat_cli.py`) for live triage testing
+  - 101/101 automated tests passing across the repository (including 32 emergency test cases, 21 non-emergency test cases, output guard tests, workflow scripted tests, and patient isolation tests)
 - [ ] **Phase 4: Hybrid Search & Appointment Booking Engine**
   - Pinecone semantic search + Supabase filters
   - Live doctor slot management & concurrency protection
@@ -142,5 +151,10 @@ flutter run
 - **2026-10-28**: Designed public doctor search (`/doctors/search` and `/doctors/{id}`) to be anonymous-safe (accessible without authentication) to minimize patient onboarding friction, strictly filtering for `verification_status = 'approved'` and never exposing credential paths or personal phone numbers.
 - **2026-10-28**: Any material modification to a doctor profile by a doctor automatically resets status to `pending`, logs a `DOCTOR_MATERIAL_PROFILE_UPDATE` audit event, and fires `on_doctor_updated`.
 - **2026-10-28**: Added doctor lifecycle event hooks in `app/services/doctor_events.py` for future Pinecone vector index synchronization.
+- **2026-10-29**: Rule-based emergency detection patterns are externalized in JSON (`backend/app/ai/data/emergency_patterns.json`) rather than hardcoded in Python, enabling clinicians and administrators to review and update triage regexes without code changes.
+- **2026-10-29**: Emergency detection completely bypasses LLM invocation; emergency turns immediately output a deterministic non-LLM message advising 999/hospital contact with zero doctor recommendations.
+- **2026-10-29**: Output guard checks LLM replies against diagnostic phrasing ("you have pneumonia", "diagnosis:") and prescriptive dosing ("take 500mg amoxicillin") and substitutes safe non-diagnostic advisory text.
+- **2026-10-29**: LangGraph `check_missing` logic is implemented in pure Python (deterministic), not LLM, asking at most 3 clarifying follow-up questions before falling back to General Medicine and default city Dhaka.
+- **2026-10-29**: Privacy redaction runs prior to any LLM prompt serialization, substituting detected names, Bangladeshi/international phone numbers, and emails with redaction tokens.
 
 
