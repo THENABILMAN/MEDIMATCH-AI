@@ -1,0 +1,137 @@
+{
+  "emergency_number": "999",
+  "categories": [
+    {
+      "name": "cardiovascular_respiratory",
+      "description": "Chest pain, acute coronary syndromes, severe dyspnea, and respiratory distress",
+      "patterns": [
+        "chest\\s+pain",
+        "crushing\\s+chest",
+        "pressure\\s+on\\s+(my\\s+)?chest",
+        "tightness\\s+in\\s+(my\\s+)?chest",
+        "pain\\s+radiating\\s+to\\s+(left\\s+arm|jaw|neck)",
+        "difficulty\\s+breathing",
+        "shortness\\s+of\\s+breath",
+        "cannot\\s+breathe",
+        "can't\\s+breathe",
+        "gasping\\s+for\\s+(air|breath)",
+        "suffocating",
+        "বুক\\s*ব্যথা",
+        "বুকে\\s*(প্রচণ্ড\\s*)?ব্যথা",
+        "বুকে\\s*চাপ",
+        "শ্বাসকষ্ট",
+        "শ্বাস\\s*নিতে\\s*(কষ্ট|পারছি\\s*না)",
+        "দম\\s*বন্ধ",
+        "buke?\\s*be?tha",
+        "buke?\\s*chap",
+        "shash\\s*kosto",
+        "shash\\s*nite\\s*parsi\\s*na",
+        "dom\\s*bondho"
+      ]
+    },
+    {
+      "name": "neurological_stroke",
+      "description": "Stroke signs, paralysis, loss of consciousness, seizure, and acute neurological deficits",
+      "patterns": [
+        "face\\s+(is\\s+)?droop(ing)?",
+        "slurred\\s+speech",
+        "speech\\s+(is\\s+)?slurred",
+        "sudden\\s+weakness",
+        "sudden\\s+numbness",
+        "paralysis",
+        "paralyzed",
+        "cannot\\s+move\\s+(my\\s+)?(arm|leg|face|side)",
+        "loss\\s+of\\s+consciousness",
+        "passed\\s+out",
+        "fainted",
+        "unconscious",
+        "not\\s+waking\\s+up",
+        "seizure",
+        "having\\s+a\\s+fit",
+        "convulsion",
+        "মুখ\\s*বেঁকে",
+        "কথা\\s*জড়িয়ে",
+        "অজ্ঞান",
+        "জ্ঞান\\s*হারিয়েছে",
+        "খিঁচুনি",
+        "হঠাৎ\\s*প্যারালাইসিস",
+        "mukh\\s*be?ke?\\s*ge?se?",
+        "kotha\\s*joriye?\\s*ge?se?",
+        "ogyan",
+        "khichuni",
+        "behosh"
+      ]
+    },
+    {
+      "name": "hemorrhage_trauma",
+      "description": "Severe uncontrolled bleeding, major trauma, vomiting or coughing blood",
+      "patterns": [
+        "severe\\s+bleeding",
+        "heavy\\s+bleeding",
+        "uncontrolled\\s+bleeding",
+        "bleeding\\s+(profusely|heavily|won't\\s+stop)",
+        "coughing\\s+(up\\s+)?blood",
+        "vomiting\\s+blood",
+        "blood\\s+in\\s+vomit",
+        "stab\\s+wound",
+        "gunshot",
+        "skull\\s+fracture",
+        "প্রচণ্ড\\s*রক্তপাত",
+        "রক্ত\\s*থামছে\\s*না",
+        "রক্ত\\s*বমি",
+        "কাশি(র)?\\s*সাথে\\s*রক্ত",
+        "prochur\\s*rokto(khoron)?",
+        "rokto\\s*thamsena",
+        "rokto\\s*bomi"
+      ]
+    },
+    {
+      "name": "psychiatric_self_harm",
+      "description": "Suicidal ideation, intent, self-harm, or severe crisis",
+      "patterns": [
+        "suicid(e|al)",
+        "kill\\s+myself",
+        "want\\s+to\\s+die",
+        "end(ing)?\\s+my\\s+life",
+        "self\\s*harm",
+        "cutting\\s+my(self|\\s+wrist)",
+        "hanging\\s+myself",
+        "আত্মহত্যা",
+        "মরতে\\s*চাই",
+        "জীবন\\s*শেষ\\s*করতে\\s*চাই",
+        "attohotta",
+        "morte\\s*chai"
+      ]
+    },
+    {
+      "name": "anaphylaxis_poisoning",
+      "description": "Severe allergic reactions, airway swelling, poisoning, or overdose",
+      "patterns": [
+        "anaphylax(is|ic)",
+        "throat\\s+closing",
+        "throat\\s+swelling",
+        "swollen\\s+(lips|tongue|throat)",
+        "poisoning",
+        "drank\\s+poison",
+        "overdose",
+        "took\\s+too\\s+many\\s+pills",
+        "বিষ খেয়েছে",
+        "গলা\\s*ফুলে\\s*(গেছে|বন্ধ)",
+        "অতিরিক্ত\\s*ওষুধ",
+        "bish\\s*kheye?se?",
+        "gola\\s*fule?\\s*ge?se?"
+      ]
+    },
+    {
+      "name": "obstetric_emergency",
+      "description": "Severe complications during pregnancy or childbirth",
+      "patterns": [
+        "pregnant\\s+(and\\s+)?bleeding",
+        "severe\\s+pregnancy\\s+pain",
+        "amniotic\\s+fluid\\s+burst\\s+with\\s+blood",
+        "গর্ভবতী.*রক্তপাত",
+        "gorvoboti\\s*rokto"
+      ]
+    }
+  ]
+}
