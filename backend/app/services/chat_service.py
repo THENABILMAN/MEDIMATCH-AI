@@ -55,6 +55,22 @@ def create_conversation(patient_id: str, title: Optional[str] = None) -> Dict[st
     }
 
 
+def list_patient_conversations(patient_id: str) -> List[Dict[str, Any]]:
+    """Lists all consultation conversations for the patient, ordered latest first."""
+    client = get_supabase_admin_client() or get_supabase_client()
+    if not client:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database service unavailable")
+
+    res = (
+        client.table("conversations")
+        .select("*")
+        .eq("patient_id", patient_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return res.data or []
+
+
 def get_conversation_history(conversation_id: str, patient_id: str, is_admin: bool = False) -> Dict[str, Any]:
     """Retrieves conversation details and complete message history with ownership enforcement."""
     client = get_supabase_admin_client() or get_supabase_client()

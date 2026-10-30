@@ -23,7 +23,7 @@ export const DoctorSearchPage: React.FC = () => {
 
   useEffect(() => {
     // Load specialties for filter dropdown
-    api.admin.listSpecialties().then(setSpecialties).catch(() => {})
+    api.specialties.list().then(setSpecialties).catch(() => {})
   }, [])
 
   useEffect(() => {

@@ -119,8 +119,21 @@ export const api = {
     }> {
       return request(`/chat/conversations/${conversationId}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ content: message, message }),
       })
+    },
+  },
+
+  // ---------------------------------------------------------------------------
+  // Specialties (Public)
+  // ---------------------------------------------------------------------------
+  specialties: {
+    async list(): Promise<Specialty[]> {
+      try {
+        return await request<Specialty[]>('/specialties')
+      } catch {
+        return await request<Specialty[]>('/doctors/specialties')
+      }
     },
   },
 

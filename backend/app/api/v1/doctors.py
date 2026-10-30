@@ -11,7 +11,8 @@ from app.schemas.doctor import (
     DoctorSearchResult,
     PublicDoctorRead,
 )
-from app.schemas.profile import DoctorProfileRead, UserMeResponse
+from app.schemas.profile import DoctorProfileRead, SpecialtyRead, UserMeResponse
+from app.services.admin_service import list_specialties
 from app.services.appointment_service import (
     create_availability_slot,
     delete_availability_slot,
@@ -138,6 +139,12 @@ def delete_my_slot(
 # ------------------------------------------------------------------------------
 # Public Patient-Facing Directory & Search (Anonymous-Safe)
 # ------------------------------------------------------------------------------
+
+@router.get("/specialties", response_model=List[SpecialtyRead], summary="List all medical specialties")
+def get_public_specialties() -> List[SpecialtyRead]:
+    """Public listing of all available medical specialties."""
+    return list_specialties()
+
 
 @router.get("/search", response_model=DoctorSearchResult, summary="Search verified approved doctors")
 def search_doctors(

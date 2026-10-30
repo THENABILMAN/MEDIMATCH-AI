@@ -20,6 +20,7 @@ from app.api.v1 import (
 )
 from app.api.v1.api import api_router
 from app.core.config import settings
+from app.services.admin_service import list_specialties
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -51,6 +52,11 @@ app.include_router(appointments.router)
 app.include_router(admin.router)
 app.include_router(chat.router)
 app.include_router(recommendations.router)
+
+
+@app.get("/specialties", summary="Public specialties listing")
+def root_specialties():
+    return list_specialties()
 
 
 @app.get("/", summary="Root index")

@@ -46,7 +46,7 @@ export const DoctorProfilePage: React.FC = () => {
     try {
       const [profData, specData] = await Promise.all([
         api.doctors.getMyProfile(),
-        api.admin.listSpecialties(),
+        api.specialties.list(),
       ])
       setProfile(profData)
       setSpecialties(specData)
