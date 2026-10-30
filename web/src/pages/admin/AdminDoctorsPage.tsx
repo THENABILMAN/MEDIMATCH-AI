@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react'
 import {
   Check,
   FileText,
-  MapPin,
   Pause,
   Shield,
   X,
