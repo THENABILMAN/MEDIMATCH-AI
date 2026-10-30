@@ -312,3 +312,4 @@ def get_symptom_graph() -> Any:
     if _COMPILED_GRAPH is None:
         _COMPILED_GRAPH = build_symptom_graph()
     return _COMPILED_GRAPH
+

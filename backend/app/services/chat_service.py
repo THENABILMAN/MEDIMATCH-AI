@@ -159,14 +159,37 @@ def send_patient_message(
     current_step = result_state.get("current_step", "extract_symptoms")
     search_criteria = result_state.get("search_criteria")
 
-    # 5. Persist assistant reply
+    # 5. If search criteria formed, call hybrid recommender
+    recommendations_list: List[Dict[str, Any]] = []
+    if search_criteria:
+        from app.search.recommend import recommend_doctors
+
+        try:
+            rec_res = recommend_doctors(search_criteria, top_k=5)
+            recommendations_list = [r.model_dump() for r in rec_res.recommendations]
+
+            if recommendations_list:
+                doc_lines = ["\n\n### 🩺 Recommended Specialists:"]
+                for i, doc in enumerate(recommendations_list[:3], 1):
+                    specs_str = ", ".join([s["name"] for s in doc.get("specialties", [])])
+                    doc_lines.append(
+                        f"**{i}. {doc['full_name']}** — {specs_str} ({doc['city']})\n"
+                        f"   • Clinical Experience: {doc['years_experience']} years | Consultation Fee: {int(doc['consultation_fee'])} BDT\n"
+                        f"   • Match Score: {doc['match_score']}% | Upcoming Slots: {doc['available_slots_count']}\n"
+                        f"   • _{doc['match_explanation']}_"
+                    )
+                assistant_reply += "\n" + "\n".join(doc_lines)
+        except Exception as e:
+            logger.warning(f"Could not generate recommendations during chat: {e}")
+
+    # 6. Persist assistant reply
     client.table("messages").insert({
         "conversation_id": conversation_id,
         "sender": "assistant",
         "content": assistant_reply,
     }).execute()
 
-    # 6. If search criteria formed or emergency flagged, record in patient_symptom_sessions
+    # 7. If search criteria formed or emergency flagged, record in patient_symptom_sessions
     is_emergency = result_state.get("safety_status") == "emergency"
     if search_criteria or is_emergency:
         client.table("patient_symptom_sessions").insert({
@@ -181,4 +204,6 @@ def send_patient_message(
         "assistant_reply": assistant_reply,
         "current_step": current_step,
         "search_criteria": search_criteria,
+        "recommendations": recommendations_list,
     }
+

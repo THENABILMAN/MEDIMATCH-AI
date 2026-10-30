@@ -46,3 +46,4 @@ class ConversationState(TypedDict, total=False):
     search_criteria: Optional[Dict[str, Any]]
     current_step: str
     assistant_reply: Optional[str]
+

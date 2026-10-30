@@ -144,3 +144,4 @@ def set_llm_client(client: LLMClient) -> None:
     """Overrides the LLM client (used in testing for deterministic mocks)."""
     global _DEFAULT_LLM_CLIENT
     _DEFAULT_LLM_CLIENT = client
+

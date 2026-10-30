@@ -12,6 +12,10 @@ import sys
 import uuid
 from pathlib import Path
 
+# Ensure UTF-8 output on Windows
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 # Ensure backend root is on sys.path
 backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
@@ -101,3 +105,4 @@ def run_cli():
 
 if __name__ == "__main__":
     run_cli()
+

@@ -25,6 +25,7 @@ class SendMessageResponse(BaseModel):
     assistant_reply: str
     current_step: str
     search_criteria: Optional[Dict[str, Any]] = None
+    recommendations: Optional[List[Dict[str, Any]]] = None
 
 
 @router.post(
@@ -62,6 +63,7 @@ def api_send_message(
         assistant_reply=result["assistant_reply"],
         current_step=result["current_step"],
         search_criteria=result.get("search_criteria"),
+        recommendations=result.get("recommendations"),
     )
 
 
@@ -80,3 +82,4 @@ def api_get_conversation(
         patient_id=current_user.id,
         is_admin=is_admin,
     )
+

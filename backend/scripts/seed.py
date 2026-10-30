@@ -382,8 +382,44 @@ def run_seed():
                 (doc["doc_id"], doc["specialty_id"]),
             )
 
+        # 4. Seed Upcoming Availability Slots for Approved Doctors
+        print("[INFO] Seeding upcoming availability slots for approved doctors...")
+        approved_doc_ids = ["d0000000-0000-0000-0000-000000000000"] + [
+            d["doc_id"] for d in DEMO_DOCTORS if d["verification_status"] == VerificationStatus.APPROVED.value
+        ]
+
+        from datetime import datetime, timedelta, timezone
+        now_dt = datetime.now(timezone.utc)
+
+        total_slots_seeded = 0
+        for doc_id in approved_doc_ids:
+            # Clear old unbooked slots for clean idempotency
+            cur.execute("DELETE FROM public.availability_slots WHERE doctor_id = %s AND is_booked = false;", (doc_id,))
+
+            # Generate slots across the next 10 days
+            for day_offset in range(1, 11):
+                day_base = now_dt + timedelta(days=day_offset)
+                # Morning slot: 10:00 - 10:30 AM UTC
+                m_start = day_base.replace(hour=10, minute=0, second=0, microsecond=0)
+                m_end = day_base.replace(hour=10, minute=30, second=0, microsecond=0)
+                # Afternoon slot: 15:00 - 15:30 PM UTC
+                a_start = day_base.replace(hour=15, minute=0, second=0, microsecond=0)
+                a_end = day_base.replace(hour=15, minute=30, second=0, microsecond=0)
+
+                for s_start, s_end in [(m_start, m_end), (a_start, a_end)]:
+                    cur.execute(
+                        """
+                        INSERT INTO public.availability_slots (id, doctor_id, start_time, end_time, is_booked)
+                        VALUES (%s, %s, %s, %s, false);
+                        """,
+                        (str(uuid.uuid4()), doc_id, s_start, s_end),
+                    )
+                    total_slots_seeded += 1
+
+        print(f"[SUCCESS] Seeded {total_slots_seeded} future availability slots for {len(approved_doc_ids)} approved doctors.")
+
         conn.commit()
-        print("[SUCCESS] All 10 demo doctors seeded successfully!")
+        print("[SUCCESS] All demo doctors and schedules seeded successfully!")
         print("  - 6 Approved (searchable by patients)")
         print("  - 2 Pending (awaiting verification)")
         print("  - 1 Suspended (hidden from search)")

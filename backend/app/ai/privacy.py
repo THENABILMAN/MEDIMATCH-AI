@@ -48,3 +48,4 @@ def redact_pii(text: str) -> str:
         redacted = pattern.sub(replace_name, redacted)
 
     return redacted
+

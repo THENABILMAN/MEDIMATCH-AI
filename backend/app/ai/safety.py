@@ -120,3 +120,4 @@ def output_guard(text: str) -> str:
             )
 
     return text
+
