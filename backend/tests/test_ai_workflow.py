@@ -9,17 +9,23 @@ Verifies:
 """
 
 from typing import Any, Dict, List, Optional, Type
+
 import pytest
+from langgraph.checkpoint.memory import MemorySaver
+
 from app.ai.graph import build_symptom_graph
 from app.ai.llm import LLMClient, set_llm_client
-from app.ai.state import ExtractedSymptoms
-from langgraph.checkpoint.memory import MemorySaver
+from app.ai.state import ConversationIntent, ExtractedSymptoms
 
 
 class MockLLMClient(LLMClient):
     """Deterministic Mock LLM client for testing the workflow."""
 
-    def __init__(self, extraction_response: Optional[ExtractedSymptoms] = None):
+    def __init__(
+        self,
+        extraction_response: Optional[ExtractedSymptoms] = None,
+        intent_response: Optional[ConversationIntent] = None,
+    ):
         super().__init__(api_key="mock", model="mock")
         self.extraction_response = extraction_response or ExtractedSymptoms(
             symptoms=["headache"],
@@ -27,6 +33,7 @@ class MockLLMClient(LLMClient):
             location="Dhaka",
             candidate_specialty_names=["Neurology"],
         )
+        self.intent_response = intent_response or ConversationIntent(intent="symptom_update")
 
     def generate_structured(
         self,
@@ -34,6 +41,8 @@ class MockLLMClient(LLMClient):
         response_model: Type[Any],
         system_prompt: Optional[str] = None,
     ) -> Any:
+        if response_model is ConversationIntent:
+            return self.intent_response
         return self.extraction_response
 
 
@@ -223,3 +232,87 @@ def test_specialty_mapping_fallback_to_general_medicine():
     assert "General Medicine" in criteria["candidate_specialties"]
     assert criteria["city"] == "Sylhet"
 
+
+def test_general_conversation_is_not_sent_to_symptom_extraction():
+    set_llm_client(
+        MockLLMClient(
+            intent_response=ConversationIntent(
+                intent="general_conversation",
+                assistant_reply="I am MediMatch Assistant. I help you find qualified specialists and book appointments.",
+            )
+        )
+    )
+
+    graph = build_symptom_graph(checkpointer=MemorySaver())
+    result = graph.invoke(
+        {
+            "conversation_id": "test_conv_identity",
+            "patient_id": "test_patient_identity",
+            "messages": [{"role": "user", "content": "Who are you?"}],
+        },
+        config={"configurable": {"thread_id": "test_conv_identity"}},
+    )
+
+    assert result["current_step"] == "classify_intent"
+    assert result["search_criteria"] is None
+    assert "MediMatch" in result["assistant_reply"]
+
+
+def test_general_conversation_after_symptoms_does_not_repeat_recommendations():
+    class SequentialMockLLMClient(MockLLMClient):
+        def __init__(self):
+            super().__init__(
+                extraction_response=ExtractedSymptoms(
+                    symptoms=["headache"],
+                    duration="2 hours",
+                    location="Dhaka",
+                    candidate_specialty_names=["Neurology"],
+                )
+            )
+            self.intent_calls = 0
+
+        def generate_structured(
+            self,
+            messages: List[Dict[str, str]],
+            response_model: Type[Any],
+            system_prompt: Optional[str] = None,
+        ) -> Any:
+            if response_model is ConversationIntent:
+                self.intent_calls += 1
+                if self.intent_calls == 1:
+                    return ConversationIntent(intent="symptom_update")
+                return ConversationIntent(
+                    intent="general_conversation",
+                    assistant_reply="I am MediMatch Assistant. I help you find qualified specialists.",
+                )
+            return self.extraction_response
+
+    set_llm_client(SequentialMockLLMClient())
+    graph = build_symptom_graph(checkpointer=MemorySaver())
+    config = {"configurable": {"thread_id": "test_conv_contextual_identity"}}
+
+    first = graph.invoke(
+        {
+            "conversation_id": "test_conv_contextual_identity",
+            "patient_id": "test_patient_identity",
+            "messages": [{"role": "user", "content": "I have a headache."}],
+        },
+        config=config,
+    )
+    second = graph.invoke(
+        {
+            "conversation_id": "test_conv_contextual_identity",
+            "patient_id": "test_patient_identity",
+            "messages": [
+                {"role": "user", "content": "I have a headache."},
+                {"role": "assistant", "content": first["assistant_reply"]},
+                {"role": "user", "content": "Who are you?"},
+            ],
+        },
+        config=config,
+    )
+
+    assert first["current_step"] == "completed"
+    assert second["current_step"] == "classify_intent"
+    assert second["search_criteria"] is None
+    assert "MediMatch" in second["assistant_reply"]

@@ -1,6 +1,8 @@
 from typing import Any, Dict, List, Optional
+
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field, model_validator
+
 from app.api.deps import require_patient
 from app.schemas.profile import UserMeResponse
 from app.services.chat_service import (
@@ -34,6 +36,8 @@ class SendMessageResponse(BaseModel):
     conversation_id: str
     assistant_reply: str
     current_step: str
+    safety_status: str
+    is_emergency: bool
     search_criteria: Optional[Dict[str, Any]] = None
     recommendations: Optional[List[Dict[str, Any]]] = None
 
@@ -84,6 +88,8 @@ def api_send_message(
         conversation_id=result["conversation_id"],
         assistant_reply=result["assistant_reply"],
         current_step=result["current_step"],
+        safety_status=result.get("safety_status", "safe"),
+        is_emergency=result.get("safety_status") == "emergency",
         search_criteria=result.get("search_criteria"),
         recommendations=result.get("recommendations"),
     )
@@ -104,4 +110,3 @@ def api_get_conversation(
         patient_id=current_user.id,
         is_admin=is_admin,
     )
-

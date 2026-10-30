@@ -8,15 +8,17 @@ Verifies:
 5. Direct /recommendations and chat integration return properly ranked recommendations.
 """
 
-from unittest.mock import MagicMock
 import uuid
+from unittest.mock import MagicMock
+
 import pytest
+from conftest import create_mock_jwt
 from fastapi import status
 from fastapi.testclient import TestClient
-from conftest import create_mock_jwt
+
 from app.ai.llm import LLMClient, set_llm_client
-from app.ai.state import ExtractedSymptoms
-from app.models.enums import UserRole, VerificationStatus
+from app.ai.state import ConversationIntent, ExtractedSymptoms
+from app.models.enums import UserRole
 from app.search.embeddings import FakeEmbeddingProvider, set_embedding_provider
 from app.search.recommend import recommend_doctors
 from app.search.sync import set_pinecone_index_client
@@ -195,6 +197,8 @@ def test_chat_completion_populates_recommendations(client: TestClient):
     # 2. Configure deterministic mock LLM
     class MockNeuroLLM(LLMClient):
         def generate_structured(self, messages, response_model, system_prompt=None):
+            if response_model is ConversationIntent:
+                return ConversationIntent(intent="symptom_update")
             return ExtractedSymptoms(
                 symptoms=["severe migraine", "throbbing head pain"],
                 duration="3 days",

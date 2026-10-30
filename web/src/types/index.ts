@@ -103,6 +103,7 @@ export interface Conversation {
   title: string
   created_at: string
   updated_at: string
+  initial_message?: string
 }
 
 export interface AuditLog {
@@ -114,4 +115,3 @@ export interface AuditLog {
   metadata: Record<string, any>
   created_at: string
 }
-

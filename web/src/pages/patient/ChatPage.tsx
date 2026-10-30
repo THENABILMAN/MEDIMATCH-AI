@@ -73,14 +73,12 @@ export const ChatPage: React.FC = () => {
       const newConv = await api.chat.createConversation('New Symptom Consultation')
       setConversations((prev) => [newConv, ...prev])
       setActiveConversationId(newConv.id)
-      // Welcome message from assistant
       setMessages([
         {
           id: 'welcome',
           conversation_id: newConv.id,
           sender: 'assistant',
-          content:
-            "Hello! I am your MediMatch Assistant. Please describe what symptoms you are experiencing, how long you've had them, and your preferred city in Bangladesh.",
+          content: newConv.initial_message ?? '',
           created_at: new Date().toISOString(),
         },
       ])

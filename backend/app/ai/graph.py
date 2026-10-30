@@ -6,13 +6,14 @@ structured doctor-search criteria without diagnosing or prescribing.
 
 import logging
 from typing import Any, Dict, List, Optional
+
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
+
 from app.ai.llm import get_llm_client
 from app.ai.privacy import redact_pii
 from app.ai.safety import check_emergency, get_emergency_response, output_guard
-from app.ai.state import ConversationState, ExtractedSymptoms, SearchCriteria
-from app.core.config import settings
+from app.ai.state import ConversationIntent, ConversationState, ExtractedSymptoms, SearchCriteria
 from app.core.supabase import get_supabase_admin_client, get_supabase_client
 
 logger = logging.getLogger("medimatch.ai.graph")
@@ -67,8 +68,59 @@ def should_escalate_emergency(state: ConversationState) -> str:
     return "continue"
 
 
+def classify_intent_node(state: ConversationState) -> Dict[str, Any]:
+    """Classifies the latest message without using phrase matching."""
+    messages = state.get("messages", [])
+    sanitized_messages = [
+        {"role": m.get("role", "user"), "content": redact_pii(m.get("content", ""))}
+        for m in messages
+    ]
+    system_prompt = (
+        "You route messages for MediMatch AI, a doctor-matching assistant.\n"
+        "Review the full conversation and classify the latest patient message.\n"
+        "Use 'symptom_update' when the message describes symptoms, duration, severity, "
+        "location, budget, or another detail that helps find a doctor, including short "
+        "answers to a previous medical follow-up question.\n"
+        "Use 'general_conversation' for greetings, identity questions, capability questions, "
+        "thanks, acknowledgements, or unrelated conversation.\n"
+        "For general_conversation, write a concise helpful reply explaining what MediMatch "
+        "can do without diagnosing, prescribing, or reassuring that symptoms are harmless. "
+        "For symptom_update, assistant_reply must be null.\n"
+        "Never diagnose, prescribe medication, or provide treatment plans."
+    )
+
+    llm = get_llm_client()
+    try:
+        intent: ConversationIntent = llm.generate_structured(
+            messages=sanitized_messages,
+            response_model=ConversationIntent,
+            system_prompt=system_prompt,
+        )
+    except Exception as exc:
+        logger.error("Intent classification failed; continuing with symptom extraction: %s", exc)
+        intent = ConversationIntent(intent="symptom_update")
+
+    return {
+        "intent": intent.intent,
+        "assistant_reply": (
+            output_guard(intent.assistant_reply.strip())
+            if intent.intent == "general_conversation" and intent.assistant_reply
+            else None
+        ),
+        "search_criteria": None if intent.intent == "general_conversation" else state.get("search_criteria"),
+        "current_step": "classify_intent",
+    }
+
+
+def route_after_intent(state: ConversationState) -> str:
+    """Routes general conversation away from medical extraction."""
+    if state.get("intent") == "general_conversation":
+        return "general_conversation"
+    return "symptom_update"
+
+
 # ------------------------------------------------------------------------------
-# Node 2: Extract Symptoms (PII-redacted structured extraction)
+# Node 3: Extract Symptoms (PII-redacted structured extraction)
 # ------------------------------------------------------------------------------
 
 def extract_symptoms_node(state: ConversationState) -> Dict[str, Any]:
@@ -126,7 +178,7 @@ def extract_symptoms_node(state: ConversationState) -> Dict[str, Any]:
 
 
 # ------------------------------------------------------------------------------
-# Node 3: Check Missing Fields (Deterministic Python code, NOT LLM)
+# Node 4: Check Missing Fields (Deterministic Python code, NOT LLM)
 # ------------------------------------------------------------------------------
 
 def check_missing_node(state: ConversationState) -> Dict[str, Any]:
@@ -161,7 +213,7 @@ def route_after_check_missing(state: ConversationState) -> str:
 
 
 # ------------------------------------------------------------------------------
-# Node 4: Ask Follow-up (Single question, max 3 rounds, output guarded)
+# Node 5: Ask Follow-up (Single question, max 3 rounds, output guarded)
 # ------------------------------------------------------------------------------
 
 def ask_followup_node(state: ConversationState) -> Dict[str, Any]:
@@ -193,7 +245,7 @@ def ask_followup_node(state: ConversationState) -> Dict[str, Any]:
 
 
 # ------------------------------------------------------------------------------
-# Node 5: Build Search Criteria (Mapped ONLY to verified DB specialties)
+# Node 6: Build Search Criteria (Mapped ONLY to verified DB specialties)
 # ------------------------------------------------------------------------------
 
 def build_search_criteria_node(state: ConversationState) -> Dict[str, Any]:
@@ -260,6 +312,7 @@ def build_symptom_graph(checkpointer: Optional[Any] = None) -> Any:
 
     # Register nodes
     workflow.add_node("safety_check", safety_check_node)
+    workflow.add_node("classify_intent", classify_intent_node)
     workflow.add_node("extract_symptoms", extract_symptoms_node)
     workflow.add_node("check_missing", check_missing_node)
     workflow.add_node("ask_followup", ask_followup_node)
@@ -274,7 +327,16 @@ def build_symptom_graph(checkpointer: Optional[Any] = None) -> Any:
         should_escalate_emergency,
         {
             "escalate": END,
-            "continue": "extract_symptoms",
+            "continue": "classify_intent",
+        },
+    )
+
+    workflow.add_conditional_edges(
+        "classify_intent",
+        route_after_intent,
+        {
+            "general_conversation": END,
+            "symptom_update": "extract_symptoms",
         },
     )
 
@@ -312,4 +374,3 @@ def get_symptom_graph() -> Any:
     if _COMPILED_GRAPH is None:
         _COMPILED_GRAPH = build_symptom_graph()
     return _COMPILED_GRAPH
-

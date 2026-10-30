@@ -6,7 +6,9 @@ persists message history, and coordinates LangGraph workflow execution.
 
 import logging
 from typing import Any, Dict, List, Optional
+
 from fastapi import HTTPException, status
+
 from app.ai.graph import get_symptom_graph
 from app.core.supabase import get_supabase_admin_client, get_supabase_client
 
@@ -219,7 +221,8 @@ def send_patient_message(
         "conversation_id": conversation_id,
         "assistant_reply": assistant_reply,
         "current_step": current_step,
+        "safety_status": result_state.get("safety_status", "safe"),
+        "is_emergency": is_emergency,
         "search_criteria": search_criteria,
         "recommendations": recommendations_list,
     }
-

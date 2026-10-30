@@ -1,6 +1,7 @@
 """Typed State and Extraction Schemas for LangGraph Workflow."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
+
 from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import TypedDict
 
@@ -19,6 +20,18 @@ class ExtractedSymptoms(BaseModel):
     )
 
     model_config = ConfigDict(extra="ignore")
+
+
+class ConversationIntent(BaseModel):
+    """LLM-routed intent for the latest patient message."""
+
+    intent: Literal["symptom_update", "general_conversation"] = Field(
+        description="Whether the latest message adds clinical/search information or is conversational."
+    )
+    assistant_reply: Optional[str] = Field(
+        default=None,
+        description="A safe, helpful reply for general conversation; null for symptom updates.",
+    )
 
 
 class SearchCriteria(BaseModel):
@@ -46,4 +59,4 @@ class ConversationState(TypedDict, total=False):
     search_criteria: Optional[Dict[str, Any]]
     current_step: str
     assistant_reply: Optional[str]
-
+    intent: Literal["symptom_update", "general_conversation"]

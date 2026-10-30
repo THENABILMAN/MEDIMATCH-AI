@@ -10,13 +10,15 @@ Verifies:
 """
 
 import uuid
+
+import psycopg2
 import pytest
+from conftest import create_mock_jwt
 from fastapi import status
 from fastapi.testclient import TestClient
-import psycopg2
-from conftest import create_mock_jwt
+
 from app.ai.llm import LLMClient, set_llm_client
-from app.ai.state import ExtractedSymptoms
+from app.ai.state import ConversationIntent, ExtractedSymptoms
 from app.core.config import settings
 from app.models.enums import UserRole
 
@@ -29,6 +31,8 @@ class MockChatLLMClient(LLMClient):
         self.extraction = extraction
 
     def generate_structured(self, messages, response_model, system_prompt=None):
+        if response_model is ConversationIntent:
+            return ConversationIntent(intent="symptom_update")
         return self.extraction
 
 
@@ -185,6 +189,53 @@ def test_send_patient_message_processes_workflow(client: TestClient, chat_patien
     assert "Neurology" in data["search_criteria"]["candidate_specialties"]
     assert data["search_criteria"]["city"] == "Dhaka"
     assert "Neurology" in data["assistant_reply"]
+
+
+def test_general_conversation_does_not_generate_recommendations(
+    client: TestClient, chat_patients: dict
+):
+    """General conversation is answered without re-running medical matching."""
+    patient = chat_patients["patient_a"]
+    create_res = client.post(
+        "/chat/conversations",
+        headers=patient["headers"],
+        json={"title": "General Conversation"},
+    )
+    assert create_res.status_code == status.HTTP_201_CREATED
+    conv_id = create_res.json()["id"]
+
+    class GeneralConversationLLM(MockChatLLMClient):
+        def generate_structured(self, messages, response_model, system_prompt=None):
+            if response_model is ConversationIntent:
+                return ConversationIntent(
+                    intent="general_conversation",
+                    assistant_reply="I am MediMatch Assistant and I help you find qualified specialists.",
+                )
+            return self.extraction
+
+    set_llm_client(
+        GeneralConversationLLM(
+            ExtractedSymptoms(
+                symptoms=["headache"],
+                duration="2 hours",
+                location="Dhaka",
+                candidate_specialty_names=["Neurology"],
+            )
+        )
+    )
+
+    response = client.post(
+        f"/chat/conversations/{conv_id}/messages",
+        headers=patient["headers"],
+        json={"content": "Who are you?"},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["current_step"] == "classify_intent"
+    assert data["search_criteria"] is None
+    assert data["recommendations"] == []
+    assert "MediMatch Assistant" in data["assistant_reply"]
 
 
 def test_emergency_message_triggers_immediate_alert(client: TestClient, chat_patients: dict):
