@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import List
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,7 +19,9 @@ class Settings(BaseSettings):
     # Supabase Configuration
     SUPABASE_URL: str = Field(default="", description="Supabase project URL")
     SUPABASE_ANON_KEY: str = Field(default="", description="Supabase public anon key")
-    SUPABASE_SERVICE_ROLE_KEY: str = Field(default="", description="Supabase service role secret key")
+    SUPABASE_SERVICE_ROLE_KEY: str = Field(
+        default="", description="Supabase service role secret key"
+    )
     DATABASE_URL: str = Field(default="", description="PostgreSQL connection string")
 
     # Pinecone Vector Search
@@ -28,22 +30,33 @@ class Settings(BaseSettings):
 
     # OpenRouter LLM
     OPENROUTER_API_KEY: str = Field(default="", description="OpenRouter API key")
-    OPENROUTER_MODEL: str = Field(default="anthropic/claude-3.5-sonnet", description="OpenRouter model identifier")
+    OPENROUTER_MODEL: str = Field(
+        default="anthropic/claude-3.5-sonnet", description="OpenRouter model identifier"
+    )
 
     # Embedding Settings
-    EMBEDDING_PROVIDER: str = Field(default="pinecone", description="Embedding provider (pinecone, fake, openai)")
+    EMBEDDING_PROVIDER: str = Field(
+        default="pinecone", description="Embedding provider (pinecone, fake, openai)"
+    )
     EMBEDDING_MODEL: str = Field(default="llama-text-embed-v2", description="Embedding model name")
     EMBEDDING_DIMENSION: int = Field(default=1024, description="Vector dimension matching index")
 
     # Recommendation Weights (Must sum to ~1.0)
     WEIGHT_VECTOR: float = Field(default=0.40, description="Weight for vector similarity score")
-    WEIGHT_SPECIALTY: float = Field(default=0.25, description="Weight for candidate specialty match")
+    WEIGHT_SPECIALTY: float = Field(
+        default=0.25, description="Weight for candidate specialty match"
+    )
     WEIGHT_EXPERIENCE: float = Field(default=0.15, description="Weight for clinical experience")
     WEIGHT_FEE: float = Field(default=0.10, description="Weight for budget/fee fit")
-    WEIGHT_AVAILABILITY: float = Field(default=0.10, description="Weight for upcoming appointment availability")
+    WEIGHT_AVAILABILITY: float = Field(
+        default=0.10, description="Weight for upcoming appointment availability"
+    )
 
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["*"]
+    BACKEND_CORS_ORIGINS: list[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
@@ -54,11 +67,19 @@ class Settings(BaseSettings):
             return v.replace(":[", ":").replace("]@", "@")
         return v
 
+    @field_validator("BACKEND_CORS_ORIGINS")
+    @classmethod
+    def reject_wildcard_cors_origin(cls, v: list[str]) -> list[str]:
+        if "*" in v:
+            raise ValueError(
+                "BACKEND_CORS_ORIGINS cannot contain '*' when credentialed requests are enabled"
+            )
+        return v
 
-@lru_cache()
+
+@lru_cache
 def get_settings() -> Settings:
     return Settings()
 
 
 settings = get_settings()
-
