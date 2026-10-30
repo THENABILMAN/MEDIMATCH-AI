@@ -1,6 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1 import admin, auth, chat, doctors, health, recommendations, users
+from app.api.v1 import (
+    admin,
+    appointments,
+    auth,
+    chat,
+    doctors,
+    health,
+    recommendations,
+    users,
+)
 from app.api.v1.api import api_router
 from app.core.config import settings
 
@@ -30,6 +39,7 @@ app.include_router(health.router)
 app.include_router(users.router)
 app.include_router(auth.router)
 app.include_router(doctors.router)
+app.include_router(appointments.router)
 app.include_router(admin.router)
 app.include_router(chat.router)
 app.include_router(recommendations.router)

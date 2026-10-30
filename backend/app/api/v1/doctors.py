@@ -1,9 +1,10 @@
 import uuid
-from typing import Optional
+from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from app.api.deps import get_current_user, require_doctor
 from app.core.supabase import get_supabase_admin_client
 from app.models.enums import UserRole
+from app.schemas.appointment import SlotCreate, SlotResponse
 from app.schemas.doctor import (
     DoctorCredentialRead,
     DoctorProfileCreateOrUpdate,
@@ -11,6 +12,12 @@ from app.schemas.doctor import (
     PublicDoctorRead,
 )
 from app.schemas.profile import DoctorProfileRead, UserMeResponse
+from app.services.appointment_service import (
+    create_availability_slot,
+    delete_availability_slot,
+    list_doctor_slots,
+    list_public_doctor_slots,
+)
 from app.services.doctor_service import (
     add_doctor_credential,
     get_doctor_profile_by_user_id,
@@ -91,6 +98,43 @@ async def upload_credential(
     )
 
 
+@router.post("/me/slots", response_model=SlotResponse, status_code=status.HTTP_201_CREATED, summary="Create an availability slot")
+def create_slot(
+    payload: SlotCreate,
+    current_user: UserMeResponse = Depends(require_doctor),
+) -> SlotResponse:
+    """Create an availability slot for the authenticated doctor."""
+    return create_availability_slot(
+        doctor_user_id=current_user.id,
+        start_time=payload.start_time,
+        end_time=payload.end_time,
+    )
+
+
+@router.get("/me/slots", response_model=List[SlotResponse], summary="List doctor's availability slots")
+def get_my_slots(
+    include_booked: bool = Query(default=True, description="Whether to include booked slots"),
+    current_user: UserMeResponse = Depends(require_doctor),
+) -> List[SlotResponse]:
+    """Retrieve all availability slots for the authenticated doctor."""
+    return list_doctor_slots(
+        doctor_user_id=current_user.id,
+        include_booked=include_booked,
+    )
+
+
+@router.delete("/me/slots/{slot_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete an availability slot")
+def delete_my_slot(
+    slot_id: str,
+    current_user: UserMeResponse = Depends(require_doctor),
+) -> None:
+    """Delete an unbooked availability slot belonging to the authenticated doctor."""
+    delete_availability_slot(
+        doctor_user_id=current_user.id,
+        slot_id=slot_id,
+    )
+
+
 # ------------------------------------------------------------------------------
 # Public Patient-Facing Directory & Search (Anonymous-Safe)
 # ------------------------------------------------------------------------------
@@ -127,4 +171,13 @@ def get_doctor_by_id(
 ) -> PublicDoctorRead:
     """Fetch public profile of an approved doctor. Returns 404 if not found or unapproved."""
     return get_public_doctor_by_id(doctor_id=id)
+
+
+@router.get("/{id}/slots", response_model=List[SlotResponse], summary="Get public upcoming available slots of an approved doctor")
+def get_doctor_slots(
+    id: str,
+) -> List[SlotResponse]:
+    """Fetch upcoming unbooked slots for an approved doctor."""
+    return list_public_doctor_slots(doctor_id=id)
+
 
