@@ -166,3 +166,4 @@ def test_privacy_redacts_self_identifying_names():
     redacted2 = redact_pii(text2)
     assert "রহিম আহমেদ" not in redacted2
     assert "[NAME REDACTED]" in redacted2
+

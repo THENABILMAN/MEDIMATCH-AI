@@ -222,3 +222,4 @@ def test_specialty_mapping_fallback_to_general_medicine():
     criteria = result["search_criteria"]
     assert "General Medicine" in criteria["candidate_specialties"]
     assert criteria["city"] == "Sylhet"
+

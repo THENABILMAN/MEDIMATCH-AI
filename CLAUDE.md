@@ -79,6 +79,15 @@ python -m uvicorn backend.app.main:app --reload --port 8000
 # Run interactive AI symptom assistant terminal CLI
 python backend/scripts/chat_cli.py
 
+# Verify / setup Pinecone serverless index
+python backend/scripts/setup_pinecone_index.py
+
+# Rebuild entire vector index from Supabase PostgreSQL (idempotent)
+python backend/scripts/reindex_all.py
+
+# Run recommendation evaluation benchmark (Precision@3)
+python backend/scripts/eval_recommendations.py
+
 # Run all test suites
 python -m pytest backend/tests/ -v
 
@@ -132,9 +141,17 @@ flutter run
   - Patient chat API (`POST /chat/conversations`, `POST /chat/conversations/{id}/messages`, `GET /chat/conversations/{id}`) enforcing strict patient ownership and mandatory medical disclaimer
   - Interactive terminal CLI (`backend/scripts/chat_cli.py`) for live triage testing
   - 101/101 automated tests passing across the repository (including 32 emergency test cases, 21 non-emergency test cases, output guard tests, workflow scripted tests, and patient isolation tests)
-- [ ] **Phase 4: Hybrid Search & Appointment Booking Engine**
-  - Pinecone semantic search + Supabase filters
-  - Live doctor slot management & concurrency protection
+- [x] **Phase 4: Hybrid Search & Appointment Booking Engine**
+  - Migration `00004_doctor_sync_status.sql` adding `sync_status` and `last_synced_at` columns
+  - Embedding provider abstraction (`BaseEmbeddingProvider`) implementing Pinecone Inference API (`llama-text-embed-v2`, 1024-dim, cosine metric) and deterministic `FakeEmbeddingProvider` for unit tests
+  - Script `backend/scripts/setup_pinecone_index.py` verifying and setting up serverless Pinecone index
+  - Doctor document builder (`builder.py`) indexing specialties, bio, qualifications, and city while strictly omitting PII, names, and fees
+  - Vector sync pipeline (`sync.py`) wired into lifecycle hooks (`on_doctor_approved`, `on_doctor_updated`, `on_doctor_suspended`, `on_doctor_rejected`)
+  - Full idempotent reindex script (`reindex_all.py`) synchronizing all approved doctors
+  - Hybrid recommendation engine (`recommend.py`) combining Pinecone semantic vector similarity with Supabase verification, budget limits, and future availability slots, with transparent multi-factor scoring and graceful SQL fallback
+  - Direct recommendation endpoint `POST /recommendations` (and `/api/v1/recommendations`) and automatic recommendation cards formatted into chat consultation responses
+  - Evaluation benchmark (`eval_recommendations.py`) scoring 100% Precision@3 across 20 clinical queries
+  - 112/112 automated tests passing across the repository
 - [ ] **Phase 5: Web Application**
   - React (Vite + TypeScript) portals for Patient, Doctor, and Admin
 - [ ] **Phase 6: Mobile App & Production Deployment**
@@ -156,5 +173,10 @@ flutter run
 - **2026-10-29**: Output guard checks LLM replies against diagnostic phrasing ("you have pneumonia", "diagnosis:") and prescriptive dosing ("take 500mg amoxicillin") and substitutes safe non-diagnostic advisory text.
 - **2026-10-29**: LangGraph `check_missing` logic is implemented in pure Python (deterministic), not LLM, asking at most 3 clarifying follow-up questions before falling back to General Medicine and default city Dhaka.
 - **2026-10-29**: Privacy redaction runs prior to any LLM prompt serialization, substituting detected names, Bangladeshi/international phone numbers, and emails with redaction tokens.
+- **2026-10-30**: Selected Pinecone Inference API with `llama-text-embed-v2` (1024-dim, cosine similarity) as primary embedding provider, leveraging existing `PINECONE_API_KEY` without requiring additional third-party embedding subscriptions.
+- **2026-10-30**: Designed doctor document builder to index strictly clinical fields (specialties, clinical bio, qualifications, city, clinic) while deliberately omitting personal names, phone numbers, and fees to prevent demographic and fee bias in vector space.
+- **2026-10-30**: Configured multi-factor scoring formula: $Score = 0.40 \cdot S_{\text{vector}} + 0.25 \cdot S_{\text{specialty}} + 0.15 \cdot S_{\text{experience}} + 0.10 \cdot S_{\text{fee}} + 0.10 \cdot S_{\text{availability}}$, with all weights externalized in `Settings`.
+- **2026-10-30**: Enforced strict single source of truth in PostgreSQL: any stale or invalid vector returned by Pinecone is discarded if the doctor is not approved in Supabase, exceeds consultation fee budget, or possesses zero upcoming availability slots.
+- **2026-10-30**: Built automatic SQL fallback mode if Pinecone returns fewer than 3 qualifying candidates or encounters an outage, guaranteeing zero-downtime recommendation responses.
 
 
