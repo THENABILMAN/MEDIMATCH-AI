@@ -11,7 +11,11 @@ from app.schemas.doctor import (
 )
 from app.schemas.profile import DoctorProfileRead, SpecialtyRead
 from app.services.audit_service import log_audit_event
-from app.services.doctor_events import on_doctor_approved, on_doctor_suspended
+from app.services.doctor_events import (
+    on_doctor_approved,
+    on_doctor_rejected,
+    on_doctor_suspended,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +132,8 @@ def reject_doctor(doctor_id: str, admin_id: str, reason: str) -> Dict[str, Any]:
         target_id=doctor_id,
         metadata={"old_status": old_status, "new_status": VerificationStatus.REJECTED.value, "reason": reason.strip()},
     )
+
+    on_doctor_rejected(doctor_id=doctor_id, admin_id=admin_id, reason=reason.strip())
 
     return {
         "message": f"Doctor {doctor_id} has been rejected",
