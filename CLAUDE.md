@@ -152,15 +152,20 @@ flutter run
   - Direct recommendation endpoint `POST /recommendations` (and `/api/v1/recommendations`) and automatic recommendation cards formatted into chat consultation responses
   - Evaluation benchmark (`eval_recommendations.py`) scoring 100% Precision@3 across 20 clinical queries
   - 112/112 automated tests passing across the repository
-- [ ] **Phase 5: Appointments Engine & Web Application**
+- [x] **Phase 5: Appointments Engine & Web Application**
   - **Part A (Backend Appointments & Concurrency)**:
     - Migration `00005_appointments_concurrency.sql`: `btree_gist` slot overlap exclusion constraint `no_overlapping_slots`, partial unique constraint `idx_appointments_slot_booked`, and atomic stored procedure `book_appointment_atomic` with pessimistic row locking
     - Doctor slot endpoints (`POST /doctors/me/slots`, `GET /doctors/me/slots`, `DELETE /doctors/me/slots/{id}`, `GET /doctors/{id}/slots`) with overlap check and minimum 15-minute duration validation
     - Appointment endpoints (`POST /appointments`, `GET /appointments/me`, `POST /appointments/{id}/cancel`, `POST /appointments/{id}/complete`)
     - Audit log recording for appointment cancellations with reason tracking
-    - 121/121 automated tests passing across the repository, including 20-thread simultaneous booking race condition test
+    - 121/121 automated backend tests passing across the repository, including 20-thread simultaneous booking race condition test
   - **Part B (React + TypeScript Web Application)**:
-    - In progress...
+    - Initialized React 19 + TypeScript + Vite 8 in `web/` with Tailwind CSS v4, Lucide icons, TanStack React Query, and Supabase JS Client using strictly public `anon` credentials
+    - Authentication system with role selection (Patient / Doctor), role-based route protection (`ProtectedRoute`), fast demo-account login helpers, and session management
+    - Patient Portal: AI Symptom Chat with persistent medical disclaimer, prominent red emergency escalation with 999 hotline CTA, live doctor recommendation cards with clinical match scores, specialist directory search with multi-filters, doctor detail page with live slot picker, and "My Appointments" with slot-freeing cancellations
+    - Doctor Portal: Clinical profile management with specialty selector, BMDC/diploma credential document uploads, verification status badge, availability slot manager (with 15-min and overlap safeguards), and appointment management (complete / cancel)
+    - Admin Dashboard: Doctor verification queue with credential preview and approve/reject/suspend actions, medical specialties CRUD, and real-time paginated audit logs table
+    - Comprehensive test coverage: 8/8 Vitest + React Testing Library component tests passing (auth guards, booking flow, chat component) and Playwright E2E spec (`patient-flow.spec.ts`)
 - [ ] **Phase 6: Mobile App & Production Deployment**
   - Flutter app for Patient and Doctor workflows
   - End-to-end integration test suite & deployment readiness
@@ -188,6 +193,10 @@ flutter run
 - **2026-10-30**: Enforced zero double-booking via database-level pessimistic row locking in PostgreSQL (`SELECT ... FOR UPDATE` inside `book_appointment_atomic`) combined with a partial unique constraint (`idx_appointments_slot_booked WHERE status = 'booked'`).
 - **2026-10-30**: Enforced temporal slot integrity via PostgreSQL exclusion constraint (`no_overlapping_slots` using `btree_gist`) and application-level 15-minute minimum duration and future timestamp checks.
 - **2026-10-30**: Verified booking atomicity under high concurrency with a 20-thread simultaneous race test guaranteeing exactly 1 success (201) and 19 conflicts (409).
+- **2026-10-30**: Enforced strict separation of frontend keys in `web/.env.example`: frontend holds exclusively `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, communicating with backend API using Supabase JWT tokens; backend never exposes service-role, Pinecone, or OpenRouter keys to client code.
+- **2026-10-30**: Designed patient triage chat UI to surface medical safety warnings as permanent prominent disclaimers and render emergency escalations as high-urgency red alerts with direct 999 toll-free dialers.
+- **2026-10-30**: Integrated specialist recommendations directly into chat turns with match explanation snippets, match score percentage badges, and direct links to live slot booking.
+
 
 
 
