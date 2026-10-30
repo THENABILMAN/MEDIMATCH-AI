@@ -1,14 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
-  Award,
   Calendar,
   CheckCircle2,
   Clock,
-  DollarSign,
   GraduationCap,
   MapPin,
-  ShieldCheck,
 } from 'lucide-react'
 import { api } from '../../api/client'
 import { Alert } from '../../components/common/Alert'
@@ -29,12 +26,6 @@ export const DoctorDetailPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [bookingSuccess, setBookingSuccess] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (id) {
-      loadDoctorAndSlots(id)
-    }
-  }, [id])
-
   const loadDoctorAndSlots = async (docId: string) => {
     setIsLoading(true)
     setError(null)
@@ -50,7 +41,14 @@ export const DoctorDetailPage: React.FC = () => {
     } finally {
       setIsLoading(false)
     }
+
   }
+
+  useEffect(() => {
+    if (id) {
+      loadDoctorAndSlots(id)
+    }
+  }, [id])
 
   const handleBookSlot = async () => {
     if (!user) {
@@ -273,4 +271,3 @@ export const DoctorDetailPage: React.FC = () => {
     </div>
   )
 }
-

@@ -10,7 +10,6 @@ import {
   Menu,
   MessageSquare,
   Search,
-  Shield,
   User,
   X,
 } from 'lucide-react'
@@ -304,4 +303,3 @@ export const Navbar: React.FC = () => {
     </nav>
   )
 }
-

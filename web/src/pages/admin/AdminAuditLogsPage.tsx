@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, FileText, Shield } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { api } from '../../api/client'
 import { Alert } from '../../components/common/Alert'
 import { LoadingSpinner } from '../../components/common/LoadingSpinner'
@@ -12,10 +12,6 @@ export const AdminAuditLogsPage: React.FC = () => {
   const limit = 20
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    loadAuditLogs()
-  }, [page])
 
   const loadAuditLogs = async () => {
     setIsLoading(true)
@@ -30,7 +26,12 @@ export const AdminAuditLogsPage: React.FC = () => {
     } finally {
       setIsLoading(false)
     }
+
   }
+
+  useEffect(() => {
+    loadAuditLogs()
+  }, [page])
 
   const totalPages = Math.ceil(total / limit) || 1
 
@@ -122,4 +123,3 @@ export const AdminAuditLogsPage: React.FC = () => {
     </div>
   )
 }
-

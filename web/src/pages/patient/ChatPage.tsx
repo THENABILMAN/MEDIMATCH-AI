@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Activity, AlertCircle, Bot, Plus, Send, User } from 'lucide-react'
+import { Activity, Bot, Plus, Send, User } from 'lucide-react'
 import { api } from '../../api/client'
 import { DisclaimerBanner } from '../../components/chat/DisclaimerBanner'
 import { DoctorRecommendationCard } from '../../components/chat/DoctorRecommendationCard'
@@ -32,11 +32,6 @@ export const ChatPage: React.FC = () => {
     scrollToBottom()
   }, [messages, isSending])
 
-  // Load conversation list
-  useEffect(() => {
-    loadConversations()
-  }, [])
-
   const loadConversations = async () => {
     try {
       setIsLoading(true)
@@ -48,12 +43,18 @@ export const ChatPage: React.FC = () => {
         // Automatically start new conversation
         startNewConversation()
       }
+
     } catch (err: any) {
       console.error('Failed to load conversations:', err)
     } finally {
       setIsLoading(false)
     }
   }
+
+  // Load conversation list
+  useEffect(() => {
+    loadConversations()
+  }, [])
 
   const selectConversation = async (id: string) => {
     try {
@@ -281,4 +282,3 @@ export const ChatPage: React.FC = () => {
     </div>
   )
 }
-

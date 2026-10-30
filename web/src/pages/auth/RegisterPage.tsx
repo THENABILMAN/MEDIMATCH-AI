@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Activity, ArrowRight, Lock, Mail, Phone, Stethoscope, User } from 'lucide-react'
 import { Alert } from '../../components/common/Alert'
 import { useAuth } from '../../contexts/AuthContext'
-import type { UserRole } from '../../types'
 
 export const RegisterPage: React.FC = () => {
   const { registerPatient, registerDoctor } = useAuth()
@@ -173,4 +172,3 @@ export const RegisterPage: React.FC = () => {
     </div>
   )
 }
-

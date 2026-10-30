@@ -17,10 +17,6 @@ export const AdminSpecialtiesPage: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  useEffect(() => {
-    loadSpecialties()
-  }, [])
-
   const loadSpecialties = async () => {
     setIsLoading(true)
     setError(null)
@@ -32,7 +28,12 @@ export const AdminSpecialtiesPage: React.FC = () => {
     } finally {
       setIsLoading(false)
     }
+
   }
+
+  useEffect(() => {
+    loadSpecialties()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -213,4 +214,3 @@ export const AdminSpecialtiesPage: React.FC = () => {
     </div>
   )
 }
-

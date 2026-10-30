@@ -3,10 +3,8 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  Mail,
   Phone,
   User,
-  XCircle,
 } from 'lucide-react'
 import { api } from '../../api/client'
 import { Alert } from '../../components/common/Alert'
@@ -19,10 +17,6 @@ export const DoctorAppointmentsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadAppointments()
-  }, [])
-
   const loadAppointments = async () => {
     setIsLoading(true)
     setError(null)
@@ -34,7 +28,12 @@ export const DoctorAppointmentsPage: React.FC = () => {
     } finally {
       setIsLoading(false)
     }
+
   }
+
+  useEffect(() => {
+    loadAppointments()
+  }, [])
 
   const handleComplete = async (id: string) => {
     setError(null)
@@ -170,4 +169,3 @@ export const DoctorAppointmentsPage: React.FC = () => {
     </div>
   )
 }
-

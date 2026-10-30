@@ -1,17 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import {
-  AlertTriangle,
-  Award,
   Check,
-  CheckCircle2,
-  Clock,
-  ExternalLink,
   FileText,
   MapPin,
   Pause,
   Shield,
   X,
-  XCircle,
 } from 'lucide-react'
 import { api } from '../../api/client'
 import { Alert } from '../../components/common/Alert'
@@ -24,10 +18,6 @@ export const AdminDoctorsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-
-  useEffect(() => {
-    loadDoctors()
-  }, [statusFilter])
 
   const loadDoctors = async () => {
     setIsLoading(true)
@@ -42,7 +32,12 @@ export const AdminDoctorsPage: React.FC = () => {
     } finally {
       setIsLoading(false)
     }
+
   }
+
+  useEffect(() => {
+    loadDoctors()
+  }, [statusFilter])
 
   const handleApprove = async (docId: string) => {
     setError(null)
@@ -250,4 +245,3 @@ export const AdminDoctorsPage: React.FC = () => {
     </div>
   )
 }
-

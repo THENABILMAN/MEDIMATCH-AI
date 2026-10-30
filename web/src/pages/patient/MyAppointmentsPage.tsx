@@ -1,18 +1,15 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  AlertCircle,
   Calendar,
-  CheckCircle2,
   Clock,
   MapPin,
   MessageSquare,
-  XCircle,
 } from 'lucide-react'
 import { api } from '../../api/client'
 import { Alert } from '../../components/common/Alert'
 import { LoadingSpinner } from '../../components/common/LoadingSpinner'
-import type { Appointment, AppointmentStatus } from '../../types'
+import type { Appointment } from '../../types'
 
 export const MyAppointmentsPage: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([])
@@ -25,10 +22,6 @@ export const MyAppointmentsPage: React.FC = () => {
   const [cancelReason, setCancelReason] = useState('')
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false)
 
-  useEffect(() => {
-    loadAppointments()
-  }, [])
-
   const loadAppointments = async () => {
     setIsLoading(true)
     setError(null)
@@ -40,7 +33,12 @@ export const MyAppointmentsPage: React.FC = () => {
     } finally {
       setIsLoading(false)
     }
+
   }
+
+  useEffect(() => {
+    loadAppointments()
+  }, [])
 
   const handleCancelAppointment = async () => {
     if (!cancellingAppId) return
@@ -121,7 +119,6 @@ export const MyAppointmentsPage: React.FC = () => {
         <div className="space-y-4">
           {appointments.map((app) => {
             const startDt = app.start_time ? new Date(app.start_time) : null
-            const endDt = app.end_time ? new Date(app.end_time) : null
 
             return (
               <div
@@ -264,4 +261,3 @@ export const MyAppointmentsPage: React.FC = () => {
     </div>
   )
 }
-

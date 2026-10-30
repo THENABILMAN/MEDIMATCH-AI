@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import {
   Calendar,
-  Clock,
   Plus,
   Trash2,
 } from 'lucide-react'
@@ -22,10 +21,6 @@ export const AvailabilityPage: React.FC = () => {
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
 
-  useEffect(() => {
-    loadSlots()
-  }, [])
-
   const loadSlots = async () => {
     setIsLoading(true)
     setError(null)
@@ -37,7 +32,12 @@ export const AvailabilityPage: React.FC = () => {
     } finally {
       setIsLoading(false)
     }
+
   }
+
+  useEffect(() => {
+    loadSlots()
+  }, [])
 
   const handleCreateSlot = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -227,4 +227,3 @@ export const AvailabilityPage: React.FC = () => {
     </div>
   )
 }
-

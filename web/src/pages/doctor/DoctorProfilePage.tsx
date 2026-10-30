@@ -1,12 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import {
-  AlertCircle,
-  Award,
   CheckCircle2,
   Clock,
-  FileText,
   Save,
-  ShieldAlert,
   Upload,
 } from 'lucide-react'
 import { api } from '../../api/client'
@@ -36,10 +32,6 @@ export const DoctorProfilePage: React.FC = () => {
   const [docType, setDocType] = useState('bmdc_license')
   const [file, setFile] = useState<File | null>(null)
 
-  useEffect(() => {
-    loadData()
-  }, [])
-
   const loadData = async () => {
     setIsLoading(true)
     setError(null)
@@ -63,7 +55,12 @@ export const DoctorProfilePage: React.FC = () => {
     } finally {
       setIsLoading(false)
     }
+
   }
+
+  useEffect(() => {
+    loadData()
+  }, [])
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -351,4 +348,3 @@ export const DoctorProfilePage: React.FC = () => {
     </div>
   )
 }
-
