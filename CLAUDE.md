@@ -152,8 +152,15 @@ flutter run
   - Direct recommendation endpoint `POST /recommendations` (and `/api/v1/recommendations`) and automatic recommendation cards formatted into chat consultation responses
   - Evaluation benchmark (`eval_recommendations.py`) scoring 100% Precision@3 across 20 clinical queries
   - 112/112 automated tests passing across the repository
-- [ ] **Phase 5: Web Application**
-  - React (Vite + TypeScript) portals for Patient, Doctor, and Admin
+- [ ] **Phase 5: Appointments Engine & Web Application**
+  - **Part A (Backend Appointments & Concurrency)**:
+    - Migration `00005_appointments_concurrency.sql`: `btree_gist` slot overlap exclusion constraint `no_overlapping_slots`, partial unique constraint `idx_appointments_slot_booked`, and atomic stored procedure `book_appointment_atomic` with pessimistic row locking
+    - Doctor slot endpoints (`POST /doctors/me/slots`, `GET /doctors/me/slots`, `DELETE /doctors/me/slots/{id}`, `GET /doctors/{id}/slots`) with overlap check and minimum 15-minute duration validation
+    - Appointment endpoints (`POST /appointments`, `GET /appointments/me`, `POST /appointments/{id}/cancel`, `POST /appointments/{id}/complete`)
+    - Audit log recording for appointment cancellations with reason tracking
+    - 121/121 automated tests passing across the repository, including 20-thread simultaneous booking race condition test
+  - **Part B (React + TypeScript Web Application)**:
+    - In progress...
 - [ ] **Phase 6: Mobile App & Production Deployment**
   - Flutter app for Patient and Doctor workflows
   - End-to-end integration test suite & deployment readiness
@@ -178,5 +185,9 @@ flutter run
 - **2026-10-30**: Configured multi-factor scoring formula: $Score = 0.40 \cdot S_{\text{vector}} + 0.25 \cdot S_{\text{specialty}} + 0.15 \cdot S_{\text{experience}} + 0.10 \cdot S_{\text{fee}} + 0.10 \cdot S_{\text{availability}}$, with all weights externalized in `Settings`.
 - **2026-10-30**: Enforced strict single source of truth in PostgreSQL: any stale or invalid vector returned by Pinecone is discarded if the doctor is not approved in Supabase, exceeds consultation fee budget, or possesses zero upcoming availability slots.
 - **2026-10-30**: Built automatic SQL fallback mode if Pinecone returns fewer than 3 qualifying candidates or encounters an outage, guaranteeing zero-downtime recommendation responses.
+- **2026-10-30**: Enforced zero double-booking via database-level pessimistic row locking in PostgreSQL (`SELECT ... FOR UPDATE` inside `book_appointment_atomic`) combined with a partial unique constraint (`idx_appointments_slot_booked WHERE status = 'booked'`).
+- **2026-10-30**: Enforced temporal slot integrity via PostgreSQL exclusion constraint (`no_overlapping_slots` using `btree_gist`) and application-level 15-minute minimum duration and future timestamp checks.
+- **2026-10-30**: Verified booking atomicity under high concurrency with a 20-thread simultaneous race test guaranteeing exactly 1 success (201) and 19 conflicts (409).
+
 
 
