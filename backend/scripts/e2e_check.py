@@ -1,16 +1,16 @@
 """End-to-end check of the whole product journey against a running server.
 
-Uses real tokens, the real embedding provider and index, and the real LLM. Point it at a local stack:
-the API must be on localhost and the database must be local Supabase. The one doctor it indexes in
-Pinecone is removed again when it suspends that doctor at the end.
+Uses real tokens, the real embedding provider and index, and the real LLM, against the database in
+the environment. It signs in as a temporary admin it creates, and removes every account, file and
+vector it made when it stops, even after a failure. Audit entries stay, because they are append-only.
 
 Usage:
     python backend/scripts/e2e_check.py --api http://127.0.0.1:8010
+    python backend/scripts/e2e_check.py --api https://your-api.example.com --allow-remote
 """
 
 import argparse
 import concurrent.futures
-import os
 import sys
 import time
 import uuid
@@ -27,10 +27,11 @@ backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
+from app.core.config import settings
+from app.core.supabase import get_supabase_admin_client
 from app.search.sync import get_pinecone_index
 
 PASSWORD = "e2e-long-password-1"
-ADMIN = ("admin@medimatch.test", "Admin123!Safe")
 SUSPENDED_DOCTOR = "d2000000-0000-0000-0000-000000000009"
 NEUROLOGY = "11111111-0000-0000-0000-000000000001"
 PDF = b"%PDF-1.4 end to end test document"
@@ -40,6 +41,7 @@ class Journey:
     def __init__(self, api: str) -> None:
         self.http = httpx.Client(base_url=api, timeout=90)
         self.failures = 0
+        self.user_ids: list[str] = []
 
     def step(self, label: str, passed: bool, detail: Any = "") -> None:
         print(f"[{'PASS' if passed else 'FAIL'}] {label} {detail}")
@@ -56,11 +58,37 @@ class Journey:
         res = self.http.post(f"/auth/register-{kind}", json=body)
         self.step(f"register {kind}", res.status_code == 201, res.status_code)
         res.raise_for_status()
+        self.user_ids.append(res.json()["user_id"])
         return {
             "id": res.json()["user_id"],
             "email": email,
             "headers": self.sign_in(email, PASSWORD),
         }
+
+    def temporary_admin(self) -> dict[str, str]:
+        admin_client = get_supabase_admin_client()
+        email = f"e2e-admin-{uuid.uuid4().hex[:10]}@example.com"
+        created = admin_client.auth.admin.create_user(
+            {"email": email, "password": PASSWORD, "email_confirm": True}
+        )
+        user_id = str(created.user.id)
+        self.user_ids.append(user_id)
+        admin_client.table("profiles").update({"role": "admin"}).eq("id", user_id).execute()
+        return self.sign_in(email, PASSWORD)
+
+
+def remove_accounts(user_ids: list[str], doctor_ids: list[str]) -> None:
+    """Removes what the run created. Appointments go first, since they protect their accounts."""
+    client = get_supabase_admin_client()
+    for doctor_id in doctor_ids:
+        client.table("appointments").delete().eq("doctor_id", doctor_id).execute()
+    for user_id in user_ids:
+        client.table("appointments").delete().eq("patient_id", user_id).execute()
+        files = client.storage.from_("doctor-credentials").list(user_id)
+        if files:
+            paths = [f"{user_id}/{item['name']}" for item in files]
+            client.storage.from_("doctor-credentials").remove(paths)
+        client.auth.admin.delete_user(user_id)
 
 
 def wait_for(condition: Any, seconds: float = 45) -> bool:
@@ -82,13 +110,15 @@ def run(api: str) -> int:
     try:
         return journey(j, created)
     finally:
-        # A run that stops early must not leave its doctor in the real index
+        # A run that stops early must not leave its doctor in the index or its accounts behind
         if created:
             get_pinecone_index().delete(ids=created)
+        remove_accounts(j.user_ids, created)
+        print(f"Removed {len(j.user_ids)} test account(s).")
 
 
 def journey(j: Journey, created: list[str]) -> int:
-    admin = j.sign_in(*ADMIN)
+    admin = j.temporary_admin()
 
     # Doctor signs up, completes a profile and uploads a credential
     doctor = j.register("doctor", city="Dhaka", specialty_ids=[NEUROLOGY])
@@ -125,7 +155,7 @@ def journey(j: Journey, created: list[str]) -> int:
     j.step("admin gets a signed link", link.status_code == 200, link.status_code)
     url = link.json()["url"]
     if url.startswith("/"):
-        url = os.environ["SUPABASE_URL"] + "/storage/v1" + url
+        url = settings.SUPABASE_URL + "/storage/v1" + url
     j.step("signed link opens the file", httpx.get(url).content == PDF)
 
     res = j.http.post(f"/admin/doctors/{doctor_id}/approve", headers=admin, json={})
@@ -243,8 +273,12 @@ def journey(j: Journey, created: list[str]) -> int:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="End-to-end product check")
     parser.add_argument("--api", default="http://127.0.0.1:8010")
+    parser.add_argument("--allow-remote", action="store_true", help="Run against a hosted API")
     arguments = parser.parse_args()
 
-    if urlsplit(arguments.api).hostname not in {"127.0.0.1", "localhost"}:
-        sys.exit("This creates and deletes accounts, so it only runs against a local API.")
+    is_local = urlsplit(arguments.api).hostname in {"127.0.0.1", "localhost"}
+    if not is_local and not arguments.allow_remote:
+        sys.exit(
+            "This creates and deletes accounts. Pass --allow-remote to run it on a hosted API."
+        )
     sys.exit(run(arguments.api))

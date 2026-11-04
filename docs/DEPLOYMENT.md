@@ -13,6 +13,22 @@ Copy `.env.example` and set every value through your host's secret manager. Neve
 
 Set `BACKEND_CORS_ORIGINS` to your web origins. A wildcard is refused at startup.
 
+## Hosting on Render
+
+`render.yaml` deploys the API from `backend/Dockerfile` and the web app as a static site.
+
+1. In Render, choose New, then Blueprint, and connect this GitHub repository.
+2. Fill in the values it asks for. They stay in Render and are never committed.
+3. Set `OPENROUTER_MODEL` to a paid model, or the API refuses to start in production.
+4. Set `BACKEND_CORS_ORIGINS` to `["https://your-web-address"]`, and `VITE_API_BASE_URL` to the API address, then redeploy the web app.
+5. Check the whole journey on the hosted API:
+
+```bash
+python backend/scripts/e2e_check.py --api https://your-api-address --allow-remote
+```
+
+Render's free plan sleeps when idle, so the first request after a pause is slow. It has no scheduled jobs either, so the jobs below need a paid plan or another scheduler.
+
 ## Migrations
 
 `backend/app/run_migrations.py` applies each file in `supabase/migrations/` once and records it in `schema_migrations`.
