@@ -39,6 +39,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+markers = ["integration: needs the local Supabase stack"]
 
 [tool.ruff]
 line-length = 100
