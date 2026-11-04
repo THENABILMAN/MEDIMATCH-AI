@@ -106,7 +106,7 @@ Two families, plus a Bangla fallback, self-hosted as variable woff2 with `font-d
 
 ## 6. Component Inventory
 
-**Primitives** in `web/src/components/ui/`, on Radix with cva variants: Button, IconButton, Input, Textarea, Select, Combobox, Checkbox, Radio, Switch, Label and Field, Badge, Avatar, Tooltip, Dialog, Sheet, Popover, Tabs, Toast, Skeleton, Table, Pagination, EmptyState, Banner (info, warning, emergency). Every state appears on `/dev/components`, a route excluded from production builds.
+**Primitives** in `web/src/components/ui/`, on Radix with cva variants where a component has variants: Button, IconButton, Input, Textarea, Select, Combobox, Checkbox, Radio, Switch, Label and Field, Badge, Avatar, Tooltip, Dialog, Sheet, Popover, Tabs, Toast, Skeleton, Table, Pagination, EmptyState, Banner (info, warning, emergency). `ConfirmDialog` and `ErrorState` are shared compositions of these. Every state appears on `/dev/components`, a route excluded from production builds.
 
 **Domain components:**
 | Component | Note |
@@ -122,6 +122,8 @@ Two families, plus a Bangla fallback, self-hosted as variable woff2 with `font-d
 | FilterBar | All state in the URL; a Sheet on mobile |
 | StatusTimeline | Doctor verification history, including reasons |
 | CredentialViewer | Opens files through short-lived signed links |
+| CredentialUploader | Checks type and size first, and reports real upload progress |
+| RecommendationList | A ranked list with the reason, soonest time and fee; never a carousel |
 | AuditLogTable | Sticky header, filters, dense |
 
 ## 7. Voice and Tone

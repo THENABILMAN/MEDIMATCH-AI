@@ -1,32 +1,38 @@
-# React + TypeScript + Vite
+# MediMatch AI Web App
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The patient, doctor and admin portals, built with React, TypeScript, Vite, Tailwind CSS v4 and Radix.
 
-Currently, two official plugins are available:
+## Run It
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+cp .env.example .env   # Public values only. Never add service-role, Pinecone or OpenRouter keys.
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+The app expects the API at `VITE_API_BASE_URL`, which defaults to `http://localhost:8000`. Apply every migration in `supabase/migrations/` first.
+
+## Check It
+
+```bash
+npm run build            # Type-checks everything, then builds
+npm test                 # Unit tests, including token contrast and translation keys
+npx playwright test      # Browser tests, using your installed Chrome
+```
+
+Playwright runs against a mocked API (`e2e/support/`) and blocks every other outbound request, so it cannot reach the real project or paid AI services. It also regenerates `screenshots/`.
+
+## Where Things Live
+
+| Path | Contents |
+|---|---|
+| `src/styles/tokens.css` | Every colour and shared value |
+| `src/components/ui/` | Primitives |
+| `src/components/domain/` | Product components |
+| `src/locales/en.json` | All copy. Bangla goes in `bn.json` using the same keys |
+| `src/lib/format.ts` | Dates, times and currency, always in Asia/Dhaka |
+| `src/api/` | API client and TanStack Query hooks |
+
+`/dev/components` shows every primitive in every state during development. It is excluded from production builds.
+
+Design rules are in `../docs/DESIGN.md` and `../docs/UI_PRINCIPLES.md`. The review log is in `../docs/UI_REVIEW.md`.

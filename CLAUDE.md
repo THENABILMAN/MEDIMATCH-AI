@@ -94,6 +94,9 @@ python -m pytest backend/tests/ -v
 # Run formatting & linting
 ruff check backend/
 ruff format backend/
+
+# Run tests without touching the real project (blank the service variables)
+DATABASE_URL= SUPABASE_URL= SUPABASE_ANON_KEY= SUPABASE_SERVICE_ROLE_KEY= python -m pytest backend/tests/ -q
 ```
 
 ### Web
@@ -102,6 +105,8 @@ cd web
 npm install
 npm run dev
 npm run build
+npm test                 # Vitest
+npx playwright test      # Mocked API, regenerates web/screenshots/
 ```
 
 ### Mobile
@@ -166,6 +171,12 @@ flutter run
     - Doctor Portal: Clinical profile management with specialty selector, BMDC/diploma credential document uploads, verification status badge, availability slot manager (with 15-min and overlap safeguards), and appointment management (complete / cancel)
     - Admin Dashboard: Doctor verification queue with credential preview and approve/reject/suspend actions, medical specialties CRUD, and real-time paginated audit logs table
     - Comprehensive test coverage: 8/8 Vitest + React Testing Library component tests passing (auth guards, booking flow, chat component) and Playwright E2E spec (`patient-flow.spec.ts`)
+- [x] **Phase 5b: Web UI Rebuild**
+  - Design system in `docs/DESIGN.md`, tokens in `web/src/styles/tokens.css`, rules in `docs/UI_PRINCIPLES.md`, review log in `docs/UI_REVIEW.md`
+  - Primitives on Radix with cva in `web/src/components/ui/`, domain components in `web/src/components/domain/`; all copy in `web/src/locales/en.json`
+  - Patient, doctor and admin portals rebuilt, with URL-synced state and designed loading, empty and error states
+  - Backend additions: credential links, verification history, admin patients, consent, chat history erasure, patient anonymization; migrations `00006` and `00007`
+  - Tests: 44 Vitest, 95 Playwright on a mocked API covering every screen at 3 sizes with axe, keyboard paths, offline and slow network, and critical journeys
 - [ ] **Phase 6: Mobile App & Production Deployment**
   - Flutter app for Patient and Doctor workflows
   - End-to-end integration test suite & deployment readiness
@@ -199,6 +210,9 @@ flutter run
 - **2026-11-04**: JWT signatures are only skipped when `ENVIRONMENT=test`; roles always come from `profiles`, never from token metadata. Never set `ENVIRONMENT=test` on a server.
 - **2026-11-04**: Migration `00006` makes the API the only writer: RLS gives clients read access only, and `book_appointment_atomic` is executable by the service role alone.
 - **2026-11-04**: Recommendations hard-filter on city and specialty (General Medicine doctors stay eligible) on both the hybrid and SQL paths.
+- **2026-11-04**: Closing a patient account anonymizes the profile and bans the sign-in identity rather than deleting it, so doctors' appointment records survive. Upcoming appointments block closure.
+- **2026-11-04**: Playwright runs against a mocked API with `api.test` and `supabase.test` hosts, and blocks all other outbound requests, so UI tests cannot reach the real project or paid AI services.
+- **2026-11-04**: AI consent is enforced by the chat screen, not the API.
 - **2026-11-04**: Backend tests read `.env` and can write to the configured database; blank `DATABASE_URL` and the `SUPABASE_*` variables to run them offline.
 
 
