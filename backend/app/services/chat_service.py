@@ -178,6 +178,10 @@ def send_patient_message(
     current_step = result_state.get("current_step", "extract_symptoms")
     search_criteria = result_state.get("search_criteria")
 
+    # The field being asked about lets the UI offer suggested answers
+    missing_fields = result_state.get("missing_fields") or []
+    followup_field = missing_fields[0] if current_step == "ask_followup" and missing_fields else None
+
     # 5. If search criteria formed, call hybrid recommender
     recommendations_list: List[Dict[str, Any]] = []
     if search_criteria:
@@ -187,17 +191,6 @@ def send_patient_message(
             rec_res = recommend_doctors(search_criteria, top_k=5)
             recommendations_list = [r.model_dump() for r in rec_res.recommendations]
 
-            if recommendations_list:
-                doc_lines = ["\n\n### 🩺 Recommended Specialists:"]
-                for i, doc in enumerate(recommendations_list[:3], 1):
-                    specs_str = ", ".join([s["name"] for s in doc.get("specialties", [])])
-                    doc_lines.append(
-                        f"**{i}. {doc['full_name']}** — {specs_str} ({doc['city']})\n"
-                        f"   • Clinical Experience: {doc['years_experience']} years | Consultation Fee: {int(doc['consultation_fee'])} BDT\n"
-                        f"   • Match Score: {doc['match_score']}% | Upcoming Slots: {doc['available_slots_count']}\n"
-                        f"   • _{doc['match_explanation']}_"
-                    )
-                assistant_reply += "\n" + "\n".join(doc_lines)
         except Exception as e:
             logger.warning(f"Could not generate recommendations during chat: {e}")
 
@@ -227,4 +220,5 @@ def send_patient_message(
         "is_emergency": is_emergency,
         "search_criteria": search_criteria,
         "recommendations": recommendations_list,
+        "followup_field": followup_field,
     }

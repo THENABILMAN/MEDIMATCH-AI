@@ -40,6 +40,7 @@ class SendMessageResponse(BaseModel):
     is_emergency: bool
     search_criteria: Optional[Dict[str, Any]] = None
     recommendations: Optional[List[Dict[str, Any]]] = None
+    followup_field: Optional[str] = None
 
 
 @router.get(
@@ -92,6 +93,7 @@ def api_send_message(
         is_emergency=result.get("safety_status") == "emergency",
         search_criteria=result.get("search_criteria"),
         recommendations=result.get("recommendations"),
+        followup_field=result.get("followup_field"),
     )
 
 

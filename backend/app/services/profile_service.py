@@ -1,10 +1,12 @@
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from fastapi import HTTPException, status
 from app.core.supabase import get_supabase_admin_client, get_supabase_client
-from app.models.enums import UserRole
+from app.models.enums import UserRole, VerificationStatus
 from app.schemas.profile import DoctorProfileRead, ProfileRead, ProfileUpdate, UserMeResponse
 from app.services.audit_service import log_audit_event
+from app.services.doctor_events import on_doctor_updated
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +71,7 @@ def get_user_profile(user_id: str, email: Optional[str] = None) -> UserMeRespons
         full_name=profile_data["full_name"],
         phone=profile_data.get("phone"),
         doctor_profile=doctor_profile_obj,
+        ai_consent_at=profile_data.get("ai_consent_at"),
         created_at=profile_data.get("created_at"),
     )
 
@@ -93,6 +96,10 @@ def update_user_profile(user_id: str, payload: ProfileUpdate, email: Optional[st
         profile_updates["full_name"] = payload.full_name
     if payload.phone is not None:
         profile_updates["phone"] = payload.phone
+    if payload.ai_consent is not None:
+        profile_updates["ai_consent_at"] = (
+            datetime.now(timezone.utc).isoformat() if payload.ai_consent else None
+        )
 
     if profile_updates:
         client.table("profiles").update(profile_updates).eq("id", user_id).execute()
@@ -122,6 +129,14 @@ def update_user_profile(user_id: str, payload: ProfileUpdate, email: Optional[st
             doc_updates["city"] = dp.city
 
         if doc_updates:
+            # Same rule as upsert_doctor_profile: edited details need review again
+            if current.doctor_profile:
+                if current.doctor_profile.verification_status == VerificationStatus.SUSPENDED:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="This profile is suspended. Please contact support.",
+                    )
+                doc_updates["verification_status"] = VerificationStatus.PENDING.value
             client.table("doctor_profiles").update(doc_updates).eq("user_id", user_id).execute()
             log_audit_event(
                 actor_id=user_id,
@@ -130,6 +145,8 @@ def update_user_profile(user_id: str, payload: ProfileUpdate, email: Optional[st
                 target_id=user_id,
                 metadata=doc_updates,
             )
+            if current.doctor_profile:
+                on_doctor_updated(current.doctor_profile.id, list(doc_updates))
 
     return get_user_profile(user_id, email)
 

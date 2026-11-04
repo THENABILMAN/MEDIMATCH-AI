@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 from app.core.supabase import get_supabase_admin_client
@@ -20,10 +21,58 @@ from app.services.doctor_events import (
 logger = logging.getLogger(__name__)
 
 
+DOCTOR_SORT_COLUMNS = {"created_at", "city", "years_experience", "consultation_fee", "verification_status"}
+PATIENT_SORT_COLUMNS = {"created_at", "full_name"}
+
+
+def _validated_sort(sort: str, allowed: set) -> str:
+    if sort not in allowed:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported sort column")
+    return sort
+
+
+def list_patients_for_admin(
+    limit: int = 50,
+    offset: int = 0,
+    sort: str = "created_at",
+    descending: bool = True,
+    search: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Lists active patient accounts with their appointment counts."""
+    admin_client = get_supabase_admin_client()
+    if not admin_client:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database service unavailable")
+
+    query = (
+        admin_client.table("profiles")
+        .select("id, full_name, phone, created_at, appointments(count)", count="exact")
+        .eq("role", "patient")
+        .is_("deleted_at", "null")
+        .order(_validated_sort(sort, PATIENT_SORT_COLUMNS), desc=descending)
+    )
+    if search:
+        query = query.ilike("full_name", f"%{search.strip()}%")
+
+    res = query.range(offset, offset + limit - 1).execute()
+    items = [
+        {
+            "id": row["id"],
+            "full_name": row["full_name"],
+            "phone": row.get("phone"),
+            "created_at": row.get("created_at"),
+            "appointment_count": (row.get("appointments") or [{}])[0].get("count", 0),
+        }
+        for row in res.data or []
+    ]
+    return {"items": items, "total": res.count or 0, "limit": limit, "offset": offset}
+
+
 def list_doctors_for_admin(
     status_filter: Optional[VerificationStatus] = None,
     limit: int = 50,
     offset: int = 0,
+    sort: str = "created_at",
+    descending: bool = True,
 ) -> Dict[str, Any]:
     """Retrieve list of doctor profiles for administration, filterable by status."""
     admin_client = get_supabase_admin_client()
@@ -36,7 +85,7 @@ def list_doctors_for_admin(
     query = (
         admin_client.table("doctor_profiles")
         .select("*, profiles!inner(full_name, phone), doctor_specialties(specialties(*)), doctor_credentials(*)", count="exact")
-        .order("created_at", desc=True)
+        .order(_validated_sort(sort, DOCTOR_SORT_COLUMNS), desc=descending)
     )
 
     if status_filter:
@@ -183,6 +232,8 @@ def get_audit_logs(
     limit: int = 50,
     offset: int = 0,
     action: Optional[str] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
 ) -> AuditLogPaginatedResponse:
     """Retrieve paginated platform audit logs."""
     admin_client = get_supabase_admin_client()
@@ -192,6 +243,10 @@ def get_audit_logs(
     query = admin_client.table("audit_logs").select("*", count="exact").order("created_at", desc=True)
     if action:
         query = query.eq("action", action)
+    if date_from:
+        query = query.gte("created_at", date_from.isoformat())
+    if date_to:
+        query = query.lte("created_at", date_to.isoformat())
 
     res = query.range(offset, offset + limit - 1).execute()
     total = res.count or 0

@@ -86,6 +86,8 @@ def run_cli():
             print("\n🤖 Assistant:")
             print("-" * 50)
             print(assistant_reply)
+            for doc in result.get("recommendations") or []:
+                print(f"  - {doc['full_name']} ({doc['city']}): {doc['match_explanation']}")
             print("-" * 50)
 
             if search_criteria:

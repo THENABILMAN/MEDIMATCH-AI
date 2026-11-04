@@ -233,8 +233,8 @@ def test_chat_completion_populates_recommendations(client: TestClient):
     assert "match_score" in top_doc
     assert top_doc["available_slots_count"] > 0
 
-    # Assistant reply must include doctor presentation
-    assert "Recommended Specialists" in data["assistant_reply"]
+    # Doctors are presented by the UI from structured data, not repeated in the text
+    assert "Recommended Specialists" not in data["assistant_reply"]
 
     # Reset LLM
     set_llm_client(LLMClient())

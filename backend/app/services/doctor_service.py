@@ -16,6 +16,16 @@ from app.services.doctor_events import on_doctor_updated
 
 logger = logging.getLogger(__name__)
 
+CREDENTIAL_BUCKET = "doctor-credentials"
+CREDENTIAL_URL_SECONDS = 300
+VERIFICATION_ACTIONS = [
+    "CREATE_DOCTOR_PROFILE",
+    "DOCTOR_MATERIAL_PROFILE_UPDATE",
+    "APPROVE_DOCTOR",
+    "REJECT_DOCTOR",
+    "SUSPEND_DOCTOR",
+]
+
 
 def get_doctor_profile_by_user_id(user_id: str) -> DoctorProfileRead:
     """Fetch complete doctor profile for the authenticated doctor."""
@@ -201,6 +211,86 @@ def add_doctor_credential(user_id: str, file_path: str, document_type: str) -> D
         document_type=created["document_type"],
         uploaded_at=created["uploaded_at"],
     )
+
+
+def list_my_credentials(user_id: str) -> List[DoctorCredentialRead]:
+    """Lists the doctor's own uploaded credential records, newest first."""
+    doctor = get_doctor_profile_by_user_id(user_id)
+    client = get_supabase_admin_client() or get_supabase_client()
+    res = (
+        client.table("doctor_credentials")
+        .select("*")
+        .eq("doctor_id", doctor.id)
+        .order("uploaded_at", desc=True)
+        .execute()
+    )
+    return [DoctorCredentialRead.model_validate(row) for row in res.data or []]
+
+
+def get_credential_url(credential_id: str, user_id: str, is_admin: bool) -> Dict[str, str]:
+    """Creates a short-lived link to a credential file for its owner or an admin."""
+    client = get_supabase_admin_client()
+    if not client:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Credential storage is unavailable",
+        )
+
+    res = (
+        client.table("doctor_credentials")
+        .select("file_path, doctor_profiles(user_id)")
+        .eq("id", credential_id)
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Credential not found")
+
+    credential = res.data[0]
+    owner_id = (credential.get("doctor_profiles") or {}).get("user_id")
+    if not is_admin and str(owner_id) != str(user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this document",
+        )
+
+    try:
+        signed = client.storage.from_(CREDENTIAL_BUCKET).create_signed_url(
+            credential["file_path"], CREDENTIAL_URL_SECONDS
+        )
+        url = signed.get("signedURL") or signed.get("signedUrl")
+    except Exception as e:
+        logger.error(f"Could not sign credential {credential_id}: {e}")
+        url = None
+
+    if not url:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="This document could not be opened. Please try again.",
+        )
+    return {"url": url}
+
+
+def get_verification_history(user_id: str) -> List[Dict[str, Any]]:
+    """Returns status events for the doctor's timeline, without exposing which admin acted."""
+    doctor = get_doctor_profile_by_user_id(user_id)
+    client = get_supabase_admin_client() or get_supabase_client()
+    res = (
+        client.table("audit_logs")
+        .select("action, created_at, metadata")
+        .eq("target_type", "doctor_profiles")
+        .eq("target_id", doctor.id)
+        .in_("action", VERIFICATION_ACTIONS)
+        .order("created_at", desc=False)
+        .execute()
+    )
+    return [
+        {
+            "action": row["action"],
+            "created_at": row["created_at"],
+            "reason": (row.get("metadata") or {}).get("reason"),
+        }
+        for row in res.data or []
+    ]
 
 
 def _doctor_ids_with_specialty(client: Any, specialty: str) -> List[str]:

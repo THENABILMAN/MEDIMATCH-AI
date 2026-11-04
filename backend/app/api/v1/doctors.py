@@ -1,7 +1,7 @@
 import logging
 import uuid
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from app.api.deps import get_current_user, require_doctor
 from app.core.supabase import get_supabase_admin_client
@@ -23,8 +23,11 @@ from app.services.appointment_service import (
 )
 from app.services.doctor_service import (
     add_doctor_credential,
+    get_credential_url,
     get_doctor_profile_by_user_id,
     get_public_doctor_by_id,
+    get_verification_history,
+    list_my_credentials,
     search_public_doctors,
     upsert_doctor_profile,
 )
@@ -114,6 +117,28 @@ async def upload_credential(
         file_path=target_path,
         document_type=document_type,
     )
+
+
+@router.get("/me/credentials", response_model=List[DoctorCredentialRead], summary="List own credential documents")
+def get_my_credentials(
+    current_user: UserMeResponse = Depends(require_doctor),
+) -> List[DoctorCredentialRead]:
+    return list_my_credentials(current_user.id)
+
+
+@router.get("/me/verification-history", summary="List own verification status events")
+def get_my_verification_history(
+    current_user: UserMeResponse = Depends(require_doctor),
+) -> List[Dict[str, Any]]:
+    return get_verification_history(current_user.id)
+
+
+@router.get("/credentials/{id}/url", summary="Get a short-lived link to a credential document")
+def get_credential_link(
+    id: str,
+    current_user: UserMeResponse = Depends(get_current_user),
+) -> Dict[str, str]:
+    return get_credential_url(id, current_user.id, current_user.role == UserRole.ADMIN)
 
 
 @router.post("/me/slots", response_model=SlotResponse, status_code=status.HTTP_201_CREATED, summary="Create an availability slot")

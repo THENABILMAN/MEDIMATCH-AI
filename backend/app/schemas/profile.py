@@ -53,6 +53,7 @@ class ProfileRead(BaseModel):
 class ProfileUpdate(BaseModel):
     full_name: Optional[str] = Field(default=None, min_length=2, max_length=150)
     phone: Optional[str] = Field(default=None, max_length=25)
+    ai_consent: Optional[bool] = None
     doctor_profile: Optional[DoctorProfileUpdate] = None
 
     # Forbid any extra fields like 'role' or 'verification_status'
@@ -66,5 +67,6 @@ class UserMeResponse(BaseModel):
     full_name: str
     phone: Optional[str] = None
     doctor_profile: Optional[DoctorProfileRead] = None
+    ai_consent_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
