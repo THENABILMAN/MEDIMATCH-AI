@@ -84,6 +84,26 @@ def _generate_safe_explanation(
     return explanation
 
 
+def _fits_request(
+    doctor_specialties: List[str],
+    candidate_specialties: List[str],
+    doctor_city: Optional[str],
+    city: str,
+) -> bool:
+    """Hard filter shared by both search paths. Scoring alone can rank a wrong match first.
+
+    A general physician is an acceptable first visit for any specialty; a doctor from an
+    unrelated specialty or another city is not.
+    """
+    wanted = city.strip().lower()
+    if wanted and wanted != "bangladesh" and wanted not in (doctor_city or "").lower():
+        return False
+
+    cand_lower = [c.lower() for c in candidate_specialties]
+    doc_lower = [s.lower() for s in doctor_specialties]
+    return any(s in cand_lower or "general" in s for s in doc_lower)
+
+
 def _calculate_score(
     vector_sim: float,
     doctor_specialties: List[str],
@@ -179,6 +199,9 @@ def _sql_fallback_search(
         doc_id = str(doc["id"])
         specs = [item["specialties"] for item in doc.get("doctor_specialties", []) if item.get("specialties")]
         spec_names = [s["name"] for s in specs]
+
+        if not _fits_request(spec_names, candidate_specialties, doc.get("city"), city):
+            continue
 
         # Extract future unbooked slots
         all_slots = doc.get("availability_slots") or []
@@ -324,7 +347,14 @@ def recommend_doctors(
                 logger.info(f"[RECOMMENDATION] Rejecting doctor {doc_id}: fee {fee} > max_fee {max_fee}")
                 continue
 
-            # Rule 3: Must have active upcoming slots
+            # Rule 3: Must match the requested city and a suitable specialty
+            specs = [item["specialties"] for item in doc.get("doctor_specialties", []) if item.get("specialties")]
+            spec_names = [s["name"] for s in specs]
+            if not _fits_request(spec_names, candidate_specialties, doc.get("city"), city):
+                logger.info(f"[RECOMMENDATION] Rejecting doctor {doc_id}: city or specialty mismatch")
+                continue
+
+            # Rule 4: Must have active upcoming slots
             all_slots = doc.get("availability_slots") or []
             future_slots = [
                 s for s in all_slots if not s.get("is_booked") and s.get("start_time", "") > now_iso
@@ -335,9 +365,6 @@ def recommend_doctors(
 
             future_slots.sort(key=lambda s: s["start_time"])
             soonest = future_slots[0]["start_time"] if future_slots else None
-
-            specs = [item["specialties"] for item in doc.get("doctor_specialties", []) if item.get("specialties")]
-            spec_names = [s["name"] for s in specs]
 
             sim = vector_matches.get(doc_id, 0.5)
             score = _calculate_score(
