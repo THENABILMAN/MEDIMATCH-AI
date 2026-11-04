@@ -2,7 +2,7 @@
 
 Critique of the web UI against `docs/UI_PRINCIPLES.md`, from screenshots at 360x800, 768x1024 and 1440x900 in `web/screenshots/`.
 
-**Coverage:** about 30 of the 79 screenshots were reviewed by eye, spanning every portal and all three sizes, and including every screen changed by a fix. The rest passed the automated checks below but were not looked at individually.
+**Coverage:** about 30 of the 79 screenshots were reviewed by eye, spanning every portal and all three sizes. Chat, doctor detail, admin doctors and availability were checked again after their fixes. Onboarding, verification, admin patients and admin specialties were not re-viewed after theirs. The rest passed the automated checks below but were not looked at individually.
 
 Screenshots use a mocked API (`web/e2e/support/`) shaped from `backend/scripts/seed.py`. Regenerate them with `npx playwright test screens` from `web/`.
 
