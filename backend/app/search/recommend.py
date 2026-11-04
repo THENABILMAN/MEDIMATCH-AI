@@ -321,7 +321,6 @@ def recommend_doctors(
             vector=query_vector,
             top_k=max(settings.VECTOR_CANDIDATES, top_k * 3),
             filter={"status": {"$eq": VerificationStatus.APPROVED.value}},
-            _request_timeout=settings.PINECONE_TIMEOUT_SECONDS,
         )
         for match in getattr(pinecone_res, "matches", []):
             m_id = getattr(match, "id", None)

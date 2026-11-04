@@ -58,7 +58,8 @@ def get_pinecone_index() -> Any:
     if _PINECONE_INDEX is None:
         from pinecone import Pinecone
 
-        _PINECONE_INDEX = Pinecone(api_key=settings.PINECONE_API_KEY).Index(settings.PINECONE_INDEX)
+        client = Pinecone(api_key=settings.PINECONE_API_KEY, timeout=settings.PINECONE_TIMEOUT_SECONDS)
+        _PINECONE_INDEX = client.Index(settings.PINECONE_INDEX)
     return _PINECONE_INDEX
 
 

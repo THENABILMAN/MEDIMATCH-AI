@@ -56,7 +56,7 @@ class PineconeInferenceEmbeddingProvider(BaseEmbeddingProvider):
         self._api_key = api_key or settings.PINECONE_API_KEY
         self._model = model or settings.EMBEDDING_MODEL
         self._dimension = dimension or settings.EMBEDDING_DIMENSION
-        self._client = Pinecone(api_key=self._api_key)
+        self._client = Pinecone(api_key=self._api_key, timeout=settings.PINECONE_TIMEOUT_SECONDS)
 
     @property
     def dimension(self) -> int:

@@ -2,11 +2,12 @@
 
 import threading
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, create_autospec
 
 import psycopg2
 import pytest
 from conftest import STACK
+from pinecone.db_data import _Index
 
 from app.core.config import Settings, settings
 from app.search import recommend as recommend_module
@@ -208,3 +209,16 @@ def test_fake_embeddings_are_refused_in_production(monkeypatch):
 def test_ranking_weights_must_add_up():
     with pytest.raises(ValueError):
         Settings(WEIGHT_VECTOR=0.9, _env_file=None)
+
+
+def test_calls_match_the_real_pinecone_client():
+    """A plain mock accepts any argument, which once sent every real search to the SQL fallback."""
+    index = create_autospec(_Index, instance=True)
+    index.query.return_value = vector_result((APPROVED_NEURO, 0.9))
+    index.upsert.return_value = None
+    index.delete.return_value = None
+    set_pinecone_index_client(index)
+
+    assert recommend_doctors(criteria()).retrieval_mode == "hybrid"
+    assert sync_doctor_vector(APPROVED_NEURO) is True
+    assert sync_module.delete_doctor_vector(SUSPENDED) is True
