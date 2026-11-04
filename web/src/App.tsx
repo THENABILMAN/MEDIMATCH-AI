@@ -1,136 +1,107 @@
-import React from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ErrorBoundary } from './components/common/ErrorBoundary'
-import { Navbar } from './components/common/Navbar'
+import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from 'react'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { ApiError } from './api/client'
 import { ProtectedRoute } from './components/common/ProtectedRoute'
+import { AppShell } from './components/layout/app-shell'
+import { Skeleton } from './components/ui/skeleton'
+import { ToastProvider } from './components/ui/toast'
+import { TooltipProvider } from './components/ui/tooltip'
 import { AuthProvider } from './contexts/AuthContext'
+import type { UserRole } from './types'
 
-// Pages
-import { HomePage } from './pages/HomePage'
-import { LoginPage } from './pages/auth/LoginPage'
-import { RegisterPage } from './pages/auth/RegisterPage'
-
-// Patient Pages
-import { ChatPage } from './pages/patient/ChatPage'
-import { DoctorDetailPage } from './pages/patient/DoctorDetailPage'
-import { DoctorSearchPage } from './pages/patient/DoctorSearchPage'
-import { MyAppointmentsPage } from './pages/patient/MyAppointmentsPage'
-
-// Doctor Pages
-import { AvailabilityPage } from './pages/doctor/AvailabilityPage'
-import { DoctorAppointmentsPage } from './pages/doctor/DoctorAppointmentsPage'
-import { DoctorProfilePage } from './pages/doctor/DoctorProfilePage'
-
-// Admin Pages
-import { AdminAuditLogsPage } from './pages/admin/AdminAuditLogsPage'
-import { AdminDoctorsPage } from './pages/admin/AdminDoctorsPage'
-import { AdminSpecialtiesPage } from './pages/admin/AdminSpecialtiesPage'
+const HomePage = lazy(() => import('./pages/HomePage'))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'))
+const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'))
+const ChatPage = lazy(() => import('./pages/patient/ChatPage'))
+const DoctorSearchPage = lazy(() => import('./pages/patient/DoctorSearchPage'))
+const DoctorDetailPage = lazy(() => import('./pages/patient/DoctorDetailPage'))
+const MyAppointmentsPage = lazy(() => import('./pages/patient/MyAppointmentsPage'))
+const AccountPage = lazy(() => import('./pages/patient/AccountPage'))
+const OnboardingPage = lazy(() => import('./pages/doctor/OnboardingPage'))
+const DoctorProfilePage = lazy(() => import('./pages/doctor/DoctorProfilePage'))
+const CredentialsPage = lazy(() => import('./pages/doctor/CredentialsPage'))
+const VerificationPage = lazy(() => import('./pages/doctor/VerificationPage'))
+const AvailabilityPage = lazy(() => import('./pages/doctor/AvailabilityPage'))
+const DoctorAppointmentsPage = lazy(() => import('./pages/doctor/DoctorAppointmentsPage'))
+const AdminQueuePage = lazy(() => import('./pages/admin/AdminQueuePage'))
+const AdminDoctorsPage = lazy(() => import('./pages/admin/AdminDoctorsPage'))
+const AdminPatientsPage = lazy(() => import('./pages/admin/AdminPatientsPage'))
+const AdminSpecialtiesPage = lazy(() => import('./pages/admin/AdminSpecialtiesPage'))
+const AdminAuditLogsPage = lazy(() => import('./pages/admin/AdminAuditLogsPage'))
+// Referencing import.meta.env.DEV here removes the page from production bundles
+const ComponentsPage = import.meta.env.DEV ? lazy(() => import('./pages/dev/ComponentsPage')) : null
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 2,
-      retry: 1,
+      refetchOnWindowFocus: false,
+      retry: (failures, error) => !(error instanceof ApiError && error.status < 500) && failures < 1,
     },
   },
 })
 
-export const App: React.FC = () => {
+function PageFallback() {
+  return (
+    <div className="page-gutter py-8">
+      <Skeleton className="h-10 w-64" />
+      <Skeleton className="mt-4 h-40" />
+    </div>
+  )
+}
+
+function guarded(Page: LazyExoticComponent<ComponentType>, roles: UserRole[]) {
+  return (
+    <ProtectedRoute allowedRoles={roles}>
+      <Page />
+    </ProtectedRoute>
+  )
+}
+
+export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <BrowserRouter>
-          <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
-            <Navbar />
-            <div className="flex-1">
-              <ErrorBoundary>
+      <ToastProvider>
+        <TooltipProvider delayDuration={300}>
+          <AuthProvider>
+            <BrowserRouter>
+              <Suspense fallback={<PageFallback />}>
                 <Routes>
-                  {/* Public Routes */}
-                  <Route path="/" element={<HomePage />} />
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/register" element={<RegisterPage />} />
-                  <Route path="/doctors" element={<DoctorSearchPage />} />
-                  <Route path="/doctors/:id" element={<DoctorDetailPage />} />
+                  <Route element={<AppShell />}>
+                    <Route path="/" element={<HomePage />} />
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/register" element={<RegisterPage />} />
+                    <Route path="/doctors" element={<DoctorSearchPage />} />
+                    <Route path="/doctors/:id" element={<DoctorDetailPage />} />
 
-                  {/* Patient Routes */}
-                  <Route
-                    path="/chat"
-                    element={
-                      <ProtectedRoute allowedRoles={['patient', 'admin']}>
-                        <ChatPage />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/appointments"
-                    element={
-                      <ProtectedRoute allowedRoles={['patient', 'admin']}>
-                        <MyAppointmentsPage />
-                      </ProtectedRoute>
-                    }
-                  />
+                    <Route path="/chat/:conversationId?" element={guarded(ChatPage, ['patient', 'admin'])} />
+                    <Route path="/appointments" element={guarded(MyAppointmentsPage, ['patient', 'admin'])} />
+                    <Route path="/account" element={guarded(AccountPage, ['patient', 'doctor', 'admin'])} />
 
-                  {/* Doctor Routes */}
-                  <Route
-                    path="/doctor/profile"
-                    element={
-                      <ProtectedRoute allowedRoles={['doctor']}>
-                        <DoctorProfilePage />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/doctor/availability"
-                    element={
-                      <ProtectedRoute allowedRoles={['doctor']}>
-                        <AvailabilityPage />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/doctor/appointments"
-                    element={
-                      <ProtectedRoute allowedRoles={['doctor']}>
-                        <DoctorAppointmentsPage />
-                      </ProtectedRoute>
-                    }
-                  />
+                    <Route path="/doctor/onboarding" element={guarded(OnboardingPage, ['doctor'])} />
+                    <Route path="/doctor/profile" element={guarded(DoctorProfilePage, ['doctor'])} />
+                    <Route path="/doctor/credentials" element={guarded(CredentialsPage, ['doctor'])} />
+                    <Route path="/doctor/verification" element={guarded(VerificationPage, ['doctor'])} />
+                    <Route path="/doctor/availability" element={guarded(AvailabilityPage, ['doctor'])} />
+                    <Route path="/doctor/appointments" element={guarded(DoctorAppointmentsPage, ['doctor'])} />
 
-                  {/* Admin Routes */}
-                  <Route
-                    path="/admin/doctors"
-                    element={
-                      <ProtectedRoute allowedRoles={['admin']}>
-                        <AdminDoctorsPage />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/admin/specialties"
-                    element={
-                      <ProtectedRoute allowedRoles={['admin']}>
-                        <AdminSpecialtiesPage />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/admin/audit-logs"
-                    element={
-                      <ProtectedRoute allowedRoles={['admin']}>
-                        <AdminAuditLogsPage />
-                      </ProtectedRoute>
-                    }
-                  />
+                    <Route path="/admin/queue" element={guarded(AdminQueuePage, ['admin'])} />
+                    <Route path="/admin/doctors" element={guarded(AdminDoctorsPage, ['admin'])} />
+                    <Route path="/admin/patients" element={guarded(AdminPatientsPage, ['admin'])} />
+                    <Route path="/admin/specialties" element={guarded(AdminSpecialtiesPage, ['admin'])} />
+                    <Route path="/admin/audit-logs" element={guarded(AdminAuditLogsPage, ['admin'])} />
 
-                  {/* Catch-all redirect */}
-                  <Route path="*" element={<Navigate to="/" replace />} />
+                    {ComponentsPage && <Route path="/dev/components" element={<ComponentsPage />} />}
+                    <Route path="*" element={<NotFoundPage />} />
+                  </Route>
                 </Routes>
-              </ErrorBoundary>
-            </div>
-          </div>
-        </BrowserRouter>
-      </AuthProvider>
+              </Suspense>
+            </BrowserRouter>
+          </AuthProvider>
+        </TooltipProvider>
+      </ToastProvider>
     </QueryClientProvider>
   )
 }

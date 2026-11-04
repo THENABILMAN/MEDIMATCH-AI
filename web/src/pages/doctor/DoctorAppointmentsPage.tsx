@@ -1,171 +1,127 @@
-import React, { useEffect, useState } from 'react'
-import {
-  Calendar,
-  CheckCircle2,
-  Clock,
-  Phone,
-  User,
-} from 'lucide-react'
-import { api } from '../../api/client'
-import { Alert } from '../../components/common/Alert'
-import { LoadingSpinner } from '../../components/common/LoadingSpinner'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
+import { useAppointments, useCancelAppointment, useCompleteAppointment } from '../../api/hooks'
+import { AppointmentPanel, appointmentTab, AppointmentsSkeleton, type AppointmentTab } from '../../components/domain/appointment-list'
+import { AppointmentRow } from '../../components/domain/appointment-row'
+import { PageHeader } from '../../components/layout/page-header'
+import { Button } from '../../components/ui/button'
+import { ConfirmDialog } from '../../components/ui/dialog'
+import { EmptyState } from '../../components/ui/empty-state'
+import { ErrorState } from '../../components/ui/query-state'
+import { Tabs } from '../../components/ui/tabs'
+import { useToast } from '../../components/ui/toast'
+import { errorMessage } from '../../lib/errors'
+import { formatDateTime } from '../../lib/format'
+import { useUrlState } from '../../lib/url-state'
 import type { Appointment } from '../../types'
 
-export const DoctorAppointmentsPage: React.FC = () => {
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+const TABS: AppointmentTab[] = ['upcoming', 'past', 'cancelled']
 
-  const loadAppointments = async () => {
-    setIsLoading(true)
-    setError(null)
+export default function DoctorAppointmentsPage() {
+  const { t, i18n } = useTranslation()
+  const { toast } = useToast()
+  const { params, set } = useUrlState()
+  const appointments = useAppointments()
+  const cancel = useCancelAppointment()
+  const complete = useCompleteAppointment()
+  const [cancelling, setCancelling] = useState<Appointment | null>(null)
+  const [now] = useState(() => Date.now())
+
+  const tab = (TABS as string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as AppointmentTab) : 'upcoming'
+  const visible = useMemo(
+    () => (appointments.data ?? []).filter((item) => appointmentTab(item, now) === tab),
+    [appointments.data, now, tab]
+  )
+
+  async function markComplete(id: string) {
     try {
-      const data = await api.appointments.getMy()
-      setAppointments(data)
-    } catch (err: any) {
-      setError(err.message || 'Failed to load scheduled appointments')
-    } finally {
-      setIsLoading(false)
-    }
-
-  }
-
-  useEffect(() => {
-    loadAppointments()
-  }, [])
-
-  const handleComplete = async (id: string) => {
-    setError(null)
-    try {
-      const updated = await api.appointments.complete(id)
-      setAppointments((prev) => prev.map((a) => (a.id === id ? updated : a)))
-      setSuccess('Appointment marked as completed.')
-    } catch (err: any) {
-      setError(err.message || 'Failed to complete appointment')
+      await complete.mutateAsync(id)
+      toast(t('appointments.completed'))
+    } catch (error) {
+      toast(errorMessage(error, t), 'error')
     }
   }
 
-  const handleCancel = async (id: string) => {
-    const reason = prompt('Please enter a cancellation reason:')
-    if (reason === null) return
-
-    setError(null)
+  async function confirmCancel() {
+    if (!cancelling) return
     try {
-      const updated = await api.appointments.cancel(id, reason || undefined)
-      setAppointments((prev) => prev.map((a) => (a.id === id ? updated : a)))
-      setSuccess('Appointment cancelled and slot freed.')
-    } catch (err: any) {
-      setError(err.message || 'Failed to cancel appointment')
+      await cancel.mutateAsync({ id: cancelling.id })
+      toast(t('appointments.cancelled'))
+      setCancelling(null)
+    } catch (error) {
+      toast(errorMessage(error, t), 'error')
     }
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-            Patient Appointments
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Review consultations scheduled with your profile and mark completion.
-          </p>
-        </div>
-      </div>
+    <div className="page-gutter py-6 md:py-8">
+      <PageHeader title={t('appointments.doctorTitle')} />
+      <Tabs
+        value={tab}
+        onValueChange={(next) => set({ tab: next === 'upcoming' ? undefined : next })}
+        tabs={TABS.map((item) => ({ value: item, label: t(`appointments.tab.${item}`) }))}
+      >
+        {appointments.isPending ? (
+          <AppointmentsSkeleton />
+        ) : appointments.isError ? (
+          <ErrorState error={appointments.error} onRetry={() => void appointments.refetch()} />
+        ) : visible.length === 0 ? (
+          <EmptyState
+            title={t(`appointments.doctorEmpty.${tab}.title`)}
+            description={t(`appointments.doctorEmpty.${tab}.body`)}
+            action={
+              tab === 'upcoming' ? (
+                <Button asChild>
+                  <Link to="/doctor/availability">{t('verification.setAvailability')}</Link>
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : (
+          <AppointmentPanel>
+            {visible.map((appointment) => {
+              const booked = appointment.status === 'booked'
+              return (
+                <AppointmentRow
+                  key={appointment.id}
+                  appointment={appointment}
+                  title={appointment.patient?.full_name ?? t('appointments.unknownPatient')}
+                  detail={appointment.patient?.phone ?? t('appointments.noPhone')}
+                  actions={
+                    booked ? (
+                      <>
+                        <Button size="sm" loading={complete.isPending} onClick={() => void markComplete(appointment.id)}>
+                          {t('appointments.markComplete')}
+                        </Button>
+                        {tab === 'upcoming' && (
+                          <Button variant="secondary" size="sm" onClick={() => setCancelling(appointment)}>
+                            {t('appointments.cancel')}
+                          </Button>
+                        )}
+                      </>
+                    ) : undefined
+                  }
+                />
+              )
+            })}
+          </AppointmentPanel>
+        )}
+      </Tabs>
 
-      {error && <Alert type="error" message={error} onClose={() => setError(null)} className="mb-6" />}
-      {success && <Alert type="success" message={success} onClose={() => setSuccess(null)} className="mb-6" />}
-
-      {isLoading ? (
-        <LoadingSpinner message="Loading appointments..." className="py-20" />
-      ) : appointments.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-slate-300 p-12 text-center bg-white">
-          <Calendar className="mx-auto h-10 w-10 text-slate-300" />
-          <h3 className="mt-4 text-base font-bold text-slate-900">No scheduled appointments</h3>
-          <p className="mt-1 text-xs text-slate-500">
-            Patients who book your open availability slots will appear here.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {appointments.map((app) => {
-            const startDt = app.start_time ? new Date(app.start_time) : null
-
-            return (
-              <div
-                key={app.id}
-                className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-xs gap-4"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700 font-bold">
-                    <User className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-slate-900">
-                        {app.patient?.full_name || 'Patient'}
-                      </h3>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                          app.status === 'booked'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : app.status === 'completed'
-                            ? 'bg-sky-100 text-sky-800'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {app.status}
-                      </span>
-                    </div>
-
-                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
-                      {startDt && (
-                        <div className="flex items-center gap-1 font-medium text-slate-800">
-                          <Clock className="h-3.5 w-3.5 text-slate-400" />
-                          <span>
-                            {startDt.toLocaleDateString(undefined, {
-                              weekday: 'short',
-                              month: 'short',
-                              day: 'numeric',
-                            })}{' '}
-                            at {startDt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                      )}
-                      {app.patient?.phone && (
-                        <div className="flex items-center gap-1">
-                          <Phone className="h-3.5 w-3.5 text-slate-400" />
-                          <span>{app.patient.phone}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between sm:justify-end gap-2 pt-3 sm:pt-0 border-t sm:border-0 border-slate-100">
-                  {app.status === 'booked' && (
-                    <>
-                      <button
-                        onClick={() => handleComplete(app.id)}
-                        className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Complete
-                      </button>
-                      <button
-                        onClick={() => handleCancel(app.id)}
-                        className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2 text-xs font-bold text-red-700 hover:bg-red-100 transition"
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+      <ConfirmDialog
+        open={Boolean(cancelling)}
+        onOpenChange={(open) => !open && setCancelling(null)}
+        title={t('appointments.cancelTitle')}
+        description={t('appointments.cancelBodyDoctor', {
+          patient: cancelling?.patient?.full_name ?? '',
+          time: cancelling?.start_time ? formatDateTime(cancelling.start_time, i18n.language) : '',
+        })}
+        confirmLabel={t('appointments.cancel')}
+        cancelLabel={t('appointments.keep')}
+        loading={cancel.isPending}
+        onConfirm={() => void confirmCancel()}
+      />
     </div>
   )
 }

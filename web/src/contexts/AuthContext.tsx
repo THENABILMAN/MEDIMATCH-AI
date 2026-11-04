@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
-import { api } from '../api/client'
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { api, type RegisterInput } from '../api/client'
 import { supabase } from '../lib/supabase'
 import type { UserProfile, UserRole } from '../types'
 
@@ -11,8 +11,8 @@ interface AuthContextType {
   session: Session | null
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
-  registerPatient: (data: { email: string; password: string; full_name: string; phone?: string }) => Promise<void>
-  registerDoctor: (data: { email: string; password: string; full_name: string; phone?: string }) => Promise<void>
+  registerPatient: (data: RegisterInput) => Promise<void>
+  registerDoctor: (data: RegisterInput) => Promise<void>
   logout: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -25,102 +25,78 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(true)
 
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     try {
-      const me = await api.auth.getMe()
-      setProfile(me)
+      setProfile(await api.auth.getMe())
     } catch (err) {
-      console.error('Failed to fetch user profile:', err)
+      console.warn('Failed to fetch user profile:', err)
       setProfile(null)
-    }
-  }
-
-  useEffect(() => {
-    // 1. Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session) {
-        fetchProfile().finally(() => setIsLoading(false))
-      } else {
-        setIsLoading(false)
-      }
-    })
-
-    // 2. Listen to auth state changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-      setSession(newSession)
-      setUser(newSession?.user ?? null)
-      if (newSession) {
-        await fetchProfile()
-      } else {
-        setProfile(null)
-      }
-      setIsLoading(false)
-    })
-
-    return () => {
-      subscription.unsubscribe()
     }
   }, [])
 
-  const login = async (email: string, password: string) => {
-    setIsLoading(true)
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+  useEffect(() => {
+    let active = true
+
+    void supabase.auth.getSession().then(async ({ data: { session: initial } }) => {
+      if (!active) return
+      setSession(initial)
+      setUser(initial?.user ?? null)
+      if (initial) await fetchProfile()
+      if (active) setIsLoading(false)
     })
 
-    if (error) {
-      setIsLoading(false)
-      throw new Error(error.message)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, next) => {
+      setSession(next)
+      setUser(next?.user ?? null)
+      if (!next) setProfile(null)
+      // Awaiting Supabase calls inside this callback deadlocks its auth lock
+      else if (event === 'SIGNED_IN') setTimeout(() => void fetchProfile(), 0)
+    })
+
+    return () => {
+      active = false
+      subscription.unsubscribe()
     }
+  }, [fetchProfile])
 
-    setSession(data.session)
-    setUser(data.user)
-    await fetchProfile()
-    setIsLoading(false)
-  }
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) throw new Error(error.message)
+      setSession(data.session)
+      setUser(data.user)
+      await fetchProfile()
+    },
+    [fetchProfile]
+  )
 
-  const registerPatient = async (data: { email: string; password: string; full_name: string; phone?: string }) => {
-    setIsLoading(true)
-    try {
+  const registerPatient = useCallback(
+    async (data: RegisterInput) => {
       await api.auth.registerPatient(data)
       await login(data.email, data.password)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+    },
+    [login]
+  )
 
-  const registerDoctor = async (data: { email: string; password: string; full_name: string; phone?: string }) => {
-    setIsLoading(true)
-    try {
+  const registerDoctor = useCallback(
+    async (data: RegisterInput) => {
       await api.auth.registerDoctor(data)
       await login(data.email, data.password)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+    },
+    [login]
+  )
 
-  const logout = async () => {
-    setIsLoading(true)
-    try {
-      await supabase.auth.signOut()
-      setUser(null)
-      setSession(null)
-      setProfile(null)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+    setSession(null)
+    setProfile(null)
+  }, [])
 
-  const refreshProfile = async () => {
-    await fetchProfile()
-  }
-
-  const role: UserRole | null = profile?.role || (user?.user_metadata?.role as UserRole) || null
+  // The API profile decides the role; user_metadata is editable by the user
+  const role: UserRole | null = profile?.role ?? null
 
   return (
     <AuthContext.Provider
@@ -134,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         registerPatient,
         registerDoctor,
         logout,
-        refreshProfile,
+        refreshProfile: fetchProfile,
       }}
     >
       {children}
@@ -142,11 +118,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
+// eslint-disable-next-line react/only-export-components
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider')
   return context
 }
-

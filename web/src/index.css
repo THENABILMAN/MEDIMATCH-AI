@@ -1,8 +1,165 @@
-@import "tailwindcss";
+@import './styles/fonts.css';
+@import './styles/tokens.css';
+@import 'tailwindcss';
+
+@theme inline {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-surface: var(--surface);
+  --color-canvas: var(--canvas);
+  --color-border: var(--border);
+  --color-control: var(--border-control);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-pressed: var(--primary-pressed);
+  --color-primary-tint: var(--primary-tint);
+  --color-ai: var(--ai);
+  --color-ai-tint: var(--ai-tint);
+  --color-danger: var(--danger);
+  --color-danger-pressed: var(--danger-pressed);
+  --color-danger-tint: var(--danger-tint);
+  --color-warning: var(--warning);
+  --color-warning-tint: var(--warning-tint);
+  --color-success: var(--success);
+  --color-success-tint: var(--success-tint);
+
+  --font-sans: var(--font-ui);
+  --font-serif: var(--font-display);
+
+  --text-*: initial;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-md: 1rem;
+  --text-md--line-height: 1.5rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.5rem;
+  --text-xl--line-height: 2rem;
+  --text-2xl: 2rem;
+  --text-2xl--line-height: 2.5rem;
+  --text-3xl: 2.75rem;
+  --text-3xl--line-height: 3.25rem;
+
+  --radius-*: initial;
+  --radius-sm: var(--radius-small);
+  --radius-md: var(--radius-medium);
+  --radius-full: 9999px;
+
+  --shadow-*: initial;
+  --shadow-overlay: var(--overlay-shadow);
+
+  --default-transition-duration: 150ms;
+  --default-transition-timing-function: var(--ease-state);
+
+  --animate-pulse-soft: pulse-soft 1.6s var(--ease-state) infinite;
+  --animate-fade-in: fade-in 200ms var(--ease-state);
+  --animate-rise-in: rise-in 200ms var(--ease-state);
+  --animate-slide-in: slide-in 200ms var(--ease-state);
+
+  @keyframes pulse-soft {
+    50% {
+      opacity: 0.5;
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  @keyframes slide-in {
+    from {
+      transform: translateX(100%);
+    }
+  }
+}
 
 @layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    text-size-adjust: 100%;
+  }
+
   body {
-    @apply bg-slate-50 text-slate-900 min-h-screen antialiased;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 1rem;
+    line-height: 1.5rem;
+    overflow-wrap: anywhere;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: var(--radius-small);
+  }
+
+  /* Keeps focused elements clear of the sticky header */
+  :target,
+  [tabindex='-1'] {
+    scroll-margin-top: calc(var(--header-height) + 16px);
+  }
+
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  label[for],
+  select {
+    cursor: pointer;
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .prose-width {
+    max-width: 66ch;
+  }
+
+  .page-gutter {
+    width: 100%;
+    max-width: 1200px;
+    margin-inline: auto;
+    padding-inline: 16px;
+  }
+
+  @media (min-width: 768px) {
+    .page-gutter {
+      padding-inline: 24px;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

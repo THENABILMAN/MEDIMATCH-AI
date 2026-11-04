@@ -1,97 +1,109 @@
-import React from 'react'
 import { Link } from 'react-router-dom'
-import {
-  ArrowRight,
-  Clock,
-  HeartPulse,
-  MessageSquare,
-  Search,
-  ShieldCheck,
-  Sparkles,
-} from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { LogoMark } from '../components/layout/logo'
+import { Button } from '../components/ui/button'
+import { EMERGENCY_NUMBER } from '../lib/constants'
 
-export const HomePage: React.FC = () => {
+const STEPS = ['describe', 'clarify', 'choose'] as const
+const CHECKS = ['license', 'review', 'recheck'] as const
+
+function ConversationPreview() {
+  const { t } = useTranslation()
   return (
-    <div className="flex flex-col min-h-[calc(100vh-65px)] bg-slate-50">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden pt-12 pb-20 sm:pt-20 sm:pb-28">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50/70 py-1.5 px-4 text-xs font-semibold text-indigo-700 shadow-2xs mb-6">
-            <Sparkles className="h-4 w-4" />
-            <span>AI-Powered Medical Specialist Matching in Bangladesh</span>
-          </div>
-
-          <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
-            Describe your symptoms. <br className="hidden sm:inline" />
-            <span className="bg-linear-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-              Find the right verified doctor.
+    <figure className="rounded-md border border-border bg-surface p-4 md:p-6">
+      <figcaption className="text-sm text-muted">{t('home.previewCaption')}</figcaption>
+      <div className="mt-4 flex flex-col gap-4" aria-hidden>
+        <p className="ml-auto max-w-[85%] rounded-md border border-border px-4 py-3">{t('home.previewPatient')}</p>
+        <div className="border-l-2 border-ai pl-4">
+          <p className="text-xs font-medium text-ai">{t('chat.aiLabel')}</p>
+          <p className="mt-1">{t('home.previewAssistant')}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(['chat.suggest.today', 'chat.suggest.fewDays', 'chat.suggest.week'] as const).map((key) => (
+            <span key={key} className="rounded-sm border border-control px-3 py-1 text-sm">
+              {t(key)}
             </span>
-          </h1>
+          ))}
+        </div>
+      </div>
+    </figure>
+  )
+}
 
-          <p className="mx-auto mt-6 max-w-2xl text-base text-slate-600 sm:text-lg leading-relaxed">
-            MediMatch AI guides you to appropriate medical specialists safely and transparently. We never diagnose or prescribe — we help you connect with qualified doctors across Dhaka, Chittagong, and Sylhet.
+export default function HomePage() {
+  const { t } = useTranslation()
+  return (
+    <>
+      <section className="border-b border-border bg-surface">
+        <div className="page-gutter grid gap-10 py-12 md:py-16 lg:grid-cols-12 lg:gap-6 lg:py-20">
+          <div className="lg:col-span-7">
+            <h1 className="max-w-[16ch] font-serif text-2xl md:text-3xl">{t('home.title')}</h1>
+            <p className="prose-width mt-4 text-lg text-muted">{t('home.lead')}</p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Button asChild>
+                <Link to="/chat">{t('home.startChat')}</Link>
+              </Button>
+              <Button asChild variant="secondary">
+                <Link to="/doctors">{t('home.browse')}</Link>
+              </Button>
+            </div>
+            <p className="prose-width mt-6 text-sm text-muted">
+              {t('home.emergency', { number: EMERGENCY_NUMBER })}
+            </p>
+          </div>
+          <div className="lg:col-span-5">
+            <ConversationPreview />
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="how-title" className="page-gutter grid gap-6 py-12 md:py-16 lg:grid-cols-12">
+        <h2 id="how-title" className="font-serif text-xl lg:col-span-4">
+          {t('home.howTitle')}
+        </h2>
+        <ol className="border-t border-border lg:col-span-8">
+          {STEPS.map((step, index) => (
+            <li key={step} className="grid grid-cols-[32px_1fr] gap-x-3 border-b border-border py-4">
+              <span aria-hidden className="font-serif text-lg text-muted tabular">
+                {index + 1}
+              </span>
+              <div>
+                <h3 className="font-semibold">{t(`home.steps.${step}.title`)}</h3>
+                <p className="prose-width text-muted">{t(`home.steps.${step}.body`)}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section aria-labelledby="checks-title" className="border-t border-border bg-surface">
+        <div className="page-gutter grid gap-6 py-12 md:py-16 lg:grid-cols-12">
+          <h2 id="checks-title" className="font-serif text-xl lg:col-span-4">
+            {t('home.checksTitle')}
+          </h2>
+          <dl className="lg:col-span-8">
+            {CHECKS.map((check) => (
+              <div key={check} className="border-b border-border py-4 first:pt-0 last:border-b-0">
+                <dt className="font-semibold">{t(`home.checks.${check}.title`)}</dt>
+                <dd className="prose-width text-muted">{t(`home.checks.${check}.body`)}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </section>
+
+      <footer className="border-t border-border">
+        <div className="page-gutter flex flex-col gap-3 py-6 text-sm text-muted md:flex-row md:items-center md:justify-between">
+          <p className="flex items-center gap-2" translate="no">
+            <LogoMark className="size-5" />
+            MediMatch
           </p>
-
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              to="/chat"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-6 py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-indigo-700 active:scale-95"
-            >
-              <MessageSquare className="h-4 w-4" />
-              Start AI Symptom Consultation
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-
-            <Link
-              to="/doctors"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-3.5 text-sm font-bold text-slate-700 shadow-xs transition hover:bg-slate-100"
-            >
-              <Search className="h-4 w-4" />
-              Browse Verified Specialists
-            </Link>
-          </div>
+          <p className="prose-width">{t('home.footer')}</p>
+          <Link to="/register?role=doctor" className="whitespace-nowrap text-primary underline underline-offset-4">
+            {t('home.forDoctors')}
+          </Link>
         </div>
-      </section>
-
-      {/* Feature Value Props */}
-      <section className="border-t border-slate-200/80 bg-white py-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
-            {/* Feature 1 */}
-            <div className="rounded-3xl border border-slate-100 bg-slate-50/50 p-8 shadow-2xs">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-red-600 mb-6">
-                <HeartPulse className="h-6 w-6" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-900">Deterministic Safety First</h3>
-              <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                Rule-based emergency detection in English and Bangla immediately routes critical symptoms to the 999 national helpline with zero delay.
-              </p>
-            </div>
-
-            {/* Feature 2 */}
-            <div className="rounded-3xl border border-slate-100 bg-slate-50/50 p-8 shadow-2xs">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600 mb-6">
-                <ShieldCheck className="h-6 w-6" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-900">BMDC-Verified Specialists</h3>
-              <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                Every doctor in our directory undergoes institutional credential validation. Only approved, verified profiles are ever searchable or bookable.
-              </p>
-            </div>
-
-            {/* Feature 3 */}
-            <div className="rounded-3xl border border-slate-100 bg-slate-50/50 p-8 shadow-2xs">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 mb-6">
-                <Clock className="h-6 w-6" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-900">Zero Double-Booking Guarantee</h3>
-              <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                Database-level pessimistic row locking ensures you and other patients can never book the exact same slot concurrently.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
+      </footer>
+    </>
   )
 }

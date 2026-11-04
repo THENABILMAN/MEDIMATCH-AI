@@ -1,0 +1,36 @@
+/* The only place colours and scale values are defined. See docs/DESIGN.md. */
+:root {
+  --ink: #14122b;
+  --muted: #5c5a73;
+  --surface: #ffffff;
+  --canvas: #f6f6fa;
+  --border: #e3e1f0;
+  --border-control: #8582a0;
+
+  --primary: #00806c;
+  --primary-hover: #00695a;
+  --primary-pressed: #005247;
+  --primary-tint: #e6f4f1;
+
+  --ai: #5a4bd1;
+  --ai-tint: #eeecfb;
+
+  --danger: #b3261e;
+  --danger-pressed: #8c1d18;
+  --danger-tint: #fcebea;
+  --warning: #8a5300;
+  --warning-tint: #fdf3e3;
+  --success: #1e7a3c;
+  --success-tint: #e8f5ec;
+
+  --font-ui: 'Instrument Sans', 'Noto Sans Bengali', system-ui, sans-serif;
+  --font-display: 'Source Serif', 'Noto Sans Bengali', Georgia, serif;
+
+  --radius-small: 4px;
+  --radius-medium: 8px;
+  --overlay-shadow: 0 8px 24px rgb(20 18 43 / 0.12);
+  --scrim: rgb(20 18 43 / 0.4);
+
+  --header-height: 56px;
+  --ease-state: cubic-bezier(0, 0, 0.2, 1);
+}

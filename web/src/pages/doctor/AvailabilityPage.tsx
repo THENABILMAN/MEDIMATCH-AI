@@ -1,229 +1,303 @@
-import React, { useEffect, useState } from 'react'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { ChevronLeft, ChevronRight, Lock, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Controller, useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import { z } from 'zod'
+import { useCreateSlot, useDeleteSlot, useMyDoctorProfile, useMySlots } from '../../api/hooks'
+import { PageHeader } from '../../components/layout/page-header'
+import { Banner } from '../../components/ui/banner'
+import { Button } from '../../components/ui/button'
+import { ConfirmDialog, Dialog } from '../../components/ui/dialog'
+import { Field } from '../../components/ui/field'
+import { IconButton } from '../../components/ui/icon-button'
+import { Input } from '../../components/ui/input'
+import { ErrorState } from '../../components/ui/query-state'
+import { Select } from '../../components/ui/select'
+import { Skeleton } from '../../components/ui/skeleton'
+import { useToast } from '../../components/ui/toast'
+import { errorMessage } from '../../lib/errors'
 import {
-  Calendar,
-  Plus,
-  Trash2,
-} from 'lucide-react'
-import { api } from '../../api/client'
-import { Alert } from '../../components/common/Alert'
-import { LoadingSpinner } from '../../components/common/LoadingSpinner'
+  addDays,
+  dhakaDay,
+  dhakaToIso,
+  formatDayNumber,
+  formatShortDate,
+  formatTime,
+  formatWeekday,
+  startOfWeek,
+} from '../../lib/format'
+import { useUrlState } from '../../lib/url-state'
 import type { AvailabilitySlot } from '../../types'
 
-export const AvailabilityPage: React.FC = () => {
-  const [slots, setSlots] = useState<AvailabilitySlot[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isCreating, setIsCreating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+const DURATIONS = ['15', '20', '30', '45', '60']
 
-  // Form
-  const [startDate, setStartDate] = useState('')
-  const [startTime, setStartTime] = useState('')
-  const [endTime, setEndTime] = useState('')
+interface SlotValues {
+  day: string
+  time: string
+  minutes: string
+}
 
-  const loadSlots = async () => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const data = await api.doctors.getMySlots(true)
-      setSlots(data)
-    } catch (err: any) {
-      setError(err.message || 'Failed to load availability slots')
-    } finally {
-      setIsLoading(false)
-    }
+function isPast(iso: string): boolean {
+  return iso <= new Date().toISOString()
+}
 
-  }
+function overlapping(slots: AvailabilitySlot[], start: string, end: string) {
+  return slots.find((slot) => slot.start_time < end && slot.end_time > start)
+}
+
+function SlotBlock({ slot, onDelete }: { slot: AvailabilitySlot; onDelete: () => void }) {
+  const { t, i18n } = useTranslation()
+  const time = formatTime(slot.start_time, i18n.language)
+  return (
+    <li
+      className={
+        slot.is_booked
+          ? 'flex min-h-11 items-center justify-between gap-1 rounded-sm bg-primary-tint pl-2 text-sm text-primary-hover'
+          : 'flex min-h-11 items-center justify-between gap-1 rounded-sm border border-border pl-2 text-sm'
+      }
+    >
+      <span className="tabular">
+        {time} – {formatTime(slot.end_time, i18n.language)}
+      </span>
+      {slot.is_booked ? (
+        <span className="flex size-11 items-center justify-center md:size-10" title={t('availability.booked')}>
+          <Lock aria-hidden className="size-4" strokeWidth={1.75} />
+          <span className="sr-only">{t('availability.booked')}</span>
+        </span>
+      ) : (
+        <IconButton label={t('availability.deleteNamed', { time })} onClick={onDelete}>
+          <Trash2 aria-hidden className="size-4" strokeWidth={1.75} />
+        </IconButton>
+      )}
+    </li>
+  )
+}
+
+export default function AvailabilityPage() {
+  const { t, i18n } = useTranslation()
+  const { toast } = useToast()
+  const { params, set } = useUrlState()
+  const profile = useMyDoctorProfile()
+  const slots = useMySlots()
+  const create = useCreateSlot()
+  const remove = useDeleteSlot()
+  const [adding, setAdding] = useState(false)
+  const [deleting, setDeleting] = useState<AvailabilitySlot | null>(null)
+  const [today] = useState(() => dhakaDay(new Date()))
+
+  const week = startOfWeek(params.get('week') ?? today)
+  const days = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(week, index)), [week])
+  const allSlots = useMemo(() => slots.data ?? [], [slots.data])
+
+  const schema = useMemo(
+    () =>
+      z
+        .object({ day: z.string().min(1), time: z.string().min(1, t('availability.timeRequired')), minutes: z.string() })
+        .superRefine((values, context) => {
+          if (!values.time) return
+          const start = dhakaToIso(values.day, values.time)
+          const end = new Date(new Date(start).getTime() + Number(values.minutes) * 60000).toISOString()
+          if (isPast(start)) {
+            context.addIssue({ code: 'custom', path: ['time'], message: t('availability.inPast') })
+          } else if (overlapping(allSlots, start, end)) {
+            context.addIssue({ code: 'custom', path: ['time'], message: t('availability.overlap') })
+          }
+        }),
+    [allSlots, t]
+  )
+
+  const {
+    control,
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<SlotValues>({ resolver: zodResolver(schema), mode: 'onChange' })
 
   useEffect(() => {
-    loadSlots()
-  }, [])
+    if (adding) return
+    reset({ day: today, time: '', minutes: '30' })
+  }, [adding, reset, today])
 
-  const handleCreateSlot = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!startDate || !startTime || !endTime) return
+  function openForm(day: string) {
+    reset({ day, time: '', minutes: '30' })
+    setAdding(true)
+  }
 
-    setIsCreating(true)
-    setError(null)
-    setSuccess(null)
-
+  async function addSlot(values: SlotValues) {
+    const start = dhakaToIso(values.day, values.time)
+    const end = new Date(new Date(start).getTime() + Number(values.minutes) * 60000).toISOString()
     try {
-      const startDateTime = new Date(`${startDate}T${startTime}:00Z`).toISOString()
-      const endDateTime = new Date(`${startDate}T${endTime}:00Z`).toISOString()
-
-      const newSlot = await api.doctors.createSlot(startDateTime, endDateTime)
-      setSlots((prev) => [newSlot, ...prev])
-      setSuccess('Availability slot created successfully!')
-      setStartTime('')
-      setEndTime('')
-    } catch (err: any) {
-      setError(err.message || 'Failed to create slot')
-    } finally {
-      setIsCreating(false)
+      await create.mutateAsync({ start, end })
+      toast(t('availability.added'))
+      setAdding(false)
+    } catch (error) {
+      toast(errorMessage(error, t), 'error')
     }
   }
 
-  const handleDeleteSlot = async (slotId: string) => {
-    if (!confirm('Are you sure you want to delete this availability slot?')) return
-
-    setError(null)
+  async function confirmDelete() {
+    if (!deleting) return
     try {
-      await api.doctors.deleteSlot(slotId)
-      setSlots((prev) => prev.filter((s) => s.id !== slotId))
-      setSuccess('Slot removed successfully.')
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete slot')
+      await remove.mutateAsync(deleting.id)
+      toast(t('availability.deleted'))
+      setDeleting(null)
+    } catch (error) {
+      toast(errorMessage(error, t), 'error')
     }
   }
+
+  const approved = profile.data?.verification_status === 'approved'
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-          Manage Availability Slots
-        </h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Define upcoming consultation windows for patients to discover and book.
-        </p>
+    <div className="page-gutter py-6 md:py-8">
+      <PageHeader
+        title={t('availability.title')}
+        description={t('availability.description')}
+        actions={
+          approved ? (
+            <Button onClick={() => openForm(days.find((day) => day >= today) ?? week)}>
+              <Plus aria-hidden className="size-4" strokeWidth={1.75} />
+              {t('availability.add')}
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {profile.data && !approved && (
+        <Banner tone="warning" className="mb-4">
+          {t('availability.notApproved')}
+        </Banner>
+      )}
+
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-md font-semibold whitespace-nowrap tabular md:text-lg" aria-live="polite">
+          {t('availability.weekOf', { date: formatShortDate(`${week}T12:00:00+06:00`, i18n.language) })}
+        </h2>
+        <div className="flex gap-2">
+          <IconButton variant="outline" label={t('availability.previousWeek')} onClick={() => set({ week: addDays(week, -7) })}>
+            <ChevronLeft aria-hidden className="size-5" strokeWidth={1.75} />
+          </IconButton>
+          <Button variant="secondary" onClick={() => set({ week: undefined })}>
+            {t('availability.thisWeek')}
+          </Button>
+          <IconButton variant="outline" label={t('availability.nextWeek')} onClick={() => set({ week: addDays(week, 7) })}>
+            <ChevronRight aria-hidden className="size-5" strokeWidth={1.75} />
+          </IconButton>
+        </div>
       </div>
 
-      {error && <Alert type="error" message={error} onClose={() => setError(null)} className="mb-6" />}
-      {success && <Alert type="success" message={success} onClose={() => setSuccess(null)} className="mb-6" />}
+      {slots.isPending ? (
+        <Skeleton className="h-64" />
+      ) : slots.isError ? (
+        <ErrorState error={slots.error} onRetry={() => void slots.refetch()} />
+      ) : (
+        <div className="grid overflow-hidden rounded-md border border-border bg-surface lg:grid-cols-7">
+          {days.map((day) => {
+            const iso = `${day}T12:00:00+06:00`
+            const daySlots = allSlots
+              .filter((slot) => dhakaDay(slot.start_time) === day)
+              .sort((a, b) => a.start_time.localeCompare(b.start_time))
+            const past = day < today
+            return (
+              <section
+                key={day}
+                aria-label={formatShortDate(iso, i18n.language)}
+                className="flex min-w-0 flex-col gap-2 border-b border-border p-3 last:border-b-0 lg:min-h-64 lg:border-r lg:border-b-0 lg:last:border-r-0"
+              >
+                <div className="flex min-h-11 items-center justify-between gap-2 md:min-h-10">
+                  <p className={day === today ? 'font-semibold text-primary-hover' : 'font-medium'}>
+                    {formatWeekday(iso, i18n.language)} <span className="tabular">{formatDayNumber(iso, i18n.language)}</span>
+                  </p>
+                  {approved && !past && (
+                    <IconButton label={t('availability.addOn', { date: formatShortDate(iso, i18n.language) })} onClick={() => openForm(day)}>
+                      <Plus aria-hidden className="size-4" strokeWidth={1.75} />
+                    </IconButton>
+                  )}
+                </div>
+                {daySlots.length > 0 ? (
+                  <ul className="flex flex-col gap-1">
+                    {daySlots.map((slot) => (
+                      <SlotBlock key={slot.id} slot={slot} onDelete={() => setDeleting(slot)} />
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted">{t('availability.none')}</p>
+                )}
+              </section>
+            )
+          })}
+        </div>
+      )}
+      <p className="mt-2 text-sm text-muted">{t('booking.timezone')}</p>
+      {allSlots.length === 0 && slots.isSuccess && approved && (
+        <p className="mt-2 text-muted">{t('availability.emptyHint')}</p>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left: Create Slot Form */}
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs h-fit">
-          <div className="flex items-center gap-2 pb-3 mb-4 border-b border-slate-100 text-sm font-bold text-slate-900">
-            <Plus className="h-4 w-4 text-indigo-600" />
-            Add New Availability Slot
-          </div>
-
-          <form onSubmit={handleCreateSlot} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700">Date</label>
-              <input
-                type="date"
-                required
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                className="mt-1 w-full rounded-xl border border-slate-200 py-2 px-3 text-xs text-slate-900 focus:border-indigo-600 focus:outline-hidden"
+      <Dialog
+        open={adding}
+        onOpenChange={setAdding}
+        title={t('availability.addTitle')}
+        description={t('booking.timezone')}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setAdding(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" form="slot-form" loading={create.isPending}>
+              {t('availability.addConfirm')}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="slot-form"
+          onSubmit={(event) => void handleSubmit(addSlot)(event)}
+          noValidate
+          className="flex flex-col gap-4"
+        >
+          <Field label={t('availability.day')} error={errors.day?.message}>
+            {(field) => <Input {...field} type="date" min={today} {...register('day')} />}
+          </Field>
+          <Field label={t('availability.startTime')} error={errors.time?.message}>
+            {(field) => <Input {...field} type="time" step={300} {...register('time')} />}
+          </Field>
+          <Field label={t('availability.duration')}>
+            {(field) => (
+              <Controller
+                control={control}
+                name="minutes"
+                render={({ field: { value, onChange } }) => (
+                  <Select
+                    id={field.id}
+                    value={value ?? '30'}
+                    onValueChange={onChange}
+                    options={DURATIONS.map((minutes) => ({
+                      value: minutes,
+                      label: t('availability.minutes', { count: Number(minutes) }),
+                    }))}
+                  />
+                )}
               />
-            </div>
+            )}
+          </Field>
+        </form>
+      </Dialog>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">Start Time (UTC)</label>
-                <input
-                  type="time"
-                  required
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 py-2 px-3 text-xs text-slate-900 focus:border-indigo-600 focus:outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700">End Time (UTC)</label>
-                <input
-                  type="time"
-                  required
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 py-2 px-3 text-xs text-slate-900 focus:border-indigo-600 focus:outline-hidden"
-                />
-              </div>
-            </div>
-
-            <p className="text-[10px] text-slate-400">
-              * Minimum duration is 15 minutes. Overlapping slots will be automatically rejected.
-            </p>
-
-            <button
-              type="submit"
-              disabled={isCreating}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 transition disabled:opacity-50"
-            >
-              {isCreating ? 'Creating Slot...' : 'Create Availability Slot'}
-            </button>
-          </form>
-        </div>
-
-        {/* Right: Slot Listing */}
-        <div className="lg:col-span-2 rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
-          <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
-            <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
-              <Calendar className="h-4 w-4 text-indigo-600" />
-              Existing Slots ({slots.length})
-            </div>
-            <button
-              onClick={loadSlots}
-              className="text-xs font-semibold text-indigo-600 hover:underline"
-            >
-              Refresh
-            </button>
-          </div>
-
-          {isLoading ? (
-            <LoadingSpinner message="Loading slots..." />
-          ) : slots.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate-400">
-              No slots scheduled. Use the form to add upcoming availability.
-            </div>
-          ) : (
-            <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
-              {slots.map((slot) => {
-                const sDt = new Date(slot.start_time)
-                const eDt = new Date(slot.end_time)
-
-                return (
-                  <div
-                    key={slot.id}
-                    className="flex items-center justify-between rounded-xl border border-slate-200 p-3.5 hover:border-slate-300 transition"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-slate-900">
-                        {sDt.toLocaleDateString(undefined, {
-                          weekday: 'short',
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        {sDt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} –{' '}
-                        {eDt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                          slot.is_booked
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-emerald-100 text-emerald-800'
-                        }`}
-                      >
-                        {slot.is_booked ? 'Booked' : 'Open'}
-                      </span>
-
-                      {!slot.is_booked && (
-                        <button
-                          onClick={() => handleDeleteSlot(slot.id)}
-                          className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition"
-                          title="Delete unbooked slot"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title={t('availability.deleteTitle')}
+        description={t('availability.deleteBody', {
+          time: deleting ? formatTime(deleting.start_time, i18n.language) : '',
+          date: deleting ? formatShortDate(deleting.start_time, i18n.language) : '',
+        })}
+        confirmLabel={t('availability.delete')}
+        cancelLabel={t('common.goBack')}
+        loading={remove.isPending}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   )
 }

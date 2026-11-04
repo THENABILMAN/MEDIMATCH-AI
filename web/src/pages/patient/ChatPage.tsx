@@ -1,288 +1,276 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { Activity, Bot, Plus, Send, User } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { History, Plus } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../../api/client'
-import { DisclaimerBanner } from '../../components/chat/DisclaimerBanner'
-import { DoctorRecommendationCard } from '../../components/chat/DoctorRecommendationCard'
-import { EmergencyAlert } from '../../components/chat/EmergencyAlert'
-import { Alert } from '../../components/common/Alert'
-import { LoadingSpinner } from '../../components/common/LoadingSpinner'
-import type { ChatMessage, Conversation, DoctorRecommendation } from '../../types'
+import { keys, useConversation, useConversations } from '../../api/hooks'
+import { AIDisclaimer } from '../../components/domain/ai-disclaimer'
+import { ChatComposer } from '../../components/domain/chat-composer'
+import { ChatMessage } from '../../components/domain/chat-message'
+import { Banner } from '../../components/ui/banner'
+import { Button } from '../../components/ui/button'
+import { ErrorState } from '../../components/ui/query-state'
+import { Sheet } from '../../components/ui/sheet'
+import { Skeleton } from '../../components/ui/skeleton'
+import { useAuth } from '../../contexts/AuthContext'
+import { EMERGENCY_NUMBER } from '../../lib/constants'
+import { errorMessage } from '../../lib/errors'
+import { formatDateTime } from '../../lib/format'
+import type { ChatMessage as ChatMessageType, ConversationDetail } from '../../types'
 
-interface ExtendedChatMessage extends ChatMessage {
-  is_emergency?: boolean
-  recommendations?: DoctorRecommendation[]
-}
+function ConsentPanel() {
+  const { t } = useTranslation()
+  const { refreshProfile } = useAuth()
+  const [saving, setSaving] = useState(false)
+  const [failure, setFailure] = useState<string | null>(null)
 
-export const ChatPage: React.FC = () => {
-  const [conversations, setConversations] = useState<Conversation[]>([])
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
-  const [messages, setMessages] = useState<ExtendedChatMessage[]>([])
-  const [inputMessage, setInputMessage] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [isSending, setIsSending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages, isSending])
-
-  const loadConversations = async () => {
+  async function agree() {
+    setSaving(true)
+    setFailure(null)
     try {
-      setIsLoading(true)
-      const list = await api.chat.listConversations()
-      setConversations(list)
-      if (list.length > 0 && !activeConversationId) {
-        selectConversation(list[0].id)
-      } else if (list.length === 0) {
-        // Automatically start new conversation
-        startNewConversation()
-      }
-
-    } catch (err: any) {
-      console.error('Failed to load conversations:', err)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Load conversation list
-  useEffect(() => {
-    loadConversations()
-  }, [])
-
-  const selectConversation = async (id: string) => {
-    try {
-      setActiveConversationId(id)
-      setError(null)
-      const fullConv = await api.chat.getConversation(id)
-      setMessages(
-        fullConv.messages.map((msg) => ({
-          ...msg,
-          is_emergency: msg.metadata?.is_emergency,
-          recommendations: msg.metadata?.recommendations,
-        }))
-      )
-    } catch (err: any) {
-      setError(err.message || 'Failed to load conversation')
-    }
-  }
-
-  const startNewConversation = async () => {
-    try {
-      setIsLoading(true)
-      const newConv = await api.chat.createConversation('New Symptom Consultation')
-      setConversations((prev) => [newConv, ...prev])
-      setActiveConversationId(newConv.id)
-      setMessages([
-        {
-          id: 'welcome',
-          conversation_id: newConv.id,
-          sender: 'assistant',
-          content: newConv.initial_message ?? '',
-          created_at: new Date().toISOString(),
-        },
-      ])
-    } catch (err: any) {
-      setError(err.message || 'Failed to create new conversation')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!inputMessage.trim() || !activeConversationId || isSending) return
-
-    const userText = inputMessage.trim()
-    setInputMessage('')
-    setError(null)
-
-    // Optimistically append user message
-    const tempUserMsg: ExtendedChatMessage = {
-      id: `temp-${Date.now()}`,
-      conversation_id: activeConversationId,
-      sender: 'patient',
-      content: userText,
-      created_at: new Date().toISOString(),
-    }
-    setMessages((prev) => [...prev, tempUserMsg])
-    setIsSending(true)
-
-    try {
-      const response = await api.chat.sendMessage(activeConversationId, userText)
-
-      const assistantMsg: ExtendedChatMessage = {
-        id: `assist-${Date.now()}`,
-        conversation_id: activeConversationId,
-        sender: 'assistant',
-        content: response.assistant_reply,
-        created_at: new Date().toISOString(),
-        is_emergency: response.is_emergency,
-        recommendations: response.recommendations,
-      }
-
-      setMessages((prev) => [...prev, assistantMsg])
-    } catch (err: any) {
-      setError(err.message || 'Failed to receive assistant reply')
-    } finally {
-      setIsSending(false)
+      await api.auth.updateMe({ ai_consent: true })
+      await refreshProfile()
+    } catch (error) {
+      setFailure(errorMessage(error, t))
+      setSaving(false)
     }
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-65px)] bg-slate-50">
-      {/* Permanent Safety Disclaimer */}
-      <DisclaimerBanner />
+    <div className="page-gutter py-8">
+      <div className="mx-auto w-full max-w-[720px]">
+        <h1 className="font-serif text-2xl">{t('chat.consentTitle')}</h1>
+        <p className="prose-width mt-3 text-muted">{t('chat.consentBody')}</p>
+        <p className="prose-width mt-3 text-muted">{t('chat.consentPrivacy')}</p>
+        {failure && (
+          <Banner tone="warning" className="mt-4">
+            {failure}
+          </Banner>
+        )}
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Button loading={saving} onClick={() => void agree()}>
+            {t('chat.consentAgree')}
+          </Button>
+          <Button asChild variant="secondary">
+            <Link to="/doctors">{t('home.browse')}</Link>
+          </Button>
+        </div>
+        <p className="prose-width mt-6 text-sm text-muted">{t('home.emergency', { number: EMERGENCY_NUMBER })}</p>
+      </div>
+    </div>
+  )
+}
 
-      <div className="flex flex-1 overflow-hidden max-w-7xl w-full mx-auto p-4 gap-4">
-        {/* Left Sidebar: Conversations */}
-        <aside className="hidden md:flex flex-col w-64 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs">
-          <button
-            onClick={startNewConversation}
-            className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 px-3 text-xs font-bold text-white shadow-xs transition hover:bg-indigo-700 active:scale-95"
-          >
-            <Plus className="h-4 w-4" />
-            New Consultation
-          </button>
+function MessagesSkeleton() {
+  return (
+    <div className="flex flex-col gap-4" aria-hidden>
+      <Skeleton className="h-20 w-4/5" />
+      <Skeleton className="ml-auto h-12 w-3/5" />
+      <Skeleton className="h-16 w-4/5" />
+    </div>
+  )
+}
 
-          <div className="mt-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2">
-            Previous Sessions
-          </div>
+/** Finds the conversation to open, creating the first one. */
+function useOpenConversation(conversationId: string | undefined, enabled: boolean) {
+  const navigate = useNavigate()
+  const client = useQueryClient()
+  const conversations = useConversations(enabled)
+  const creating = useRef(false)
+  const [createError, setCreateError] = useState<unknown>(null)
 
-          <div className="mt-2 flex-1 overflow-y-auto space-y-1">
-            {conversations.map((conv) => (
-              <button
-                key={conv.id}
-                onClick={() => selectConversation(conv.id)}
-                className={`w-full text-left rounded-xl p-2.5 text-xs font-medium transition ${
-                  conv.id === activeConversationId
-                    ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                    : 'text-slate-700 hover:bg-slate-100'
-                }`}
-              >
-                <div className="truncate">{conv.title || 'Symptom Consultation'}</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">
-                  {new Date(conv.created_at).toLocaleDateString()}
-                </div>
-              </button>
-            ))}
-          </div>
-        </aside>
+  const startNew = useCallback(async () => {
+    if (creating.current) return
+    creating.current = true
+    setCreateError(null)
+    try {
+      const created = await api.chat.createConversation('Symptom Consultation')
+      await client.invalidateQueries({ queryKey: keys.conversations })
+      navigate(`/chat/${created.id}`, { replace: conversationId === undefined })
+    } catch (error) {
+      setCreateError(error)
+    } finally {
+      creating.current = false
+    }
+  }, [client, conversationId, navigate])
 
-        {/* Right Main: Active Chat Window */}
-        <main className="flex flex-1 flex-col rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
-          {error && (
-            <div className="p-3 border-b border-slate-100">
-              <Alert type="error" message={error} onClose={() => setError(null)} />
+  useEffect(() => {
+    if (!enabled || conversationId || !conversations.data) return
+    if (conversations.data.length > 0) navigate(`/chat/${conversations.data[0].id}`, { replace: true })
+    else void startNew()
+  }, [conversationId, conversations.data, enabled, navigate, startNew])
+
+  return { conversations, startNew, createError }
+}
+
+export default function ChatPage() {
+  const { t, i18n } = useTranslation()
+  const { conversationId } = useParams()
+  const { profile } = useAuth()
+  const client = useQueryClient()
+  const consented = Boolean(profile?.ai_consent_at)
+
+  const { conversations, startNew, createError } = useOpenConversation(conversationId, consented)
+  const conversation = useConversation(consented ? conversationId : undefined)
+
+  const [sending, setSending] = useState(false)
+  const [followupField, setFollowupField] = useState<string | null>(null)
+  const [unsent, setUnsent] = useState<{ text: string; reason: string } | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const endRef = useRef<HTMLDivElement>(null)
+
+  const messages = conversation.data?.messages
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: 'end' })
+  }, [messages, sending, unsent])
+
+  const append = useCallback(
+    (id: string, message: ChatMessageType) => {
+      client.setQueryData<ConversationDetail>(keys.conversation(id), (current) =>
+        current ? { ...current, messages: [...current.messages, message] } : current
+      )
+    },
+    [client]
+  )
+
+  async function send(text: string, alreadyShown = false) {
+    if (!conversationId) return
+    setUnsent(null)
+    setFollowupField(null)
+    if (!alreadyShown) {
+      append(conversationId, {
+        id: `local-${Date.now()}`,
+        conversation_id: conversationId,
+        sender: 'patient',
+        content: text,
+        created_at: new Date().toISOString(),
+      })
+    }
+
+    setSending(true)
+    try {
+      const reply = await api.chat.sendMessage(conversationId, text)
+      append(conversationId, {
+        id: `reply-${Date.now()}`,
+        conversation_id: conversationId,
+        sender: 'assistant',
+        content: reply.assistant_reply,
+        created_at: new Date().toISOString(),
+        metadata: { is_emergency: reply.is_emergency, recommendations: reply.recommendations ?? [] },
+      })
+      setFollowupField(reply.followup_field ?? null)
+    } catch (error) {
+      setUnsent({ text, reason: errorMessage(error, t) })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  if (!consented) return <ConsentPanel />
+
+  const loadError = createError ?? conversation.error ?? conversations.error
+
+  return (
+    <div className="flex h-[calc(100dvh-var(--header-height)-1px)] flex-col">
+      <div className="border-b border-border bg-surface">
+        <div className="mx-auto flex w-full max-w-[752px] flex-col gap-2 px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="font-serif text-lg whitespace-nowrap md:text-xl">{t('chat.title')}</h1>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setHistoryOpen(true)}>
+                <History aria-hidden className="hidden size-4 md:block" strokeWidth={1.75} />
+                {t('chat.history')}
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => void startNew()}>
+                <Plus aria-hidden className="hidden size-4 md:block" strokeWidth={1.75} />
+                {t('chat.new')}
+              </Button>
             </div>
+          </div>
+          <AIDisclaimer />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto overscroll-contain">
+        <div
+          role="log"
+          aria-label={t('chat.conversation')}
+          aria-live="polite"
+          aria-busy={sending}
+          className="mx-auto flex w-full max-w-[752px] flex-col gap-6 px-4 py-6"
+        >
+          {loadError ? (
+            <ErrorState
+              error={loadError}
+              onRetry={() => {
+                void conversations.refetch()
+                void conversation.refetch()
+              }}
+            />
+          ) : messages ? (
+            messages.map((message) => <ChatMessage key={message.id} message={message} />)
+          ) : (
+            <MessagesSkeleton />
           )}
 
-          {/* Messages Scroll Area */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-            {isLoading ? (
-              <LoadingSpinner message="Loading consultation..." />
-            ) : (
-              messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex gap-3 ${msg.sender === 'patient' ? 'justify-end' : 'justify-start'}`}
-                >
-                  {msg.sender === 'assistant' && (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs">
-                      <Bot className="h-4 w-4" />
-                    </div>
-                  )}
+          {sending && (
+            <p role="status" className="border-l-2 border-ai pl-4 text-sm text-muted">
+              {t('chat.thinking')}
+            </p>
+          )}
 
-                  <div className={`max-w-2xl ${msg.sender === 'patient' ? 'items-end' : 'items-start'}`}>
-                    {/* Message Bubble */}
-                    <div
-                      className={`rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-2xs whitespace-pre-wrap ${
-                        msg.sender === 'patient'
-                          ? 'bg-indigo-600 text-white rounded-tr-none'
-                          : 'border border-slate-200 bg-white text-slate-800 rounded-tl-none'
-                      }`}
-                    >
-                      {msg.content}
-                    </div>
-
-                    {/* Emergency Alert (if triggered) */}
-                    {msg.is_emergency && <EmergencyAlert message={msg.content} />}
-
-                    {/* Doctor Recommendation Cards Grid (if populated) */}
-                    {msg.recommendations && msg.recommendations.length > 0 && (
-                      <div className="mt-4 space-y-2">
-                        <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-600">
-                          <Activity className="h-4 w-4 text-indigo-600" />
-                          Recommended Specialists ({msg.recommendations.length})
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                          {msg.recommendations.map((doc) => (
-                            <DoctorRecommendationCard key={doc.id} doctor={doc} />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div
-                      className={`mt-1 text-[10px] text-slate-400 ${
-                        msg.sender === 'patient' ? 'text-right' : 'text-left'
-                      }`}
-                    >
-                      {new Date(msg.created_at).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </div>
-                  </div>
-
-                  {msg.sender === 'patient' && (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-200 text-slate-700">
-                      <User className="h-4 w-4" />
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-
-            {isSending && (
-              <div className="flex items-center gap-2 text-xs text-slate-500 pl-11">
-                <div className="h-2 w-2 rounded-full bg-indigo-600 animate-ping" />
-                <span>Assistant is evaluating symptoms and specialist availability...</span>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Chat Input Bar */}
-          <form
-            onSubmit={handleSendMessage}
-            className="flex items-center gap-2 border-t border-slate-200 bg-slate-50/50 p-3"
-          >
-            <input
-              type="text"
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              placeholder="Describe your symptoms (e.g. 'sharp headache for 3 days in Dhaka')..."
-              disabled={isSending}
-              className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 px-4 text-sm text-slate-900 transition focus:border-indigo-600 focus:outline-hidden focus:ring-1 focus:ring-indigo-600 disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={!inputMessage.trim() || isSending}
-              className="flex items-center justify-center rounded-xl bg-indigo-600 p-2.5 text-white shadow-xs transition hover:bg-indigo-700 disabled:opacity-40 active:scale-95"
+          {unsent && (
+            <Banner
+              tone="warning"
+              title={t('chat.notSent')}
+              action={
+                <Button variant="secondary" onClick={() => void send(unsent.text, true)}>
+                  {t('common.tryAgain')}
+                </Button>
+              }
             >
-              <Send className="h-5 w-5" />
-            </button>
-          </form>
-        </main>
+              <p>{unsent.reason}</p>
+              <p className="mt-1">{t('chat.notSentEmergency', { number: EMERGENCY_NUMBER })}</p>
+            </Banner>
+          )}
+          <div ref={endRef} />
+        </div>
       </div>
+
+      <div className="border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]">
+        <div className="mx-auto w-full max-w-[752px] px-4 py-3">
+          <ChatComposer
+            onSend={(text) => void send(text)}
+            sending={sending || !conversation.data}
+            followupField={followupField}
+          />
+        </div>
+      </div>
+
+      <Sheet open={historyOpen} onOpenChange={setHistoryOpen} title={t('chat.history')}>
+        {conversations.data?.length ? (
+          <ul className="flex flex-col gap-1">
+            {conversations.data.map((item) => (
+              <li key={item.id}>
+                <Link
+                  to={`/chat/${item.id}`}
+                  onClick={() => setHistoryOpen(false)}
+                  aria-current={item.id === conversationId ? 'page' : undefined}
+                  className="block rounded-sm p-3 hover:bg-canvas aria-[current=page]:bg-primary-tint"
+                >
+                  <span className="block font-medium">{item.title}</span>
+                  <span className="block text-sm text-muted tabular">
+                    {formatDateTime(item.created_at, i18n.language)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-muted">{t('chat.historyEmpty')}</p>
+        )}
+      </Sheet>
     </div>
   )
 }
