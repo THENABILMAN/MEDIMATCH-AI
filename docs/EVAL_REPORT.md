@@ -66,7 +66,7 @@ python backend/scripts/eval_emergency.py --emergencies 30 --ordinary 15
 | Rewritten guard, on replies it was tuned on | 33 of 33 blocked |
 | Rewritten guard, on 16 unseen replies | **Let all 16 through** |
 
-The guard is not a reliable filter, so it is not the main protection. **Patients now only receive fixed text**, and model output is never shown, so this gap cannot reach a patient. The guard stays as a backstop.
+The guard is not a reliable filter. **Since 2026-11-05 the model writes normal replies**, so this gap can reach a patient: the system prompt and this guard are the only checks on what it says. Review real conversations before patients use this.
 
 ## Recommendations
 

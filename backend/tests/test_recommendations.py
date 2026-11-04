@@ -17,7 +17,7 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 from app.ai.llm import LLMClient, set_llm_client
-from app.ai.state import ConversationIntent, ExtractedSymptoms
+from app.ai.state import AssistantTurn
 from app.models.enums import UserRole
 from app.search.embeddings import FakeEmbeddingProvider, set_embedding_provider
 from app.search.recommend import _fits_request, recommend_doctors
@@ -211,14 +211,14 @@ def test_chat_completion_populates_recommendations(client: TestClient):
     # 2. Configure deterministic mock LLM
     class MockNeuroLLM(LLMClient):
         def generate_structured(self, messages, response_model, system_prompt=None):
-            if response_model is ConversationIntent:
-                return ConversationIntent(intent="symptom_update")
-            return ExtractedSymptoms(
+            return AssistantTurn(
+                reply="Let me find you a neurologist in Dhaka.",
                 symptoms=["severe migraine", "throbbing head pain"],
                 duration="3 days",
                 severity="moderate",
                 location="Dhaka",
                 candidate_specialty_names=["Neurology"],
+                ready_to_search=True,
             )
 
     set_llm_client(MockNeuroLLM(api_key="mock", model="mock"))

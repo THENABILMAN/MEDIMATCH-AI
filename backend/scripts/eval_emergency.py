@@ -24,19 +24,20 @@ for path in (backend_dir, backend_dir / "tests"):
 
 from test_safety_tables import HELD_OUT_EMERGENCIES, HELD_OUT_ORDINARY
 
-from app.ai.graph import CLASSIFIER_PROMPT
+from app.ai.graph import _get_verified_specialty_names, build_system_prompt
 from app.ai.llm import LLMUnavailableError, get_llm_client
-from app.ai.state import ConversationIntent
+from app.ai.state import AssistantTurn
 from app.core.config import settings
 
 
 def classify(text: str) -> bool | None:
     """True or False from the model, or None if the call failed."""
+    state = {"messages": [{"role": "user", "content": text}]}
     try:
         result = get_llm_client().generate_structured(
-            messages=[{"role": "user", "content": text}],
-            response_model=ConversationIntent,
-            system_prompt=CLASSIFIER_PROMPT,
+            messages=state["messages"],
+            response_model=AssistantTurn,
+            system_prompt=build_system_prompt(state, _get_verified_specialty_names()),
         )
     except (LLMUnavailableError, ValueError):
         return None

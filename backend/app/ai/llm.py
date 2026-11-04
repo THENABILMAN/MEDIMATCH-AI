@@ -147,7 +147,7 @@ class LLMClient:
         raw_output = self.generate(
             messages=messages,
             system_prompt=system_instruction,
-            temperature=0.1,
+            temperature=settings.LLM_TEMPERATURE,
         )
 
         # Clean possible markdown wrapping if the LLM provided it

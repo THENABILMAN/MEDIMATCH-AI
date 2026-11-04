@@ -49,7 +49,7 @@ MEDIMATCH-AI/
 6. **Row-Level Security (RLS)**: Every table containing user data must have RLS enabled with strict least-privilege policies.
 7. **Privacy Preservation**: Minimize personal data sent to LLM/embedding providers; never send patient names, phone numbers, email addresses, or identifying credentials.
 8. **Defense in Depth**: Every route enforces auth and role checks, and RLS guards the same data. Rely on neither alone. Clients never write directly: the API is the only writer.
-9. **No Model Text to Patients**: Assistant replies are fixed text. LLM output is only ever parsed into validated fields, and the classifier can add an emergency alert but never remove one.
+9. **Model Writes the Conversation**: The LLM writes every normal reply, in the patient's language, with no templates or keyword lists. Emergency alerts stay fixed and rule-checked first, the model can add an alert but never remove one, and every reply passes the output guard.
 
 ---
 
@@ -195,7 +195,7 @@ flutter run
 - [x] **Phase 5c: Backend Audit and Hardening**
   - `docs/AUDIT.md` records the state before, `docs/SECURITY_REPORT.md` after, and `docs/EVAL_REPORT.md` what was measured
   - Tests run on local Supabase only: 867 passing, 93% coverage, 100% on safety and booking
-  - Emergency detection is rules plus an LLM classifier that can only add alerts, and replies are fixed text
+  - Emergency detection is rules plus the model, which can only add alerts. The model writes normal replies
   - Migrations `00008` to `00012` exist but are **not applied to the live project**
 - [ ] **Phase 6: Mobile App & Production Deployment**
   - Flutter app for Patient and Doctor workflows
@@ -235,7 +235,7 @@ flutter run
 - **2026-11-04**: AI consent is enforced by the API. An emergency still gets its alert without consent, and nothing the patient wrote is stored.
 - **2026-11-04**: Backend tests ignore `.env` and refuse non-local hosts, because they once wrote fake approved doctors to the real project.
 - **2026-11-04**: Rule-based detection alone missed 61% to 88% of unseen phrases, so the classifier is a second net rather than a replacement. Never report a detection score measured on phrases the rules were tuned on.
-- **2026-11-04**: Model text never reaches patients. A guard can always be beaten, so replies are fixed text and the guard is a backstop.
+- **2026-11-05**: Reversed the fixed-reply design on the owner's instruction, because it made the assistant robotic. One model call now writes the reply and reads the details. A model failure returns 503 and saves nothing, rather than a canned question. The guard is now the last check on model text, and it is known to be incomplete.
 - **2026-11-04**: Assistant state lives on the conversation row, not in a LangGraph checkpointer, so deletion and multiple workers need no extra machinery.
 - **2026-11-04**: Booking, cancelling and completing run in locked stored procedures. Appointments keep their own times, and audit logs are append-only for every writer.
 - **2026-11-04**: Signed-in reads of chats, appointments and credentials use the caller's token, so RLS applies. Writes use the service role behind route checks.

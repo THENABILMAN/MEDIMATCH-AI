@@ -11,6 +11,7 @@ from fastapi import HTTPException, status
 from postgrest import SyncPostgrestClient
 
 from app.ai.graph import get_symptom_graph
+from app.ai.llm import LLMUnavailableError
 from app.ai.safety import check_emergency, get_emergency_response
 from app.ai.state import PERSISTED_STATE_FIELDS
 from app.core.supabase import get_supabase_admin_client
@@ -231,16 +232,8 @@ def send_patient_message(
             detail="Access forbidden: You do not own this conversation",
         )
 
-    # 2. Persist patient message
-    client.table("messages").insert(
-        {
-            "conversation_id": conversation_id,
-            "sender": "patient",
-            "content": content,
-        }
-    ).execute()
-
-    # 3. Load past message history to feed the workflow state
+    # 2. Load past message history. The new message is saved only once it has an answer, so a
+    # retry after a model failure does not repeat it
     history_res = (
         client.table("messages")
         .select("sender, content")
@@ -256,9 +249,9 @@ def send_patient_message(
         }
         for m in (history_res.data or [])
     ]
+    formatted_messages.append({"role": "user", "content": content})
 
-    # 4. Invoke LangGraph
-    graph = get_symptom_graph()
+    # 3. Invoke LangGraph
     initial_state = {
         **(conv.get("graph_state") or {}),
         "conversation_id": conversation_id,
@@ -266,7 +259,23 @@ def send_patient_message(
         "messages": formatted_messages,
     }
 
-    result_state = graph.invoke(initial_state)
+    try:
+        result_state = get_symptom_graph().invoke(initial_state)
+    except LLMUnavailableError as e:
+        logger.error(f"Assistant unavailable: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The assistant is unavailable right now. Please try again in a moment.",
+        ) from e
+
+    # 4. Persist patient message and progress
+    client.table("messages").insert(
+        {
+            "conversation_id": conversation_id,
+            "sender": "patient",
+            "content": content,
+        }
+    ).execute()
 
     if result_state.get("safety_status") != "emergency":
         client.table("conversations").update(
@@ -277,19 +286,12 @@ def send_patient_message(
             }
         ).eq("id", conversation_id).execute()
 
-    # A node can leave the reply as None, so a .get() default is not enough
-    assistant_reply = (
-        result_state.get("assistant_reply")
-        or "Could you tell me a little more about your symptoms and location?"
-    )
-    current_step = result_state.get("current_step", "extract_symptoms")
+    assistant_reply = result_state["assistant_reply"]
+    current_step = result_state["current_step"]
     search_criteria = result_state.get("search_criteria")
 
     # The field being asked about lets the UI offer suggested answers
-    missing_fields = result_state.get("missing_fields") or []
-    followup_field = (
-        missing_fields[0] if current_step == "ask_followup" and missing_fields else None
-    )
+    followup_field = result_state.get("asking_about")
 
     # 5. If search criteria formed, call hybrid recommender
     recommendations_list: list[dict[str, Any]] = []

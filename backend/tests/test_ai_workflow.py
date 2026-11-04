@@ -1,345 +1,232 @@
-"""Workflow Tests for LangGraph Symptom Assistant.
-
-Verifies:
-1. Scripted end-to-end conversation extracting symptoms, duration, location, and producing search criteria.
-2. Missing information correctly triggers single follow-up questions.
-3. Max 3 follow-up rounds before falling back to default search criteria.
-4. Emergency input immediately bypasses extraction and triggers emergency alert.
-5. Specialty mapping strictly uses verified database specialties with General Medicine fallback.
-"""
+"""The conversation workflow. The model talks; Python enforces the limits around it. Offline."""
 
 from typing import Any
 
 import pytest
-from langgraph.checkpoint.memory import MemorySaver
 
-from app.ai.graph import (
-    _match_verified_specialties,
-    build_search_criteria_node,
-    build_symptom_graph,
-)
-from app.ai.llm import LLMClient, set_llm_client
-from app.ai.state import ConversationIntent, ExtractedSymptoms
+from app.ai import graph as graph_module
+from app.ai.graph import MAX_FOLLOW_UPS, build_symptom_graph
+from app.ai.llm import LLMClient, LLMUnavailableError, set_llm_client
+from app.ai.state import AssistantTurn
 
 
-class MockLLMClient(LLMClient):
-    """Deterministic Mock LLM client for testing the workflow."""
+class ScriptedLLM(LLMClient):
+    """Returns the next scripted turn, and records what it was sent."""
 
-    def __init__(
-        self,
-        extraction_response: ExtractedSymptoms | None = None,
-        intent_response: ConversationIntent | None = None,
-    ):
+    def __init__(self, *turns: AssistantTurn):
         super().__init__(api_key="mock", model="mock")
-        self.extraction_response = extraction_response or ExtractedSymptoms(
-            symptoms=["headache"],
-            duration="3 days",
-            location="Dhaka",
-            candidate_specialty_names=["Neurology"],
-        )
-        self.intent_response = intent_response or ConversationIntent(intent="symptom_update")
+        self.turns = list(turns)
+        self.prompts: list[str] = []
+        self.sent: list[list[dict[str, str]]] = []
 
-    def generate_structured(
-        self,
-        messages: list[dict[str, str]],
-        response_model: type[Any],
-        system_prompt: str | None = None,
-    ) -> Any:
-        if response_model is ConversationIntent:
-            return self.intent_response
-        return self.extraction_response
+    def generate_structured(self, messages, response_model, system_prompt=None) -> Any:
+        self.prompts.append(system_prompt or "")
+        self.sent.append(messages)
+        return self.turns.pop(0) if len(self.turns) > 1 else self.turns[0]
+
+
+def turn(reply: str = "Tell me more.", **details: Any) -> AssistantTurn:
+    return AssistantTurn(reply=reply, **details)
+
+
+READY = {
+    "symptoms": ["severe migraine"],
+    "duration": "4 days",
+    "location": "Dhaka",
+    "candidate_specialty_names": ["Neurology"],
+    "ready_to_search": True,
+}
 
 
 @pytest.fixture(autouse=True)
-def restore_default_llm():
-    """Ensure LLM client is reset after each test."""
-    yield
-    set_llm_client(LLMClient())
-
-
-def test_complete_symptom_flow_produces_search_criteria():
-    """When patient provides symptoms, duration, and location in one message,
-
-    the workflow immediately forms search criteria with candidate specialty.
-    """
-    mock_client = MockLLMClient(
-        ExtractedSymptoms(
-            symptoms=["severe migraine", "throbbing head pain"],
-            duration="4 days",
-            severity="severe",
-            location="Dhaka",
-            candidate_specialty_names=["Neurology"],
-        )
-    )
-    set_llm_client(mock_client)
-
-    graph = build_symptom_graph(checkpointer=MemorySaver())
-    config = {"configurable": {"thread_id": "test_conv_complete_1"}}
-
-    state_input = {
-        "conversation_id": "test_conv_complete_1",
-        "patient_id": "test_patient_1",
-        "messages": [
-            {
-                "role": "user",
-                "content": "I have had a severe throbbing headache for 4 days in Dhaka.",
-            }
-        ],
-    }
-
-    result = graph.invoke(state_input, config=config)
-
-    assert result["safety_status"] == "safe"
-    assert result["current_step"] == "completed"
-    assert result["search_criteria"] is not None
-    criteria = result["search_criteria"]
-    assert criteria["city"] == "Dhaka"
-    assert "Neurology" in criteria["candidate_specialties"]
-    assert (
-        "severe migraine" in criteria["keywords"] or "throbbing head pain" in criteria["keywords"]
-    )
-    assert "Neurology" in result["assistant_reply"]
-
-
-def test_missing_fields_trigger_followup_question():
-    """When patient message is missing duration and location,
-
-    the workflow asks ONE follow-up question and does not complete search criteria yet.
-    """
-    mock_client = MockLLMClient(
-        ExtractedSymptoms(
-            symptoms=["mild nausea"],
-            duration=None,
-            location=None,
-            candidate_specialty_names=["General Medicine"],
-        )
-    )
-    set_llm_client(mock_client)
-
-    graph = build_symptom_graph(checkpointer=MemorySaver())
-    config = {"configurable": {"thread_id": "test_conv_missing_1"}}
-
-    state_input = {
-        "conversation_id": "test_conv_missing_1",
-        "patient_id": "test_patient_2",
-        "messages": [
-            {
-                "role": "user",
-                "content": "I feel nauseous and dizzy.",
-            }
-        ],
-    }
-
-    result = graph.invoke(state_input, config=config)
-
-    assert result["current_step"] == "ask_followup"
-    assert result["followup_count"] == 1
-    assert result.get("search_criteria") is None
-    # Follow-up should inquire about missing info (duration or location)
-    reply = result["assistant_reply"]
-    assert "?" in reply
-    assert "how long" in reply.lower() or "duration" in reply.lower() or "when" in reply.lower()
-
-
-def test_max_three_followup_rounds_enforcement():
-    """After 3 follow-up attempts without all info,
-
-    the workflow stops asking and proceeds to build search criteria using defaults.
-    """
-    mock_client = MockLLMClient(
-        ExtractedSymptoms(
-            symptoms=["persistent cough"],
-            duration=None,
-            location=None,
-            candidate_specialty_names=["General Medicine"],
-        )
-    )
-    set_llm_client(mock_client)
-
-    graph = build_symptom_graph(checkpointer=MemorySaver())
-    config = {"configurable": {"thread_id": "test_conv_max_rounds"}}
-
-    # Simulate state at 3 previous follow-up questions
-    state_input = {
-        "conversation_id": "test_conv_max_rounds",
-        "patient_id": "test_patient_3",
-        "symptoms": ["persistent cough"],
-        "duration": None,
-        "location": None,
-        "followup_count": 3,  # Already asked 3 questions
-        "messages": [
-            {"role": "user", "content": "I just keep coughing."},
-        ],
-    }
-
-    result = graph.invoke(state_input, config=config)
-
-    # Workflow must now proceed to completed instead of asking a 4th question
-    assert result["current_step"] == "completed"
-    assert result["search_criteria"] is not None
-    criteria = result["search_criteria"]
-    # Falls back to default city Dhaka and General Medicine
-    assert criteria["city"] == "Dhaka"
-    assert "General Medicine" in criteria["candidate_specialties"]
-
-
-def test_emergency_message_short_circuits_workflow():
-    """When an emergency phrase is detected, the graph terminates immediately
-
-    at safety_check, returns the emergency escalation alert, and generates NO search criteria.
-    """
-    graph = build_symptom_graph(checkpointer=MemorySaver())
-    config = {"configurable": {"thread_id": "test_conv_emergency"}}
-
-    state_input = {
-        "conversation_id": "test_conv_emergency",
-        "patient_id": "test_patient_4",
-        "messages": [
-            {"role": "user", "content": "I have severe crushing chest pain and cannot breathe!"},
-        ],
-    }
-
-    result = graph.invoke(state_input, config=config)
-
-    assert result["safety_status"] == "emergency"
-    assert result["current_step"] == "emergency_escalated"
-    assert result.get("search_criteria") is None
-    assert "EMERGENCY ALERT" in result["assistant_reply"]
-    assert "999" in result["assistant_reply"]
-
-
-def test_specialty_mapping_fallback_to_general_medicine():
-    """Unrecognized or vague symptoms safely map to General Medicine."""
-    mock_client = MockLLMClient(
-        ExtractedSymptoms(
-            symptoms=["general fatigue and low energy"],
-            duration="1 week",
-            location="Sylhet",
-            candidate_specialty_names=[],
-        )
-    )
-    set_llm_client(mock_client)
-
-    graph = build_symptom_graph(checkpointer=MemorySaver())
-    config = {"configurable": {"thread_id": "test_conv_fallback"}}
-
-    state_input = {
-        "conversation_id": "test_conv_fallback",
-        "patient_id": "test_patient_5",
-        "messages": [
-            {"role": "user", "content": "Feeling very tired for 1 week in Sylhet"},
-        ],
-    }
-
-    result = graph.invoke(state_input, config=config)
-
-    assert result["current_step"] == "completed"
-    criteria = result["search_criteria"]
-    assert "General Medicine" in criteria["candidate_specialties"]
-    assert criteria["city"] == "Sylhet"
-
-
-def test_general_conversation_is_not_sent_to_symptom_extraction():
-    set_llm_client(
-        MockLLMClient(
-            intent_response=ConversationIntent(
-                intent="general_conversation",
-                assistant_reply="I am MediMatch Assistant. I help you find qualified specialists and book appointments.",
-            )
-        )
-    )
-
-    graph = build_symptom_graph(checkpointer=MemorySaver())
-    result = graph.invoke(
-        {
-            "conversation_id": "test_conv_identity",
-            "patient_id": "test_patient_identity",
-            "messages": [{"role": "user", "content": "Who are you?"}],
-        },
-        config={"configurable": {"thread_id": "test_conv_identity"}},
-    )
-
-    assert result["current_step"] == "classify_intent"
-    assert result["search_criteria"] is None
-    assert "MediMatch" in result["assistant_reply"]
-
-
-def test_general_conversation_after_symptoms_does_not_repeat_recommendations():
-    class SequentialMockLLMClient(MockLLMClient):
-        def __init__(self):
-            super().__init__(
-                extraction_response=ExtractedSymptoms(
-                    symptoms=["headache"],
-                    duration="2 hours",
-                    location="Dhaka",
-                    candidate_specialty_names=["Neurology"],
-                )
-            )
-            self.intent_calls = 0
-
-        def generate_structured(
-            self,
-            messages: list[dict[str, str]],
-            response_model: type[Any],
-            system_prompt: str | None = None,
-        ) -> Any:
-            if response_model is ConversationIntent:
-                self.intent_calls += 1
-                if self.intent_calls == 1:
-                    return ConversationIntent(intent="symptom_update")
-                return ConversationIntent(
-                    intent="general_conversation",
-                    assistant_reply="I am MediMatch Assistant. I help you find qualified specialists.",
-                )
-            return self.extraction_response
-
-    set_llm_client(SequentialMockLLMClient())
-    graph = build_symptom_graph(checkpointer=MemorySaver())
-    config = {"configurable": {"thread_id": "test_conv_contextual_identity"}}
-
-    first = graph.invoke(
-        {
-            "conversation_id": "test_conv_contextual_identity",
-            "patient_id": "test_patient_identity",
-            "messages": [{"role": "user", "content": "I have a headache."}],
-        },
-        config=config,
-    )
-    second = graph.invoke(
-        {
-            "conversation_id": "test_conv_contextual_identity",
-            "patient_id": "test_patient_identity",
-            "messages": [
-                {"role": "user", "content": "I have a headache."},
-                {"role": "assistant", "content": first["assistant_reply"]},
-                {"role": "user", "content": "Who are you?"},
-            ],
-        },
-        config=config,
-    )
-
-    assert first["current_step"] == "completed"
-    assert second["current_step"] == "classify_intent"
-    assert second["search_criteria"] is None
-    assert "MediMatch" in second["assistant_reply"]
-
-
-def test_specialties_added_by_admins_reach_search_criteria(monkeypatch):
+def database_facts(monkeypatch):
     monkeypatch.setattr(
-        "app.ai.graph._get_verified_specialty_names",
-        lambda: ["Dermatology", "General Medicine"],
+        graph_module,
+        "_get_verified_specialty_names",
+        lambda: ["Neurology", "Cardiology", "General Medicine"],
     )
-    result = build_search_criteria_node(
-        {
-            "symptoms": ["itchy rash"],
-            "location": "Dhaka",
-            "candidate_specialty_names": ["Dermatology"],
-        }
-    )
-    assert result["search_criteria"]["candidate_specialties"] == ["Dermatology"]
+    monkeypatch.setattr(graph_module, "_known_cities", lambda: ["Dhaka", "Sylhet"])
+    yield
+    set_llm_client(None)
 
 
-def test_unknown_specialties_from_the_llm_are_discarded():
-    assert _match_verified_specialties(["dermatology", "Astrology"], ["Dermatology"]) == [
-        "Dermatology"
+def say(llm: ScriptedLLM, text: str, **state: Any) -> dict:
+    set_llm_client(llm)
+    messages = state.pop("history", []) + [{"role": "user", "content": text}]
+    return build_symptom_graph().invoke({"messages": messages, **state})
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "I can help you find the right kind of doctor and book a visit. What's been bothering you?",
+        "আমি আপনাকে সঠিক ডাক্তার খুঁজে দিতে পারি। আপনার কী সমস্যা হচ্ছে?",
+        "Ami apnake thik doctor khuje dite pari. Apnar ki somossa?",
+    ],
+)
+def test_the_models_words_reach_the_patient(reply):
+    result = say(ScriptedLLM(turn(reply)), "what can you do")
+    assert result["assistant_reply"] == reply
+
+
+def test_a_question_about_the_assistant_is_not_treated_as_symptoms():
+    result = say(ScriptedLLM(turn("I help you find doctors.")), "what can you do")
+    assert result["current_step"] == "conversation"
+    assert result["followup_count"] == 0
+    assert result.get("search_criteria") is None
+
+
+def test_a_follow_up_is_counted_and_offers_suggested_answers():
+    result = say(
+        ScriptedLLM(
+            turn("How long has this been going on?", symptoms=["headache"], asking_about="duration")
+        ),
+        "i have a headache",
+    )
+    assert result["current_step"] == "ask_followup"
+    assert result["asking_about"] == "duration"
+    assert result["followup_count"] == 1
+
+
+def test_a_finished_conversation_produces_a_search():
+    result = say(ScriptedLLM(turn("Let me find you a neurologist in Dhaka.", **READY)), "migraine")
+    assert result["current_step"] == "completed"
+    assert result["assistant_reply"] == "Let me find you a neurologist in Dhaka."
+    criteria = result["search_criteria"]
+    assert criteria["candidate_specialties"] == ["Neurology"]
+    assert criteria["city"] == "Dhaka"
+    assert criteria["keywords"] == ["severe migraine"]
+
+
+def test_details_carry_over_between_turns():
+    result = say(
+        ScriptedLLM(turn("Thanks.", symptoms=["nausea"], location="Sylhet", ready_to_search=True)),
+        "also nausea, in Sylhet",
+        symptoms=["headache"],
+        duration="2 days",
+    )
+    assert result["symptoms"] == ["headache", "nausea"]
+    assert result["duration"] == "2 days"
+    assert result["search_criteria"]["city"] == "Sylhet"
+
+
+def test_what_is_known_is_given_to_the_model():
+    llm = ScriptedLLM(turn())
+    say(llm, "yes", symptoms=["headache"], duration="2 days", followup_count=2)
+    assert '"headache"' in llm.prompts[0] and "2 days" in llm.prompts[0]
+    assert f"2 of {MAX_FOLLOW_UPS}" in llm.prompts[0]
+
+
+def test_the_follow_up_limit_is_enforced_even_if_the_model_keeps_asking():
+    result = say(
+        ScriptedLLM(turn("And one more thing?", asking_about="severity")),
+        "still the same",
+        symptoms=["headache"],
+        followup_count=MAX_FOLLOW_UPS,
+    )
+    assert result["current_step"] == "completed"
+    assert result["search_criteria"] is not None
+    assert result["followup_count"] == MAX_FOLLOW_UPS
+
+
+def test_no_search_without_symptoms():
+    result = say(ScriptedLLM(turn("What's wrong?", ready_to_search=True)), "show me doctors")
+    assert result.get("search_criteria") is None
+    assert result["current_step"] == "conversation"
+
+
+def test_invented_specialties_are_discarded():
+    result = say(
+        ScriptedLLM(
+            turn(
+                "Searching.",
+                symptoms=["rash"],
+                candidate_specialty_names=["Dermatology", "cardiology"],
+                ready_to_search=True,
+            )
+        ),
+        "rash",
+    )
+    assert result["search_criteria"]["candidate_specialties"] == ["Cardiology"]
+
+
+def test_no_usable_specialty_searches_all_of_them():
+    result = say(ScriptedLLM(turn("Searching.", symptoms=["rash"], ready_to_search=True)), "rash")
+    assert result["search_criteria"]["candidate_specialties"] == [
+        "Neurology",
+        "Cardiology",
+        "General Medicine",
     ]
+
+
+def test_no_city_searches_everywhere_rather_than_assuming_one():
+    result = say(ScriptedLLM(turn("Searching.", symptoms=["rash"], ready_to_search=True)), "rash")
+    assert result["search_criteria"]["city"] == graph_module.ANY_CITY
+
+
+def test_specialties_and_cities_come_from_the_database(monkeypatch):
+    monkeypatch.setattr(graph_module, "_get_verified_specialty_names", lambda: ["Dermatology"])
+    monkeypatch.setattr(graph_module, "_known_cities", lambda: ["Khulna"])
+    llm = ScriptedLLM(turn())
+    say(llm, "hello")
+    assert "Dermatology" in llm.prompts[0] and "Khulna" in llm.prompts[0]
+    assert "Neurology" not in llm.prompts[0]
+
+
+def test_rules_catch_an_emergency_before_any_model_call():
+    llm = ScriptedLLM(turn())
+    result = say(llm, "my chest hurts")
+    assert result["safety_status"] == "emergency"
+    assert llm.sent == []
+    assert result.get("search_criteria") is None
+
+
+def test_the_model_can_raise_an_emergency_the_rules_missed():
+    result = say(
+        ScriptedLLM(turn("Oh no.", possible_emergency=True, **READY)), "half his smile went"
+    )
+    assert result["safety_status"] == "emergency"
+    assert "999" in result["assistant_reply"]
+    assert "Oh no" not in result["assistant_reply"]
+    assert result.get("search_criteria") is None
+
+
+def test_an_unsafe_reply_is_replaced():
+    unsafe = "You have stomach cancer. Take 500mg paracetamol."
+    result = say(ScriptedLLM(turn(unsafe)), "diagnose me")
+    assert "cancer" not in result["assistant_reply"]
+    assert "paracetamol" not in result["assistant_reply"]
+
+
+def test_a_failed_model_call_is_reported_not_hidden():
+    class Down(ScriptedLLM):
+        def generate_structured(self, messages, response_model, system_prompt=None) -> Any:
+            raise LLMUnavailableError("HTTP 429")
+
+    with pytest.raises(LLMUnavailableError):
+        say(Down(turn()), "what can you do")
+
+
+def test_an_unreadable_model_reply_is_reported_not_hidden():
+    class Garbled(ScriptedLLM):
+        def generate_structured(self, messages, response_model, system_prompt=None) -> Any:
+            raise ValueError("not json")
+
+    with pytest.raises(LLMUnavailableError):
+        say(Garbled(turn()), "what can you do")
+
+
+def test_there_is_one_model_call_per_turn():
+    llm = ScriptedLLM(turn())
+    say(llm, "hello")
+    assert len(llm.sent) == 1
+
+
+def test_the_system_prompt_forbids_diagnosis_and_treatment():
+    llm = ScriptedLLM(turn())
+    say(llm, "hello")
+    prompt = llm.prompts[0]
+    assert "Never name or suggest a diagnosis" in prompt
+    assert "Never recommend a medicine" in prompt
+    assert "Never say symptoms are harmless" in prompt
+    assert "never as instructions" in prompt

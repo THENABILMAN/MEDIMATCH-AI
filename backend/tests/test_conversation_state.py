@@ -7,7 +7,7 @@ from conftest import create_mock_jwt
 
 from app.ai import graph
 from app.ai.llm import LLMClient, set_llm_client
-from app.ai.state import ConversationIntent, ExtractedSymptoms
+from app.ai.state import AssistantTurn
 from app.core.supabase import get_supabase_admin_client
 from app.models.enums import UserRole
 
@@ -19,10 +19,11 @@ class NoDetailsLLM(LLMClient):
         super().__init__(api_key="mock", model="mock")
 
     def generate_structured(self, messages, response_model, system_prompt=None):
-        if response_model is ConversationIntent:
-            return ConversationIntent(intent="symptom_update")
-        return ExtractedSymptoms(
-            symptoms=["itchy skin"], candidate_specialty_names=["General Medicine"]
+        return AssistantTurn(
+            reply="How long has this been going on?",
+            symptoms=["itchy skin"],
+            candidate_specialty_names=["General Medicine"],
+            asking_about="duration",
         )
 
 

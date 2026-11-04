@@ -17,8 +17,8 @@ from conftest import create_mock_jwt
 from fastapi import status
 from fastapi.testclient import TestClient
 
-from app.ai.llm import LLMClient, set_llm_client
-from app.ai.state import ConversationIntent, ExtractedSymptoms
+from app.ai.llm import LLMClient, LLMUnavailableError, set_llm_client
+from app.ai.state import AssistantTurn
 from app.core.config import settings
 from app.models.enums import UserRole
 
@@ -26,14 +26,12 @@ from app.models.enums import UserRole
 class MockChatLLMClient(LLMClient):
     """Deterministic Mock LLM client for API tests."""
 
-    def __init__(self, extraction: ExtractedSymptoms):
+    def __init__(self, reply: AssistantTurn):
         super().__init__(api_key="mock", model="mock")
-        self.extraction = extraction
+        self.reply = reply
 
     def generate_structured(self, messages, response_model, system_prompt=None):
-        if response_model is ConversationIntent:
-            return ConversationIntent(intent="symptom_update")
-        return self.extraction
+        return self.reply
 
 
 @pytest.fixture(scope="module")
@@ -180,12 +178,14 @@ def test_send_patient_message_processes_workflow(client: TestClient, chat_patien
 
     # 2. Configure deterministic mock LLM
     mock_llm = MockChatLLMClient(
-        ExtractedSymptoms(
+        AssistantTurn(
+            reply="A neurologist is a good place to start. Let me find some in Dhaka.",
             symptoms=["persistent migraine", "head throbbing"],
             duration="3 days",
             severity="moderate",
             location="Dhaka",
             candidate_specialty_names=["Neurology"],
+            ready_to_search=True,
         )
     )
     set_llm_client(mock_llm)
@@ -203,7 +203,7 @@ def test_send_patient_message_processes_workflow(client: TestClient, chat_patien
     assert data["search_criteria"] is not None
     assert "Neurology" in data["search_criteria"]["candidate_specialties"]
     assert data["search_criteria"]["city"] == "Dhaka"
-    assert "Neurology" in data["assistant_reply"]
+    assert "neurologist" in data["assistant_reply"]
 
 
 def test_general_conversation_does_not_generate_recommendations(
@@ -219,25 +219,8 @@ def test_general_conversation_does_not_generate_recommendations(
     assert create_res.status_code == status.HTTP_201_CREATED
     conv_id = create_res.json()["id"]
 
-    class GeneralConversationLLM(MockChatLLMClient):
-        def generate_structured(self, messages, response_model, system_prompt=None):
-            if response_model is ConversationIntent:
-                return ConversationIntent(
-                    intent="general_conversation",
-                    assistant_reply="I am MediMatch Assistant and I help you find qualified specialists.",
-                )
-            return self.extraction
-
-    set_llm_client(
-        GeneralConversationLLM(
-            ExtractedSymptoms(
-                symptoms=["headache"],
-                duration="2 hours",
-                location="Dhaka",
-                candidate_specialty_names=["Neurology"],
-            )
-        )
-    )
+    reply = "I'm the MediMatch assistant. I help you find a suitable doctor and book a visit."
+    set_llm_client(MockChatLLMClient(AssistantTurn(reply=reply)))
 
     response = client.post(
         f"/chat/conversations/{conv_id}/messages",
@@ -247,10 +230,33 @@ def test_general_conversation_does_not_generate_recommendations(
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
-    assert data["current_step"] == "classify_intent"
+    assert data["current_step"] == "conversation"
     assert data["search_criteria"] is None
     assert data["recommendations"] == []
-    assert "MediMatch Assistant" in data["assistant_reply"]
+    assert data["assistant_reply"] == reply
+
+
+def test_a_model_outage_says_so_and_saves_nothing(client: TestClient, chat_patients: dict):
+    """A failed turn must not leave the message behind, so trying again does not repeat it."""
+    patient = chat_patients["patient_a"]
+    conv_id = client.post(
+        "/chat/conversations", headers=patient["headers"], json={"title": "Outage"}
+    ).json()["id"]
+
+    class Down(MockChatLLMClient):
+        def generate_structured(self, messages, response_model, system_prompt=None):
+            raise LLMUnavailableError("HTTP 429")
+
+    set_llm_client(Down(AssistantTurn(reply="unused")))
+    response = client.post(
+        f"/chat/conversations/{conv_id}/messages",
+        headers=patient["headers"],
+        json={"content": "what can you do"},
+    )
+    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+
+    history = client.get(f"/chat/conversations/{conv_id}", headers=patient["headers"]).json()
+    assert [m["sender"] for m in history["messages"]] == ["assistant"]
 
 
 def test_emergency_message_triggers_immediate_alert(client: TestClient, chat_patients: dict):

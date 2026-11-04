@@ -136,16 +136,6 @@ def stub_graph(monkeypatch, state):
     monkeypatch.setattr(chat_service, "get_symptom_graph", lambda: graph)
 
 
-def test_empty_assistant_reply_gets_a_fallback(chat_client, monkeypatch):
-    stub_graph(monkeypatch, {"assistant_reply": None, "current_step": "classify_intent"})
-
-    result = chat_service.send_patient_message("c1", "p1", "hello")
-
-    assert result["assistant_reply"]
-    saved = [d for t, op, d in chat_client.log if t == "messages" and d["sender"] == "assistant"]
-    assert saved[0]["content"] == result["assistant_reply"]
-
-
 def test_emergency_flag_is_stored_with_the_reply(chat_client, monkeypatch):
     stub_graph(
         monkeypatch,
@@ -164,7 +154,7 @@ def test_followup_field_is_returned_for_suggested_answers(chat_client, monkeypat
         {
             "assistant_reply": "How long?",
             "current_step": "ask_followup",
-            "missing_fields": ["duration", "location"],
+            "asking_about": "duration",
         },
     )
 
