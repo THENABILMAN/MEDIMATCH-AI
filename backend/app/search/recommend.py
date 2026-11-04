@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 from app.ai.privacy import redact_pii
 from app.core.config import settings
-from app.core.supabase import get_supabase_admin_client, get_supabase_client
+from app.core.supabase import contains_pattern, get_supabase_admin_client, get_supabase_client
 from app.models.enums import VerificationStatus
 from app.search.embeddings import get_embedding_provider
 from app.search.sync import get_pinecone_index
@@ -186,7 +186,7 @@ def _sql_fallback_search(
     )
 
     if city and city.lower() != "bangladesh":
-        query = query.ilike("city", f"%{city.strip()}%")
+        query = query.ilike("city", contains_pattern(city))
 
     if max_fee is not None:
         query = query.lte("consultation_fee", max_fee)

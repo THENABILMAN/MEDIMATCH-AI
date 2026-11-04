@@ -1,11 +1,12 @@
 import logging
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from app.api.deps import get_current_user, require_doctor
 from app.core.supabase import get_supabase_admin_client
 from app.models.enums import UserRole
+from app.schemas.common import MAX_CONSULTATION_FEE, MAX_YEARS_EXPERIENCE, UuidStr
 from app.schemas.appointment import SlotCreate, SlotResponse
 from app.schemas.doctor import (
     DoctorCredentialRead,
@@ -135,7 +136,7 @@ def get_my_verification_history(
 
 @router.get("/credentials/{id}/url", summary="Get a short-lived link to a credential document")
 def get_credential_link(
-    id: str,
+    id: UuidStr,
     current_user: UserMeResponse = Depends(get_current_user),
 ) -> Dict[str, str]:
     return get_credential_url(id, current_user.id, current_user.role == UserRole.ADMIN)
@@ -168,7 +169,7 @@ def get_my_slots(
 
 @router.delete("/me/slots/{slot_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete an availability slot")
 def delete_my_slot(
-    slot_id: str,
+    slot_id: UuidStr,
     current_user: UserMeResponse = Depends(require_doctor),
 ) -> None:
     """Delete an unbooked availability slot belonging to the authenticated doctor."""
@@ -190,12 +191,12 @@ def get_public_specialties() -> List[SpecialtyRead]:
 
 @router.get("/search", response_model=DoctorSearchResult, summary="Search verified approved doctors")
 def search_doctors(
-    specialty: Optional[str] = Query(default=None, description="Specialty name or ID filter"),
-    city: Optional[str] = Query(default=None, description="City location filter"),
-    max_fee: Optional[float] = Query(default=None, ge=0, description="Maximum consultation fee (BDT)"),
-    min_experience: Optional[int] = Query(default=None, ge=0, description="Minimum years of clinical experience"),
-    sort_by: Optional[str] = Query(default=None, description="Sort order: fee_asc, fee_desc, experience_desc"),
-    page: int = Query(default=1, ge=1, description="Page number"),
+    specialty: Optional[str] = Query(default=None, max_length=100, description="Specialty name or ID filter"),
+    city: Optional[str] = Query(default=None, max_length=100, description="City location filter"),
+    max_fee: Optional[float] = Query(default=None, ge=0, le=MAX_CONSULTATION_FEE, description="Maximum consultation fee (BDT)"),
+    min_experience: Optional[int] = Query(default=None, ge=0, le=MAX_YEARS_EXPERIENCE, description="Minimum years of clinical experience"),
+    sort_by: Optional[Literal["fee_asc", "fee_desc", "experience_desc"]] = Query(default=None, description="Sort order"),
+    page: int = Query(default=1, ge=1, le=10000, description="Page number"),
     page_size: int = Query(default=10, ge=1, le=50, description="Items per page"),
 ) -> DoctorSearchResult:
     """Public search endpoint.
@@ -216,7 +217,7 @@ def search_doctors(
 
 @router.get("/{id}", response_model=PublicDoctorRead, summary="Get public profile of an approved doctor")
 def get_doctor_by_id(
-    id: str,
+    id: UuidStr,
 ) -> PublicDoctorRead:
     """Fetch public profile of an approved doctor. Returns 404 if not found or unapproved."""
     return get_public_doctor_by_id(doctor_id=id)
@@ -224,7 +225,7 @@ def get_doctor_by_id(
 
 @router.get("/{id}/slots", response_model=List[SlotResponse], summary="Get public upcoming available slots of an approved doctor")
 def get_doctor_slots(
-    id: str,
+    id: UuidStr,
 ) -> List[SlotResponse]:
     """Fetch upcoming unbooked slots for an approved doctor."""
     return list_public_doctor_slots(doctor_id=id)

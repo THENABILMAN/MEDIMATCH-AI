@@ -1,12 +1,13 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from app.api.deps import get_current_user, require_doctor
+from app.api.deps import get_current_user, require_doctor, require_patient
 from app.models.enums import AppointmentStatus, UserRole
 from app.schemas.appointment import (
     AppointmentCancelRequest,
     AppointmentCreate,
     AppointmentResponse,
 )
+from app.schemas.common import UuidStr
 from app.schemas.profile import UserMeResponse
 from app.services.appointment_service import (
     book_slot_atomic,
@@ -26,7 +27,7 @@ router = APIRouter(prefix="/appointments", tags=["Appointments"])
 )
 def book_appointment(
     payload: AppointmentCreate,
-    current_user: UserMeResponse = Depends(get_current_user),
+    current_user: UserMeResponse = Depends(require_patient),
 ) -> AppointmentResponse:
     """Atomically books an upcoming unbooked slot for the current patient.
     
@@ -62,7 +63,7 @@ def get_my_appointments(
     summary="Cancel an appointment",
 )
 def cancel_my_appointment(
-    id: str,
+    id: UuidStr,
     payload: Optional[AppointmentCancelRequest] = None,
     current_user: UserMeResponse = Depends(get_current_user),
 ) -> AppointmentResponse:
@@ -85,7 +86,7 @@ def cancel_my_appointment(
     summary="Mark an appointment as completed",
 )
 def complete_my_appointment(
-    id: str,
+    id: UuidStr,
     current_user: UserMeResponse = Depends(require_doctor),
 ) -> AppointmentResponse:
     """Marks an appointment as completed. Allowed only for the assigned doctor."""

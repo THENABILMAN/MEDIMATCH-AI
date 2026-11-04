@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field, model_validator
 
 from app.api.deps import require_patient
+from app.schemas.common import UuidStr
 from app.schemas.profile import UserMeResponse
 from app.services.chat_service import (
     create_conversation,
@@ -75,7 +76,7 @@ def api_create_conversation(
     summary="Send a message in the consultation conversation",
 )
 def api_send_message(
-    id: str,
+    id: UuidStr,
     payload: SendMessageRequest,
     current_user: UserMeResponse = Depends(require_patient),
 ) -> SendMessageResponse:
@@ -102,13 +103,8 @@ def api_send_message(
     summary="Get conversation history and status",
 )
 def api_get_conversation(
-    id: str,
+    id: UuidStr,
     current_user: UserMeResponse = Depends(require_patient),
 ) -> Dict[str, Any]:
     """Retrieves conversation history. Enforces strict patient ownership."""
-    is_admin = current_user.role == "admin"
-    return get_conversation_history(
-        conversation_id=id,
-        patient_id=current_user.id,
-        is_admin=is_admin,
-    )
+    return get_conversation_history(conversation_id=id, patient_id=current_user.id)

@@ -153,13 +153,12 @@ def get_embedding_provider() -> BaseEmbeddingProvider:
     if _GLOBAL_EMBEDDING_PROVIDER is not None:
         return _GLOBAL_EMBEDDING_PROVIDER
 
-    # In test environment or if explicitly requested, use Fake provider
-    if settings.ENVIRONMENT == "test" or settings.EMBEDDING_PROVIDER.lower() == "fake":
+    provider = settings.EMBEDDING_PROVIDER.lower()
+    if provider == "fake" and settings.ENVIRONMENT != "production":
         _GLOBAL_EMBEDDING_PROVIDER = FakeEmbeddingProvider(dimension=settings.EMBEDDING_DIMENSION)
         return _GLOBAL_EMBEDDING_PROVIDER
 
-    # Pinecone Inference API (Default production provider)
-    if settings.EMBEDDING_PROVIDER.lower() in ["pinecone", "nvidia"]:
+    if provider == "pinecone":
         _GLOBAL_EMBEDDING_PROVIDER = PineconeInferenceEmbeddingProvider(
             api_key=settings.PINECONE_API_KEY,
             model=settings.EMBEDDING_MODEL,
@@ -167,12 +166,7 @@ def get_embedding_provider() -> BaseEmbeddingProvider:
         )
         return _GLOBAL_EMBEDDING_PROVIDER
 
-    # Fallback to Fake if unknown provider specified
-    logger.warning(
-        f"Unknown EMBEDDING_PROVIDER '{settings.EMBEDDING_PROVIDER}', falling back to FakeEmbeddingProvider"
-    )
-    _GLOBAL_EMBEDDING_PROVIDER = FakeEmbeddingProvider(dimension=settings.EMBEDDING_DIMENSION)
-    return _GLOBAL_EMBEDDING_PROVIDER
+    raise ValueError(f"Unsupported EMBEDDING_PROVIDER: {settings.EMBEDDING_PROVIDER}")
 
 
 def set_embedding_provider(provider: Optional[BaseEmbeddingProvider]) -> None:

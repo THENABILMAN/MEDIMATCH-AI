@@ -2,6 +2,13 @@ from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 from app.models.enums import UserRole, VerificationStatus
+from app.schemas.common import (
+    MAX_BIO_LENGTH,
+    MAX_CONSULTATION_FEE,
+    MAX_QUALIFICATIONS,
+    MAX_YEARS_EXPERIENCE,
+    ShortText,
+)
 
 
 class SpecialtyRead(BaseModel):
@@ -30,12 +37,12 @@ class DoctorProfileRead(BaseModel):
 
 
 class DoctorProfileUpdate(BaseModel):
-    bio: Optional[str] = None
-    qualifications: Optional[List[str]] = None
-    years_experience: Optional[int] = Field(default=None, ge=0)
-    consultation_fee: Optional[float] = Field(default=None, ge=0)
-    clinic_name: Optional[str] = None
-    city: Optional[str] = None
+    bio: Optional[str] = Field(default=None, max_length=MAX_BIO_LENGTH)
+    qualifications: Optional[List[ShortText]] = Field(default=None, max_length=MAX_QUALIFICATIONS)
+    years_experience: Optional[int] = Field(default=None, ge=0, le=MAX_YEARS_EXPERIENCE)
+    consultation_fee: Optional[float] = Field(default=None, ge=0, le=MAX_CONSULTATION_FEE)
+    clinic_name: Optional[str] = Field(default=None, max_length=200)
+    city: Optional[str] = Field(default=None, max_length=100)
 
     model_config = ConfigDict(extra="forbid")
 

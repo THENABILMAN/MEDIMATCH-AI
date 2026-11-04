@@ -7,7 +7,8 @@ structured clinical criteria, keywords, budget, and location.
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
-from app.api.deps import get_current_user
+from app.api.deps import require_patient
+from app.schemas.common import MAX_CONSULTATION_FEE, ShortText
 from app.schemas.profile import UserMeResponse
 from app.search.recommend import (
     DoctorRecommendation,
@@ -21,13 +22,14 @@ router = APIRouter(prefix="/recommendations", tags=["Doctor Recommendations"])
 class RecommendationQueryRequest(BaseModel):
     """Payload for requesting doctor recommendations."""
 
-    candidate_specialties: List[str] = Field(
+    candidate_specialties: List[ShortText] = Field(
         default_factory=lambda: ["General Medicine"],
+        max_length=10,
         description="Target medical specialties from DB (e.g. Neurology, Cardiology)",
     )
-    city: str = Field(default="Dhaka", description="Target city for doctor consultation")
-    max_fee: Optional[float] = Field(default=None, description="Maximum consultation fee filter in BDT")
-    keywords: List[str] = Field(default_factory=list, description="Symptom keywords for semantic retrieval")
+    city: str = Field(default="Dhaka", max_length=100, description="Target city for doctor consultation")
+    max_fee: Optional[float] = Field(default=None, ge=0, le=MAX_CONSULTATION_FEE, description="Maximum consultation fee filter in BDT")
+    keywords: List[ShortText] = Field(default_factory=list, max_length=10, description="Symptom keywords for semantic retrieval")
     top_k: int = Field(default=5, ge=1, le=20, description="Maximum number of recommendations to return")
 
 
@@ -39,7 +41,7 @@ class RecommendationQueryRequest(BaseModel):
 )
 def api_get_recommendations(
     payload: RecommendationQueryRequest,
-    _current_user: UserMeResponse = Depends(get_current_user),
+    _current_user: UserMeResponse = Depends(require_patient),
 ) -> RecommendationResponse:
     """Combines Pinecone semantic similarity with Supabase verification, budget limits,
 

@@ -2,7 +2,7 @@ import logging
 from math import ceil
 from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
-from app.core.supabase import get_supabase_admin_client, get_supabase_client
+from app.core.supabase import contains_pattern, get_supabase_admin_client, get_supabase_client
 from app.models.enums import UserRole, VerificationStatus
 from app.schemas.doctor import (
     DoctorCredentialRead,
@@ -346,7 +346,7 @@ def search_public_doctors(
     if doctor_ids is not None:
         query = query.in_("id", doctor_ids)
     if city:
-        query = query.ilike("city", f"%{city.strip()}%")
+        query = query.ilike("city", contains_pattern(city))
     if max_fee is not None:
         query = query.lte("consultation_fee", max_fee)
     if min_experience is not None:

@@ -10,6 +10,8 @@ from app.schemas.doctor import DoctorProfileCreateOrUpdate
 from app.models.enums import UserRole
 from app.services import account_service, admin_service, chat_service, doctor_service
 
+SPECIALTY_ID = "11111111-0000-0000-0000-000000000001"
+
 
 class FakeQuery:
     """Chainable stand-in for a Supabase query that records inserts and updates."""
@@ -66,7 +68,7 @@ def profile_payload(**overrides):
         "consultation_fee": 500.0,
         "clinic_name": "Clinic",
         "city": "Dhaka",
-        "specialty_ids": ["s1"],
+        "specialty_ids": [SPECIALTY_ID],
     }
     return DoctorProfileCreateOrUpdate(**{**fields, **overrides})
 
@@ -86,7 +88,7 @@ def test_saving_without_changes_keeps_doctor_approved(monkeypatch):
     client = fake_client(
         {
             "doctor_profiles": [{**DOCTOR_ROW, "verification_status": "approved"}],
-            "doctor_specialties": [{"specialty_id": "s1"}],
+            "doctor_specialties": [{"specialty_id": SPECIALTY_ID}],
         }
     )
     monkeypatch.setattr(doctor_service, "get_supabase_admin_client", lambda: client)

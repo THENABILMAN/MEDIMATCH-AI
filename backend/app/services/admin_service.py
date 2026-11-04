@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
-from app.core.supabase import get_supabase_admin_client
+from app.core.supabase import contains_pattern, get_supabase_admin_client
 from app.models.enums import VerificationStatus
 from app.schemas.doctor import (
     AuditLogPaginatedResponse,
@@ -51,7 +51,7 @@ def list_patients_for_admin(
         .order(_validated_sort(sort, PATIENT_SORT_COLUMNS), desc=descending)
     )
     if search:
-        query = query.ilike("full_name", f"%{search.strip()}%")
+        query = query.ilike("full_name", contains_pattern(search))
 
     res = query.range(offset, offset + limit - 1).execute()
     items = [

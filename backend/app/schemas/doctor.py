@@ -2,17 +2,31 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 from app.models.enums import VerificationStatus
+from app.schemas.common import (
+    MAX_BIO_LENGTH,
+    MAX_CONSULTATION_FEE,
+    MAX_QUALIFICATIONS,
+    MAX_REASON_LENGTH,
+    MAX_SPECIALTIES,
+    MAX_YEARS_EXPERIENCE,
+    ShortText,
+    UuidStr,
+)
 from app.schemas.profile import SpecialtyRead
 
 
 class DoctorProfileCreateOrUpdate(BaseModel):
-    bio: Optional[str] = Field(default=None, max_length=2000)
-    qualifications: List[str] = Field(default_factory=list, description="List of degrees e.g. ['MBBS', 'FCPS']")
-    years_experience: int = Field(default=0, ge=0)
-    consultation_fee: float = Field(default=0.0, ge=0)
+    bio: Optional[str] = Field(default=None, max_length=MAX_BIO_LENGTH)
+    qualifications: List[ShortText] = Field(
+        default_factory=list, max_length=MAX_QUALIFICATIONS, description="List of degrees e.g. ['MBBS', 'FCPS']"
+    )
+    years_experience: int = Field(default=0, ge=0, le=MAX_YEARS_EXPERIENCE)
+    consultation_fee: float = Field(default=0.0, ge=0, le=MAX_CONSULTATION_FEE)
     clinic_name: Optional[str] = Field(default=None, max_length=200)
     city: str = Field(default="Dhaka", max_length=100)
-    specialty_ids: List[str] = Field(default_factory=list, description="UUIDs of associated specialties")
+    specialty_ids: List[UuidStr] = Field(
+        default_factory=list, max_length=MAX_SPECIALTIES, description="UUIDs of associated specialties"
+    )
 
     model_config = ConfigDict(extra="forbid")
 
@@ -51,7 +65,9 @@ class DoctorSearchResult(BaseModel):
 
 
 class AdminDoctorActionRequest(BaseModel):
-    reason: Optional[str] = Field(default=None, description="Reason for rejection or suspension")
+    reason: Optional[str] = Field(
+        default=None, max_length=MAX_REASON_LENGTH, description="Reason for rejection or suspension"
+    )
 
 
 class SpecialtyCreate(BaseModel):

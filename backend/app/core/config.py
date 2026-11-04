@@ -1,6 +1,7 @@
 from functools import lru_cache
+from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,7 +15,7 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str = "MediMatch AI"
     API_V1_STR: str = "/api/v1"
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: Literal["development", "production"] = "development"
 
     # Supabase Configuration
     SUPABASE_URL: str = Field(default="", description="Supabase project URL")
@@ -75,6 +76,13 @@ class Settings(BaseSettings):
                 "BACKEND_CORS_ORIGINS cannot contain '*' when credentialed requests are enabled"
             )
         return v
+
+    @model_validator(mode="after")
+    def refuse_free_model_in_production(self) -> "Settings":
+        # Free endpoints may log or train on prompts, and those prompts hold patient symptoms
+        if self.ENVIRONMENT == "production" and self.OPENROUTER_MODEL.endswith(":free"):
+            raise ValueError("A :free OPENROUTER_MODEL cannot be used in production")
+        return self
 
 
 @lru_cache

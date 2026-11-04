@@ -4,6 +4,17 @@ from supabase import Client, create_client
 from app.core.config import settings
 
 
+def contains_pattern(text: str) -> str:
+    """Builds a case-insensitive "contains" pattern that matches user text literally.
+
+    PostgREST turns every * into %, so an escaped * ends up matching a literal %.
+    """
+    escaped = text.strip()
+    for char in ("\\", "%", "_", "*"):
+        escaped = escaped.replace(char, f"\\{char}")
+    return f"%{escaped}%"
+
+
 @lru_cache()
 def get_supabase_client() -> Optional[Client]:
     """Returns a Supabase client configured with the public anon key (respects RLS)."""

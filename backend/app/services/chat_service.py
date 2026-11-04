@@ -73,7 +73,7 @@ def list_patient_conversations(patient_id: str) -> List[Dict[str, Any]]:
     return res.data or []
 
 
-def get_conversation_history(conversation_id: str, patient_id: str, is_admin: bool = False) -> Dict[str, Any]:
+def get_conversation_history(conversation_id: str, patient_id: str) -> Dict[str, Any]:
     """Retrieves conversation details and complete message history with ownership enforcement."""
     client = get_supabase_admin_client() or get_supabase_client()
     if not client:
@@ -85,7 +85,7 @@ def get_conversation_history(conversation_id: str, patient_id: str, is_admin: bo
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
     conv = conv_res.data[0]
-    if conv["patient_id"] != patient_id and not is_admin:
+    if conv["patient_id"] != patient_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access forbidden: You do not own this conversation",

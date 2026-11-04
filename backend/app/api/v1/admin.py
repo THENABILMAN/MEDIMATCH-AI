@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, Query, status
 from app.api.deps import require_admin
+from app.schemas.common import UuidStr
 from app.models.enums import VerificationStatus
 from app.schemas.doctor import (
     AdminDoctorActionRequest,
@@ -60,7 +61,7 @@ def read_doctors(
 
 @router.post("/doctors/{id}/approve", summary="Approve doctor profile")
 def approve_doctor_profile(
-    id: str,
+    id: UuidStr,
     current_admin: UserMeResponse = Depends(require_admin),
 ) -> Dict[str, Any]:
     return approve_doctor(doctor_id=id, admin_id=current_admin.id)
@@ -68,7 +69,7 @@ def approve_doctor_profile(
 
 @router.post("/doctors/{id}/reject", summary="Reject doctor profile")
 def reject_doctor_profile(
-    id: str,
+    id: UuidStr,
     payload: AdminDoctorActionRequest,
     current_admin: UserMeResponse = Depends(require_admin),
 ) -> Dict[str, Any]:
@@ -81,7 +82,7 @@ def reject_doctor_profile(
 
 @router.post("/doctors/{id}/suspend", summary="Suspend doctor profile")
 def suspend_doctor_profile(
-    id: str,
+    id: UuidStr,
     payload: AdminDoctorActionRequest,
     current_admin: UserMeResponse = Depends(require_admin),
 ) -> Dict[str, Any]:
@@ -100,7 +101,7 @@ def suspend_doctor_profile(
 def read_audit_logs(
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    action: Optional[str] = Query(default=None, description="Filter by action name"),
+    action: Optional[str] = Query(default=None, max_length=100, description="Filter by action name"),
     date_from: Optional[datetime] = Query(default=None, description="Earliest event time"),
     date_to: Optional[datetime] = Query(default=None, description="Latest event time"),
     current_admin: UserMeResponse = Depends(require_admin),
@@ -131,7 +132,7 @@ def admin_list_specialties(
 
 @router.put("/specialties/{id}", response_model=SpecialtyRead, summary="Update specialty")
 def admin_update_specialty(
-    id: str,
+    id: UuidStr,
     payload: SpecialtyUpdate,
     current_admin: UserMeResponse = Depends(require_admin),
 ) -> SpecialtyRead:
@@ -140,7 +141,7 @@ def admin_update_specialty(
 
 @router.delete("/specialties/{id}", summary="Delete specialty")
 def admin_delete_specialty(
-    id: str,
+    id: UuidStr,
     current_admin: UserMeResponse = Depends(require_admin),
 ) -> Dict[str, Any]:
     return delete_specialty(specialty_id=id, admin_id=current_admin.id)

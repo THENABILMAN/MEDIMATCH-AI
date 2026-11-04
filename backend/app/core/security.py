@@ -1,51 +1,18 @@
 import logging
-from typing import Any, Dict, Optional
-import jwt
+from typing import Any, Dict
+import httpx
 from fastapi import HTTPException, status
-from app.core.config import settings
+from supabase_auth.errors import AuthRetryableError
 from app.core.supabase import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
 
-def decode_token_unverified(token: str) -> Dict[str, Any]:
-    """Decode JWT payload without verifying signature (useful for inspecting claims)."""
-    try:
-        return jwt.decode(token, options={"verify_signature": False, "verify_exp": False})
-    except Exception as e:
-        logger.warning(f"Failed to decode token unverified: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token format",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-
-def _decode_test_token(token: str) -> Dict[str, Any]:
-    """Decode a test fixture token. Must only be called when ENVIRONMENT is 'test'."""
-    try:
-        payload = jwt.decode(token, options={"verify_signature": False})
-    except jwt.PyJWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid authentication token: {str(e)}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if not payload.get("sub"):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token payload is missing subject claim",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return payload
-
-
 def verify_supabase_token(token: str) -> Dict[str, Any]:
     """Verify a Supabase JWT with the Supabase Auth API.
 
-    Signatures are never skipped outside ENVIRONMENT='test'. In every other
-    environment, a token that Supabase does not confirm is rejected.
+    A token that Supabase does not confirm is rejected. If Supabase cannot be reached, the
+    answer is 503, so an outage does not look like an expired session and sign people out.
     """
     if not token or not isinstance(token, str):
         raise HTTPException(
@@ -57,9 +24,6 @@ def verify_supabase_token(token: str) -> Dict[str, Any]:
     # Clean bearer prefix if accidentally passed
     token = token.replace("Bearer ", "").strip()
 
-    if settings.ENVIRONMENT == "test":
-        return _decode_test_token(token)
-
     supabase = get_supabase_client()
     if not supabase:
         raise HTTPException(
@@ -69,8 +33,14 @@ def verify_supabase_token(token: str) -> Dict[str, Any]:
 
     try:
         user_response = supabase.auth.get_user(token)
+    except (httpx.TransportError, AuthRetryableError) as exc:
+        logger.error(f"Supabase auth unreachable: {type(exc).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service unavailable",
+        ) from exc
     except Exception as exc:
-        logger.warning(f"Supabase auth verification failed: {exc}")
+        logger.warning(f"Supabase auth verification failed: {type(exc).__name__}")
         user_response = None
 
     if not user_response or not user_response.user:

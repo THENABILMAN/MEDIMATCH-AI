@@ -3,6 +3,7 @@ from typing import List, Optional
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.models.enums import AppointmentStatus
+from app.schemas.common import UuidStr
 
 
 class SlotCreate(BaseModel):
@@ -48,7 +49,7 @@ class SlotResponse(BaseModel):
 
 
 class AppointmentCreate(BaseModel):
-    slot_id: str = Field(description="UUID of the availability slot to book")
+    slot_id: UuidStr = Field(description="UUID of the availability slot to book")
 
     model_config = ConfigDict(extra="forbid")
 
