@@ -1,4 +1,6 @@
+import logging
 import uuid
+from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from app.api.deps import get_current_user, require_doctor
@@ -26,6 +28,8 @@ from app.services.doctor_service import (
     search_public_doctors,
     upsert_doctor_profile,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/doctors", tags=["Doctors"])
 
@@ -65,26 +69,39 @@ async def upload_credential(
     current_user: UserMeResponse = Depends(require_doctor),
 ) -> DoctorCredentialRead:
     """Upload a credential document to private Supabase Storage and register credential record."""
+    if file_path and not file_path.startswith(f"{current_user.id}/"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Credential paths must be inside your own folder",
+        )
+
     target_path = file_path
 
     # If an actual file was uploaded, stream it into Supabase Storage
     if file:
-        file_bytes = await file.read()
-        filename = f"{current_user.id}/{uuid.uuid4()}_{file.filename}"
         admin_client = get_supabase_admin_client()
-        if admin_client:
-            try:
-                admin_client.storage.from_("doctor-credentials").upload(
-                    path=filename,
-                    file=file_bytes,
-                    file_options={"content-type": file.content_type or "application/octet-stream"},
-                )
-                target_path = filename
-            except Exception as e:
-                # If bucket upload errors in test, retain path for record creation
-                target_path = filename
-        else:
-            target_path = filename
+        if not admin_client:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Credential storage is unavailable",
+            )
+
+        file_bytes = await file.read()
+        safe_name = Path(file.filename or "document").name
+        target_path = f"{current_user.id}/{uuid.uuid4()}_{safe_name}"
+        try:
+            admin_client.storage.from_("doctor-credentials").upload(
+                path=target_path,
+                file=file_bytes,
+                file_options={"content-type": file.content_type or "application/octet-stream"},
+            )
+        except Exception as e:
+            # A record must never point at a document an admin cannot open
+            logger.error(f"Credential upload failed for {current_user.id}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Your document could not be uploaded. Please try again.",
+            )
 
     if not target_path:
         raise HTTPException(
