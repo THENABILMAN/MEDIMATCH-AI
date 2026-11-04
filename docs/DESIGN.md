@@ -15,60 +15,32 @@ Two references inform the structure. We borrow no colour, logo, typeface or bran
 
 ## 2. Colour
 
-| Token | Value | Use |
-|---|---|---|
-| `--ink` | `#14122B` | Primary text |
-| `--muted` | `#5C5A73` | Secondary text |
-| `--surface` | `#FFFFFF` | Panels and inputs |
-| `--canvas` | `#F6F6FA` | Page background |
-| `--border` | `#E3E1F0` | Dividers and panel edges (decorative) |
-| `--border-control` | `#8582A0` | Boundaries of inputs and controls |
-| `--primary` | `#00806C` | Actions, links, focus |
-| `--primary-hover` | `#00695A` | Hover; text on `--primary-tint` |
-| `--primary-pressed` | `#005247` | Active state |
-| `--primary-tint` | `#E6F4F1` | Selected rows and days |
-| `--ai` | `#5A4BD1` | AI-generated content only |
-| `--ai-tint` | `#EEECFB` | Background of AI content only |
-| `--danger` | `#B3261E` | Emergencies and destructive actions only |
-| `--danger-pressed` | `#8C1D18` | Active destructive button |
-| `--danger-tint` | `#FCEBEA` | Destructive confirmation backgrounds |
-| `--warning` | `#8A5300` | Warning text and icons |
-| `--warning-tint` | `#FDF3E3` | Warning backgrounds |
-| `--success` | `#1E7A3C` | Success text and icons |
-| `--success-tint` | `#E8F5EC` | Success backgrounds |
+Navy and beige. The values live in `web/src/styles/tokens.css`, and `web/tests/design-tokens.test.ts` fails if a pairing drops below AA, which is 4.5:1 for text and 3:1 for control boundaries.
 
-### Contrast matrix
+| Token | Use |
+|---|---|
+| `--ink`, `--muted` | Primary and secondary text |
+| `--surface`, `--canvas`, `--sand` | Panels, page background, filled tiles |
+| `--border`, `--border-control` | Dividers, and the boundaries of inputs and controls |
+| `--navy`, `--navy-raised`, `--on-navy`, `--on-navy-muted` | Navy fields and the text on them |
+| `--primary`, `--primary-hover`, `--primary-pressed`, `--primary-tint`, `--on-primary` | Actions, links, focus, selected rows |
+| `--ai`, `--ai-tint` | AI-generated content only |
+| `--danger`, `--danger-pressed`, `--danger-tint` | Emergencies and destructive actions only |
+| `--warning`, `--warning-tint`, `--success`, `--success-tint` | Status |
 
-Measured, not estimated. AA requires 4.5:1 for text and 3:1 for control boundaries. A unit test enforces this table.
+`.on-navy` flips these tokens for everything inside a navy field, so components need no dark variant.
 
-| Foreground | Background | Ratio |
-|---|---|---|
-| ink | surface / canvas | 18.24 / 16.92 |
-| ink | primary-tint / ai-tint | 16.14 / 15.66 |
-| muted | surface / canvas | 6.63 / 6.16 |
-| muted | primary-tint / ai-tint | 5.87 / 5.70 |
-| white | primary / hover / pressed | 4.88 / 6.63 / 9.14 |
-| primary | surface / canvas | 4.88 / 4.53 |
-| primary-hover | primary-tint | 5.86 |
-| ai | surface / ai-tint | 6.25 / 5.36 |
-| white | danger / danger-pressed | 6.54 / 9.11 |
-| danger | surface / danger-tint | 6.54 / 5.67 |
-| warning | surface / warning-tint | 6.33 / 5.76 |
-| success | surface / success-tint | 5.38 / 4.79 |
-| border-control | surface / canvas | 3.69 / 3.42 |
-
-**Two rules these numbers create:**
-- `--primary` as text on `--primary-tint` is only 4.32:1, so text on that tint always uses `--primary-hover`.
-- `--border` is 1.29:1 and must never be the only boundary of a control.
+**Rules:**
+- Text on `--primary-tint` uses `--primary-hover`.
+- `--border` must never be the only boundary of a control.
 
 No dark theme in this round.
 
 ## 3. Typography
 
-Two families, plus a Bangla fallback, self-hosted as variable woff2 with `font-display: swap`. Instrument Sans is preloaded. Noto Sans Bengali uses `unicode-range`, so it downloads only when Bangla appears.
+One family, plus a Bangla fallback, self-hosted as variable woff2 with `font-display: swap`. DM Sans is preloaded. Noto Sans Bengali uses `unicode-range`, so it downloads only when Bangla appears.
 
-- **UI:** Instrument Sans, then Noto Sans Bengali, then `system-ui`.
-- **Display:** Source Serif 4, for page titles and big numbers only, then Noto Sans Bengali for Bangla titles.
+- DM Sans, then Noto Sans Bengali, then `system-ui`, for everything.
 
 | Token | Size / line height | Use |
 |---|---|---|
@@ -77,10 +49,10 @@ Two families, plus a Bangla fallback, self-hosted as variable woff2 with `font-d
 | `--text-md` | 16 / 24 | Patient body, inputs (avoids iOS zoom), chat |
 | `--text-lg` | 18 / 28 | Lead text, section titles |
 | `--text-xl` | 24 / 32 | Subpage titles |
-| `--text-2xl` | 32 / 40 | Page titles (serif) |
-| `--text-3xl` | 44 / 52 | Home headline and big numbers (serif) |
+| `--text-2xl` | 32 / 40 | Page titles |
+| `--text-3xl` | 44 / 52 | Big numbers |
 
-- Weights: 400 for body, 500 for labels, 600 for emphasis. The serif stays at 400 so large type reads calm.
+- Weights: 400 for body, 500 for labels, 600 for emphasis.
 - Fees, times and counts use `font-variant-numeric: tabular-nums`.
 - Prose is capped at 66ch, within the 60 to 75 character range.
 - Headings use `text-wrap: balance`. Headings and buttons use Title Case; body text uses sentence case.

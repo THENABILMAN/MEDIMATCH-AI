@@ -22,17 +22,22 @@ MEDIMATCH-AI/
 │   ├── app/
 │   │   ├── core/           # Config, security, logging
 │   │   ├── api/            # API routes and endpoints
-│   │   ├── models/         # Pydantic schemas and database models
-│   │   ├── services/       # AI triage, LangGraph agent, search, bookings
-│   │   └── main.py         # Application entry point & /health endpoint
+│   │   ├── ai/             # Safety rules, LangGraph assistant, LLM client, privacy
+│   │   ├── models/         # Enums
+│   │   ├── schemas/        # Pydantic request and response models
+│   │   ├── search/         # Embeddings, Pinecone sync, recommendations
+│   │   ├── services/       # Business logic for each route group
+│   │   ├── run_migrations.py # Applies and tracks SQL migrations
+│   │   └── main.py         # Application entry point
+│   ├── scripts/            # Seed, reindex, evals, purge, end-to-end check
 │   ├── tests/              # Pytest test suite
 │   ├── pyproject.toml      # Python dependencies and build config
-│   └── requirements.txt    # Frozen / pinned dependencies
+│   ├── requirements.txt    # Pinned runtime dependencies
+│   └── requirements-dev.txt # Pinned development dependencies
 ├── web/                    # React + TypeScript frontend (Vite)
-├── mobile/                 # Flutter mobile application
 ├── supabase/
 │   └── migrations/         # Supabase SQL schema migrations and RLS policies
-├── docs/                   # Documentation, specifications, and architecture plans
+├── docs/                   # Design, deployment, privacy, audit, security and eval reports
 ├── .env.example            # Canonical environment variable reference
 ├── CLAUDE.md               # Project instructions and status tracking
 └── README.md               # Developer onboarding and runbook
@@ -121,14 +126,7 @@ npm install
 npm run dev
 npm run build
 npm test                 # Vitest
-npx playwright test      # Mocked API, regenerates web/screenshots/
-```
-
-### Mobile
-```bash
-cd mobile
-flutter pub get
-flutter run
+npx playwright test      # Mocked API. Writes web/screenshots/, which git ignores
 ```
 
 ---
@@ -187,16 +185,21 @@ flutter run
     - Admin Dashboard: Doctor verification queue with credential preview and approve/reject/suspend actions, medical specialties CRUD, and real-time paginated audit logs table
     - Comprehensive test coverage: 8/8 Vitest + React Testing Library component tests passing (auth guards, booking flow, chat component) and Playwright E2E spec (`patient-flow.spec.ts`)
 - [x] **Phase 5b: Web UI Rebuild**
-  - Design system in `docs/DESIGN.md`, tokens in `web/src/styles/tokens.css`, rules in `docs/UI_PRINCIPLES.md`, review log in `docs/UI_REVIEW.md`
+  - Design system in `docs/DESIGN.md`, tokens in `web/src/styles/tokens.css`, rules in `docs/UI_PRINCIPLES.md`
   - Primitives on Radix with cva in `web/src/components/ui/`, domain components in `web/src/components/domain/`; all copy in `web/src/locales/en.json`
   - Patient, doctor and admin portals rebuilt, with URL-synced state and designed loading, empty and error states
   - Backend additions: credential links, verification history, admin patients, consent, chat history erasure, patient anonymization; migrations `00006` and `00007`
   - Tests: 44 Vitest, 95 Playwright on a mocked API covering every screen at 3 sizes with axe, keyboard paths, offline and slow network, and critical journeys
 - [x] **Phase 5c: Backend Audit and Hardening**
   - `docs/AUDIT.md` records the state before, `docs/SECURITY_REPORT.md` after, and `docs/EVAL_REPORT.md` what was measured
-  - Tests run on local Supabase only: 867 passing, 93% coverage, 100% on safety and booking
+  - Tests run on local Supabase only: 878 passing at the last full run, before the navy and beige work
   - Emergency detection is rules plus the model, which can only add alerts. The model writes normal replies
-  - Migrations `00008` to `00012` exist but are **not applied to the live project**
+  - All 12 migrations are applied to the live project, and vector search is on with 7 approved doctors indexed
+- [ ] **Phase 5d: Web Redesign (paused 2026-11-05)**
+  - Navy and beige tokens, DM Sans, and the serial slip shape are in. The home page, app shell, auth pages, doctor slips and appointment slips use them
+  - The home page passed the design inspector with 0 failures. The other portal screens only inherited the new tokens, and nobody has reviewed them by eye
+  - The owner plans another redesign, so treat this look as provisional
+  - Tests: 48 Vitest and 95 Playwright passing on a mocked API
 - [ ] **Phase 6: Mobile App & Production Deployment**
   - Flutter app for Patient and Doctor workflows
   - End-to-end integration test suite & deployment readiness
@@ -204,6 +207,8 @@ flutter run
 ---
 
 ## Decisions Log
+- **2026-11-05**: Paused the web redesign on the owner's instruction, to be redone later. The unfinished navy and beige work stays on `main`.
+- **2026-11-05**: Removed tracked screenshots, `docs/PLAN.md`, `docs/UI_REVIEW.md`, an empty root lockfile, and the unused `lighthouse` and `user-event` packages.
 - **2026-10-28**: Repository initialized with skeleton structure, `/health` endpoint, Pydantic Settings configuration, comprehensive `.gitignore`, and `.env.example`.
 - **2026-10-28**: Adopted hybrid search strategy: Pinecone provides semantic specialty/service similarity, Supabase PostgreSQL acts as authoritative store for verification and availability filtering.
 - **2026-10-28**: Enforced immutable audit logs where inserts are restricted to backend service-role and reads restricted to administrators.

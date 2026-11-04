@@ -35,4 +35,4 @@ Playwright runs against a mocked API (`e2e/support/`) and blocks every other out
 
 `/dev/components` shows every primitive in every state during development. It is excluded from production builds.
 
-Design rules are in `../docs/DESIGN.md` and `../docs/UI_PRINCIPLES.md`. The review log is in `../docs/UI_REVIEW.md`.
+Design rules are in `../docs/DESIGN.md` and `../docs/UI_PRINCIPLES.md`.
