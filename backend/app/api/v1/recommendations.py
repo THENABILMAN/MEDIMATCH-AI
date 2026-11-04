@@ -5,8 +5,10 @@ structured clinical criteria, keywords, budget, and location.
 """
 
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
+from app.api.deps import get_current_user
+from app.schemas.profile import UserMeResponse
 from app.search.recommend import (
     DoctorRecommendation,
     RecommendationResponse,
@@ -35,7 +37,10 @@ class RecommendationQueryRequest(BaseModel):
     status_code=status.HTTP_200_OK,
     summary="Get hybrid doctor recommendations",
 )
-def api_get_recommendations(payload: RecommendationQueryRequest) -> RecommendationResponse:
+def api_get_recommendations(
+    payload: RecommendationQueryRequest,
+    _current_user: UserMeResponse = Depends(get_current_user),
+) -> RecommendationResponse:
     """Combines Pinecone semantic similarity with Supabase verification, budget limits,
 
     and upcoming schedule availability to rank and return suitable doctors.

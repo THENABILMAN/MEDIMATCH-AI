@@ -26,7 +26,18 @@
         "buke?\\s*chap",
         "shash\\s*kosto",
         "shash\\s*nite\\s*parsi\\s*na",
-        "dom\\s*bondho"
+        "dom\\s*bondho",
+        "chest\\s+(pressure|tightness)",
+        "pressure\\s+in\\s+(my\\s+)?chest",
+        "heart\\s+attack",
+        "(can\\s*not|cant)\\s+breathe",
+        "(not|stopped)\\s+breathing",
+        "(lips?|face|fingers?|tongue)\\s+(is\\s+|are\\s+)?(turning|turned|going|gone)\\s+blue",
+        "\\bchoking\\b",
+        "no\\s+pulse",
+        "শ্বাস\\s*(নিচ্ছে|নিচ্ছ)\\s*না",
+        "shash\\s*nite\\s*par(s|ch)i\\s*na",
+        "shash\\s*nite\\s*kosto"
       ]
     },
     {
@@ -59,7 +70,15 @@
         "kotha\\s*joriye?\\s*ge?se?",
         "ogyan",
         "khichuni",
-        "behosh"
+        "behosh",
+        "\\bstroke\\b",
+        "worst\\s+headache",
+        "sudden\\s+(and\\s+)?(severe\\s+|intense\\s+|terrible\\s+)?headache",
+        "thunderclap\\s+headache",
+        "(won't|wont|can't|cant|cannot)\\s+(wake|be\\s+woken)",
+        "not\\s+responding",
+        "unresponsive",
+        "collapsed"
       ]
     },
     {
@@ -82,7 +101,13 @@
         "কাশি(র)?\\s*সাথে\\s*রক্ত",
         "prochur\\s*rokto(khoron)?",
         "rokto\\s*thamsena",
-        "rokto\\s*bomi"
+        "rokto\\s*bomi",
+        "severe\\s+burns?",
+        "electrocuted",
+        "snake\\s*bite",
+        "bitten\\s+by\\s+a\\s+snake",
+        "সাপে\\s*কামড়",
+        "shape?\\s*kamr"
       ]
     },
     {
@@ -100,7 +125,16 @@
         "মরতে\\s*চাই",
         "জীবন\\s*শেষ\\s*করতে\\s*চাই",
         "attohotta",
-        "morte\\s*chai"
+        "morte\\s*chai",
+        "(don't|dont|do\\s+not)\\s+want\\s+to\\s+(live|be\\s+alive)",
+        "no\\s+reason\\s+to\\s+live",
+        "better\\s+off\\s+dead",
+        "hurt(ing)?\\s+myself",
+        "take\\s+my\\s+(own\\s+)?life",
+        "বাঁচতে\\s*চাই\\s*না",
+        "banchte\\s*chai\\s*na",
+        "bachte\\s*chai\\s*na",
+        "atmohott?a"
       ]
     },
     {
@@ -130,9 +164,9 @@
         "severe\\s+pregnancy\\s+pain",
         "amniotic\\s+fluid\\s+burst\\s+with\\s+blood",
         "গর্ভবতী.*রক্তপাত",
-        "gorvoboti\\s*rokto"
+        "gorvoboti\\s*rokto",
+        "bleeding\\s+(during|in)\\s+(my\\s+)?pregnancy"
       ]
     }
   ]
 }
-

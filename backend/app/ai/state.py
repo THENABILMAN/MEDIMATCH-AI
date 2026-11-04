@@ -53,6 +53,7 @@ class ConversationState(TypedDict, total=False):
     age_group: Optional[str]
     location: Optional[str]
     preferred_max_fee: Optional[float]
+    candidate_specialty_names: List[str]
     safety_status: str  # "safe" | "emergency"
     missing_fields: List[str]
     followup_count: int

@@ -21,9 +21,12 @@ PHONE_REGEX = re.compile(
     re.IGNORECASE,
 )
 
-# Self-identifying introduction name patterns (English, Bangla, Banglish)
+# Self-identifying introduction name patterns (English, Bangla, Banglish).
+# The word after "I am" must be capitalized: without that, "I am feeling dizzy" reads as a
+# name and the symptom is lost. "My name is" is explicit, so any casing counts as a name.
 NAME_INTRO_PATTERNS = [
-    re.compile(r"\b(my\s+name\s+is|i\s+am|i'm|this\s+is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)", re.IGNORECASE),
+    re.compile(r"\b((?i:my\s+name\s+is))\s+([A-Za-z]+(?:\s+[A-Z][a-z]+)?)"),
+    re.compile(r"\b((?i:i\s+am|i['\u2019]m|this\s+is))\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)"),
     re.compile(r"\b(amar\s+naam|amar\s+nam)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)", re.IGNORECASE),
     re.compile(r"(আমার\s*নাম)\s+([\u0980-\u09FF]+(?:\s+[\u0980-\u09FF]+)?)"),
 ]

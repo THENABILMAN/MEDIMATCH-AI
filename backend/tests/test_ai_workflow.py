@@ -13,7 +13,11 @@ from typing import Any, Dict, List, Optional, Type
 import pytest
 from langgraph.checkpoint.memory import MemorySaver
 
-from app.ai.graph import build_symptom_graph
+from app.ai.graph import (
+    _match_verified_specialties,
+    build_search_criteria_node,
+    build_symptom_graph,
+)
 from app.ai.llm import LLMClient, set_llm_client
 from app.ai.state import ConversationIntent, ExtractedSymptoms
 
@@ -316,3 +320,24 @@ def test_general_conversation_after_symptoms_does_not_repeat_recommendations():
     assert second["current_step"] == "classify_intent"
     assert second["search_criteria"] is None
     assert "MediMatch" in second["assistant_reply"]
+
+
+def test_specialties_added_by_admins_reach_search_criteria(monkeypatch):
+    monkeypatch.setattr(
+        "app.ai.graph._get_verified_specialty_names",
+        lambda: ["Dermatology", "General Medicine"],
+    )
+    result = build_search_criteria_node(
+        {
+            "symptoms": ["itchy rash"],
+            "location": "Dhaka",
+            "candidate_specialty_names": ["Dermatology"],
+        }
+    )
+    assert result["search_criteria"]["candidate_specialties"] == ["Dermatology"]
+
+
+def test_unknown_specialties_from_the_llm_are_discarded():
+    assert _match_verified_specialties(["dermatology", "Astrology"], ["Dermatology"]) == [
+        "Dermatology"
+    ]

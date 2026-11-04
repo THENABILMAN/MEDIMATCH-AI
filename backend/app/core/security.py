@@ -21,11 +21,31 @@ def decode_token_unverified(token: str) -> Dict[str, Any]:
         )
 
 
+def _decode_test_token(token: str) -> Dict[str, Any]:
+    """Decode a test fixture token. Must only be called when ENVIRONMENT is 'test'."""
+    try:
+        payload = jwt.decode(token, options={"verify_signature": False})
+    except jwt.PyJWTError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid authentication token: {str(e)}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not payload.get("sub"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token payload is missing subject claim",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return payload
+
+
 def verify_supabase_token(token: str) -> Dict[str, Any]:
-    """Verify Supabase JWT token.
-    
-    In production/staging with Supabase connectivity, validates with Supabase Auth API.
-    In testing or offline mode, falls back to PyJWT token validation.
+    """Verify a Supabase JWT with the Supabase Auth API.
+
+    Signatures are never skipped outside ENVIRONMENT='test'. In every other
+    environment, a token that Supabase does not confirm is rejected.
     """
     if not token or not isinstance(token, str):
         raise HTTPException(
@@ -37,43 +57,33 @@ def verify_supabase_token(token: str) -> Dict[str, Any]:
     # Clean bearer prefix if accidentally passed
     token = token.replace("Bearer ", "").strip()
 
-    supabase = get_supabase_client()
-    if supabase and settings.ENVIRONMENT != "test":
-        try:
-            user_response = supabase.auth.get_user(token)
-            if user_response and user_response.user:
-                u = user_response.user
-                return {
-                    "sub": str(u.id),
-                    "email": u.email,
-                    "user_metadata": u.user_metadata or {},
-                    "app_metadata": u.app_metadata or {},
-                }
-        except Exception as exc:
-            logger.warning(f"Supabase auth verification failed: {exc}")
-            # Do not immediately fail if it could be a test token in non-production
-            if settings.ENVIRONMENT == "production":
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid or expired token",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
+    if settings.ENVIRONMENT == "test":
+        return _decode_test_token(token)
 
-    # Fallback / Test decoding
+    supabase = get_supabase_client()
+    if not supabase:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service unavailable",
+        )
+
     try:
-        payload = jwt.decode(token, options={"verify_signature": False})
-        user_id = payload.get("sub")
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token payload is missing subject claim",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        return payload
-    except jwt.PyJWTError as e:
+        user_response = supabase.auth.get_user(token)
+    except Exception as exc:
+        logger.warning(f"Supabase auth verification failed: {exc}")
+        user_response = None
+
+    if not user_response or not user_response.user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid authentication token: {str(e)}",
+            detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    u = user_response.user
+    return {
+        "sub": str(u.id),
+        "email": u.email,
+        "user_metadata": u.user_metadata or {},
+        "app_metadata": u.app_metadata or {},
+    }

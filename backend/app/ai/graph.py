@@ -36,6 +36,17 @@ def _get_verified_specialty_names() -> List[str]:
     return default_specialties
 
 
+def _match_verified_specialties(names: List[str], verified: List[str]) -> List[str]:
+    """Keeps only names that exist in the database, using their stored spelling."""
+    by_lower = {v.lower(): v for v in verified}
+    matched: List[str] = []
+    for name in names:
+        spec = by_lower.get(name.strip().lower())
+        if spec and spec not in matched:
+            matched.append(spec)
+    return matched
+
+
 # ------------------------------------------------------------------------------
 # Node 1: Safety Check (Rule-based deterministic emergency triage)
 # ------------------------------------------------------------------------------
@@ -133,11 +144,12 @@ def extract_symptoms_node(state: ConversationState) -> Dict[str, Any]:
         for m in raw_messages
     ]
 
+    verified_specialties = _get_verified_specialty_names()
     system_prompt = (
         "You are an assistant for MediMatch AI, a doctor-matching platform in Bangladesh.\n"
         "Your task is to extract clinical symptoms, duration, severity, patient age group, "
         "location/city (default Dhaka if in Bangladesh), and candidate specialties.\n"
-        "Available specialties are: Neurology, Cardiology, General Medicine.\n"
+        f"Available specialties are: {', '.join(verified_specialties)}.\n"
         "CRITICAL RULE: NEVER diagnose a disease, NEVER prescribe medication, and NEVER reassure "
         "that symptoms are harmless."
     )
@@ -166,6 +178,10 @@ def extract_symptoms_node(state: ConversationState) -> Dict[str, Any]:
     severity = extraction.severity or state.get("severity")
     location = extraction.location or state.get("location")
     max_fee = extraction.preferred_max_fee or state.get("preferred_max_fee")
+    candidate_names = _match_verified_specialties(
+        list(state.get("candidate_specialty_names", [])) + extraction.candidate_specialty_names,
+        verified_specialties,
+    )
 
     return {
         "symptoms": existing_symptoms,
@@ -173,6 +189,7 @@ def extract_symptoms_node(state: ConversationState) -> Dict[str, Any]:
         "severity": severity,
         "location": location,
         "preferred_max_fee": max_fee,
+        "candidate_specialty_names": candidate_names,
         "current_step": "extract_symptoms",
     }
 
@@ -256,7 +273,9 @@ def build_search_criteria_node(state: ConversationState) -> Dict[str, Any]:
     max_fee = state.get("preferred_max_fee")
 
     # Map symptoms to verified specialties
-    candidate_specialties: List[str] = []
+    candidate_specialties = _match_verified_specialties(
+        state.get("candidate_specialty_names", []), verified_specialties
+    )
     symptoms_text = " ".join(symptoms).lower()
 
     # Rule-based / semantic mapping to verified specialties

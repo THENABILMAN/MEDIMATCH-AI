@@ -10,6 +10,7 @@ Provides:
 import json
 import logging
 import re
+import unicodedata
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -17,25 +18,36 @@ logger = logging.getLogger("medimatch.ai.safety")
 
 PATTERNS_FILE = Path(__file__).resolve().parent / "data" / "emergency_patterns.json"
 
-# Load and compile patterns at import time
-_COMPILED_PATTERNS: List[Tuple[str, re.Pattern]] = []
 _DEFAULT_EMERGENCY_NUMBER = "999"
 
-try:
-    if PATTERNS_FILE.exists():
-        with open(PATTERNS_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            _DEFAULT_EMERGENCY_NUMBER = data.get("emergency_number", "999")
-            for cat in data.get("categories", []):
-                cat_name = cat.get("name", "general_emergency")
-                for pat in cat.get("patterns", []):
-                    try:
-                        compiled = re.compile(pat, re.IGNORECASE | re.UNICODE)
-                        _COMPILED_PATTERNS.append((cat_name, compiled))
-                    except re.error as err:
-                        logger.error(f"Invalid regex pattern '{pat}' in {PATTERNS_FILE}: {err}")
-except Exception as e:
-    logger.error(f"Failed to load emergency patterns from {PATTERNS_FILE}: {e}")
+
+def _normalize(text: str) -> str:
+    """Unifies input variants that would otherwise slip past a pattern.
+
+    NFC gives Bengali letters such as U+09DC one encoding whichever keyboard typed them,
+    and phone keyboards type a curly apostrophe in words like "can't".
+    """
+    return unicodedata.normalize("NFC", text).replace("\u2019", "'").strip()
+
+
+def _load_patterns(path: Path = PATTERNS_FILE) -> Tuple[List[Tuple[str, re.Pattern]], str]:
+    """Compiles emergency patterns, failing loudly so triage can never start switched off."""
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    compiled: List[Tuple[str, re.Pattern]] = []
+    for cat in data.get("categories", []):
+        cat_name = cat.get("name", "general_emergency")
+        for pat in cat.get("patterns", []):
+            compiled.append((cat_name, re.compile(_normalize(pat), re.IGNORECASE | re.UNICODE)))
+
+    if not compiled:
+        raise RuntimeError(f"No emergency patterns loaded from {path}")
+    return compiled, data.get("emergency_number", _DEFAULT_EMERGENCY_NUMBER)
+
+
+# Load and compile patterns at import time
+_COMPILED_PATTERNS, _DEFAULT_EMERGENCY_NUMBER = _load_patterns()
 
 
 def check_emergency(text: str) -> Tuple[bool, Optional[str], Optional[str]]:
@@ -47,7 +59,7 @@ def check_emergency(text: str) -> Tuple[bool, Optional[str], Optional[str]]:
     if not text:
         return False, None, None
 
-    normalized = text.strip()
+    normalized = _normalize(text)
 
     for cat_name, compiled_pat in _COMPILED_PATTERNS:
         match = compiled_pat.search(normalized)
@@ -74,17 +86,46 @@ def get_emergency_response(emergency_number: str = "999") -> str:
 # Output Guard (Anti-Diagnosis & Anti-Prescription)
 # ------------------------------------------------------------------------------
 
+_CONDITIONS = (
+    r"pneumonia|stroke|heart\s+attack|cancer|tumou?r|hypertension|migraine|diabetes|asthma|"
+    r"appendicitis|flu|influenza|covid(-19)?|dengue|typhoid|chikungunya|malaria|tuberculosis|"
+    r"infection|gastritis|ulcer|anemia|anaemia|depression|anxiety|bronchitis|sinusitis|arthritis"
+)
+_DRUGS = (
+    r"amoxicillin|paracetamol|acetaminophen|ibuprofen|antibiotics?|ciprofloxacin|azithromycin|"
+    r"metronidazole|omeprazole|aspirin|napa|ace|antacids?|painkillers?|antihistamines?|insulin"
+)
+_BN_CONDITIONS = "ডায়াবেটিস|ক্যান্সার|নিউমোনিয়া|ডেঙ্গু|টাইফয়েড|জন্ডিস|হার্ট\\s*অ্যাটাক|স্ট্রোক|মাইগ্রেন|সংক্রমণ"
+
 DIAGNOSIS_PATTERNS = [
-    re.compile(r"\b(you\s+(have|are\s+suffering\s+from|might\s+have)\s+(pneumonia|stroke|heart\s+attack|cancer|hypertension|migraine|diabetes|asthma|appendicitis))\b", re.IGNORECASE),
+    re.compile(
+        r"\byou(\s+\w+){0,2}\s+(have|are\s+suffering\s+from|got)\s+((a|an|the)\s+)?(\w+\s+)?"
+        rf"({_CONDITIONS})\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(this|it|that)(\s+\w+){0,2}\s+(is|be|sounds\s+like|looks\s+like|seems\s+like)\s+"
+        rf"((just|probably|likely|definitely)\s+)?((a|an|the)\s+)?(\w+\s+)?({_CONDITIONS})\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"\b(i\s+diagnose\s+you|diagnosis\s*:|this\s+is\s+(definitely\s+)?a\s+case\s+of)\b", re.IGNORECASE),
-    re.compile(r"\b(your\s+condition\s+is\s+harmless|nothing\s+to\s+worry\s+about)\b", re.IGNORECASE),
+    re.compile(
+        r"\b(your\s+condition\s+is\s+harmless|nothing\s+to\s+worry\s+about|nothing\s+serious|"
+        r"(do\s+not|don't|no\s+need\s+to)\s+worry|(is|it's|that's)\s+(probably\s+|likely\s+)?"
+        r"(harmless|not\s+serious))\b",
+        re.IGNORECASE,
+    ),
+    re.compile(rf"আপনার.*({_BN_CONDITIONS}).*(আছে|হয়েছে|হতে\s*পারে)"),
 ]
 
 PRESCRIPTION_PATTERNS = [
-    re.compile(r"\b(take\s+\d+\s*(mg|ml|tablets?|pills?))\b", re.IGNORECASE),
+    re.compile(r"\b\d+\s*(mg|ml|tablets?|pills?|capsules?)\b", re.IGNORECASE),
     re.compile(r"\b(i\s+prescribe|prescription\s*:|prescribing\s+you)\b", re.IGNORECASE),
-    re.compile(r"\b(take\s+(amoxicillin|paracetamol|ibuprofen|antibiotics?|ciprofloxacin|azithromycin|metronidazole|omeprazole|aspirin|napa|ace))\b", re.IGNORECASE),
-    re.compile(r"\b(start\s+taking\s+[a-z]+|dosage\s*:)\b", re.IGNORECASE),
+    re.compile(rf"\b(take|try|use|using|taking)\s+(\w+\s+){{0,2}}({_DRUGS})\b", re.IGNORECASE),
+    re.compile(r"\b(start\s+taking\s+[a-z]+|dosage\s*:|every\s+\d+\s+hours)\b", re.IGNORECASE),
+    re.compile(r"(ওষুধ|ট্যাবলেট|ক্যাপসুল|সিরাপ)\s*(টি\s*)?(খান|খাবেন|নিন|সেবন)"),
+    re.compile(r"\d+\s*(মিগ্রা|ট্যাবলেট|ক্যাপসুল)"),
+    re.compile(r"\b(oshudh?|tablet|capsule)\s+(khan|khaben|nin)\b", re.IGNORECASE),
 ]
 
 SAFE_FALLBACK_DISCLAIMER = (
@@ -101,9 +142,11 @@ def output_guard(text: str) -> str:
     if not text:
         return text
 
+    normalized = _normalize(text)
+
     # Check for diagnosis claims
     for pat in DIAGNOSIS_PATTERNS:
-        if pat.search(text):
+        if pat.search(normalized):
             logger.warning("[OUTPUT GUARD] Blocked diagnostic language from LLM response")
             return (
                 f"I cannot provide a medical diagnosis for your symptoms. "
@@ -112,7 +155,7 @@ def output_guard(text: str) -> str:
 
     # Check for prescription language
     for pat in PRESCRIPTION_PATTERNS:
-        if pat.search(text):
+        if pat.search(normalized):
             logger.warning("[OUTPUT GUARD] Blocked prescription/medication language from LLM response")
             return (
                 f"I cannot prescribe medications or dosage instructions. "

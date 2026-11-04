@@ -1,5 +1,5 @@
 import logging
-from typing import Callable, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.core.config import settings
@@ -11,6 +11,31 @@ from app.services.profile_service import get_user_profile
 logger = logging.getLogger(__name__)
 
 security_scheme = HTTPBearer(auto_error=True)
+
+
+def _test_user_from_claims(
+    payload: Dict[str, Any], user_id: str, email: Optional[str]
+) -> UserMeResponse:
+    """Builds a user from token claims. Claims are user-editable, so this is test-only."""
+    role_claim = (
+        payload.get("user_metadata", {}).get("role")
+        or payload.get("app_metadata", {}).get("role")
+        or payload.get("role")
+        or "patient"
+    )
+    try:
+        valid_role = UserRole(role_claim)
+    except ValueError:
+        valid_role = UserRole.PATIENT
+
+    full_name = payload.get("user_metadata", {}).get("full_name") or "User"
+    return UserMeResponse(
+        id=user_id,
+        email=email,
+        role=valid_role,
+        full_name=full_name,
+        phone=None,
+    )
 
 
 def get_current_user(
@@ -37,50 +62,19 @@ def get_current_user(
         )
 
     try:
-        user_profile = get_user_profile(user_id=user_id, email=email)
-        return user_profile
+        return get_user_profile(user_id=user_id, email=email)
     except HTTPException as e:
         if settings.ENVIRONMENT == "test" and e.status_code == status.HTTP_404_NOT_FOUND:
-            role_claim = (
-                payload.get("user_metadata", {}).get("role")
-                or payload.get("app_metadata", {}).get("role")
-                or payload.get("role")
-                or "patient"
-            )
-            try:
-                valid_role = UserRole(role_claim)
-            except ValueError:
-                valid_role = UserRole.PATIENT
-
-            full_name = payload.get("user_metadata", {}).get("full_name") or "User"
-            return UserMeResponse(
-                id=user_id,
-                email=email,
-                role=valid_role,
-                full_name=full_name,
-                phone=None,
-            )
+            return _test_user_from_claims(payload, user_id, email)
         raise
     except Exception as e:
         logger.error(f"Error fetching profile for {user_id}: {e}")
-        role_claim = (
-            payload.get("user_metadata", {}).get("role")
-            or payload.get("app_metadata", {}).get("role")
-            or payload.get("role")
-            or "patient"
-        )
-        try:
-            valid_role = UserRole(role_claim)
-        except ValueError:
-            valid_role = UserRole.PATIENT
-
-        full_name = payload.get("user_metadata", {}).get("full_name") or "User"
-        return UserMeResponse(
-            id=user_id,
-            email=email,
-            role=valid_role,
-            full_name=full_name,
-            phone=None,
+        if settings.ENVIRONMENT == "test":
+            return _test_user_from_claims(payload, user_id, email)
+        # Never fall back to token claims here: user_metadata is editable by the user
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not load user profile",
         )
 
 

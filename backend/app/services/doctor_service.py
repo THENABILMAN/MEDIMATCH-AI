@@ -65,7 +65,8 @@ def get_doctor_profile_by_user_id(user_id: str) -> DoctorProfileRead:
 def upsert_doctor_profile(user_id: str, payload: DoctorProfileCreateOrUpdate) -> DoctorProfileRead:
     """Create or update a doctor profile.
     
-    A new or edited profile always transitions to 'pending'.
+    A new or edited profile transitions to 'pending'; saving without changes keeps its status.
+    A suspended doctor cannot edit, since that would clear the suspension.
     Material edits to an approved profile are tracked in audit_logs and trigger on_doctor_updated.
     """
     client = get_supabase_admin_client() or get_supabase_client()
@@ -91,6 +92,12 @@ def upsert_doctor_profile(user_id: str, payload: DoctorProfileCreateOrUpdate) ->
     if existing.data:
         old_doc = existing.data[0]
         doctor_id = str(old_doc["id"])
+        if old_doc.get("verification_status") == VerificationStatus.SUSPENDED.value:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This profile is suspended. Please contact support.",
+            )
+
         was_approved = old_doc.get("verification_status") == VerificationStatus.APPROVED.value
 
         # Identify changed fields
@@ -99,19 +106,29 @@ def upsert_doctor_profile(user_id: str, payload: DoctorProfileCreateOrUpdate) ->
             if old_doc.get(k) != doc_data[k]
         ]
 
+        # Only a request that sends specialty_ids may change them
+        specialties_sent = "specialty_ids" in payload.model_fields_set
+        old_specialties = (
+            client.table("doctor_specialties").select("specialty_id").eq("doctor_id", doctor_id).execute()
+        )
+        old_specialty_ids = {str(row["specialty_id"]) for row in old_specialties.data or []}
+        if specialties_sent and set(payload.specialty_ids) != old_specialty_ids:
+            changed_fields.append("specialties")
+
+        if not changed_fields:
+            return get_doctor_profile_by_user_id(user_id)
+
         # Update doctor profile table
         client.table("doctor_profiles").update(doc_data).eq("id", doctor_id).execute()
 
-        # Update specialties if provided
-        if payload.specialty_ids is not None:
+        if "specialties" in changed_fields:
             client.table("doctor_specialties").delete().eq("doctor_id", doctor_id).execute()
             if payload.specialty_ids:
                 entries = [{"doctor_id": doctor_id, "specialty_id": sid} for sid in payload.specialty_ids]
                 client.table("doctor_specialties").insert(entries).execute()
-            changed_fields.append("specialties")
 
         # Material edit audit log
-        if was_approved and changed_fields:
+        if was_approved:
             log_audit_event(
                 actor_id=user_id,
                 action="DOCTOR_MATERIAL_PROFILE_UPDATE",
@@ -186,6 +203,20 @@ def add_doctor_credential(user_id: str, file_path: str, document_type: str) -> D
     )
 
 
+def _doctor_ids_with_specialty(client: Any, specialty: str) -> List[str]:
+    """Resolves a specialty name fragment or id to the doctors who practise it."""
+    s_filter = specialty.lower().strip()
+    specialties = client.table("specialties").select("id, name").execute().data or []
+    specialty_ids = [
+        str(s["id"]) for s in specialties if s_filter in s["name"].lower() or s_filter == str(s["id"])
+    ]
+    if not specialty_ids:
+        return []
+
+    rows = client.table("doctor_specialties").select("doctor_id").in_("specialty_id", specialty_ids).execute()
+    return sorted({str(row["doctor_id"]) for row in rows.data or []})
+
+
 def search_public_doctors(
     specialty: Optional[str] = None,
     city: Optional[str] = None,
@@ -208,6 +239,13 @@ def search_public_doctors(
             detail="Database service unavailable",
         )
 
+    # Filter by specialty inside the query, so pages and totals stay correct
+    doctor_ids: Optional[List[str]] = None
+    if specialty:
+        doctor_ids = _doctor_ids_with_specialty(client, specialty)
+        if not doctor_ids:
+            return DoctorSearchResult(items=[], total=0, page=page, page_size=page_size, total_pages=1)
+
     # Always enforce verification_status = 'approved'
     query = (
         client.table("doctor_profiles")
@@ -215,6 +253,8 @@ def search_public_doctors(
         .eq("verification_status", VerificationStatus.APPROVED.value)
     )
 
+    if doctor_ids is not None:
+        query = query.in_("id", doctor_ids)
     if city:
         query = query.ilike("city", f"%{city.strip()}%")
     if max_fee is not None:
@@ -240,7 +280,7 @@ def search_public_doctors(
     total = result.count or 0
     raw_doctors = result.data or []
 
-    # Map to PublicDoctorRead and filter by specialty in memory if specialty filter supplied
+    # Map to PublicDoctorRead
     items: List[PublicDoctorRead] = []
     for doc in raw_doctors:
         specs: List[SpecialtyRead] = []
@@ -248,13 +288,6 @@ def search_public_doctors(
             s = ds.get("specialties")
             if s:
                 specs.append(SpecialtyRead(id=str(s["id"]), name=s["name"], description=s.get("description")))
-
-        # Check specialty filter
-        if specialty:
-            s_filter = specialty.lower().strip()
-            match = any(s_filter in s.name.lower() or s_filter == s.id for s in specs)
-            if not match:
-                continue
 
         profile_info = doc.get("profiles") or {}
         full_name = profile_info.get("full_name") or "Dr. Anonymous"
@@ -277,7 +310,7 @@ def search_public_doctors(
     total_pages = max(1, ceil(total / page_size)) if page_size else 1
     return DoctorSearchResult(
         items=items,
-        total=total if not specialty else len(items),
+        total=total,
         page=page,
         page_size=page_size,
         total_pages=total_pages,

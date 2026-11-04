@@ -137,7 +137,7 @@ flutter run
   - Output guard sanitizing any unauthorized diagnosis claims or drug prescription phrasing from LLM responses
   - PII redaction layer (`privacy.py`) masking patient names, phone numbers (BD + international), and emails before submitting prompts to external LLMs
   - LangGraph conversational workflow (`graph.py`) with typed state, single-question follow-ups bounded at max 3 rounds, and verified DB specialty mapping with General Medicine fallback
-  - PostgreSQL-backed checkpointer (`MemorySaver` / `PostgresSaver`) maintaining conversational state across dialogue turns
+  - In-memory checkpointer (`MemorySaver`) for per-process state; each turn reloads message history from PostgreSQL, so a restart only resets the follow-up counter
   - Patient chat API (`POST /chat/conversations`, `POST /chat/conversations/{id}/messages`, `GET /chat/conversations/{id}`) enforcing strict patient ownership and mandatory medical disclaimer
   - Interactive terminal CLI (`backend/scripts/chat_cli.py`) for live triage testing
   - 101/101 automated tests passing across the repository (including 32 emergency test cases, 21 non-emergency test cases, output guard tests, workflow scripted tests, and patient isolation tests)
@@ -196,6 +196,10 @@ flutter run
 - **2026-10-30**: Enforced strict separation of frontend keys in `web/.env.example`: frontend holds exclusively `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, communicating with backend API using Supabase JWT tokens; backend never exposes service-role, Pinecone, or OpenRouter keys to client code.
 - **2026-10-30**: Designed patient triage chat UI to surface medical safety warnings as permanent prominent disclaimers and render emergency escalations as high-urgency red alerts with direct 999 toll-free dialers.
 - **2026-10-30**: Integrated specialist recommendations directly into chat turns with match explanation snippets, match score percentage badges, and direct links to live slot booking.
+- **2026-11-04**: JWT signatures are only skipped when `ENVIRONMENT=test`; roles always come from `profiles`, never from token metadata. Never set `ENVIRONMENT=test` on a server.
+- **2026-11-04**: Migration `00006` makes the API the only writer: RLS gives clients read access only, and `book_appointment_atomic` is executable by the service role alone.
+- **2026-11-04**: Recommendations hard-filter on city and specialty (General Medicine doctors stay eligible) on both the hybrid and SQL paths.
+- **2026-11-04**: Backend tests read `.env` and can write to the configured database; blank `DATABASE_URL` and the `SUPABASE_*` variables to run them offline.
 
 
 
