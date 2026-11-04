@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from fastapi import HTTPException, status
-from app.core.supabase import get_supabase_admin_client, get_supabase_client
+from app.core.supabase import get_supabase_admin_client
 from app.models.enums import UserRole, VerificationStatus
 from app.schemas.profile import DoctorProfileRead, ProfileRead, ProfileUpdate, UserMeResponse
 from app.services.audit_service import log_audit_event
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 def get_user_profile(user_id: str, email: Optional[str] = None) -> UserMeResponse:
     """Fetch complete user profile, including doctor details if applicable."""
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_admin_client()
     if not client:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -89,7 +89,7 @@ def update_user_profile(user_id: str, payload: ProfileUpdate, email: Optional[st
     
     Users CANNOT modify role or verification_status through this endpoint.
     """
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_admin_client()
     if not client:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

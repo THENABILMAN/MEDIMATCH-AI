@@ -1,6 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from app.api.deps import get_current_user, require_doctor, require_patient
+from postgrest import SyncPostgrestClient
+from app.api.deps import get_current_user, get_user_db, require_doctor, require_patient
 from app.models.enums import AppointmentStatus, UserRole
 from app.schemas.appointment import (
     AppointmentCancelRequest,
@@ -48,12 +49,14 @@ def book_appointment(
 def get_my_appointments(
     status: Optional[AppointmentStatus] = Query(default=None, description="Optional appointment status filter"),
     current_user: UserMeResponse = Depends(get_current_user),
+    db: SyncPostgrestClient = Depends(get_user_db),
 ) -> List[AppointmentResponse]:
     """Retrieve appointments for the authenticated user (patient or doctor view)."""
     return get_user_appointments(
         user_id=current_user.id,
         role=current_user.role,
         status_filter=status,
+        db=db,
     )
 
 

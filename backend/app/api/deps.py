@@ -1,8 +1,10 @@
 import logging
-from typing import Callable, List
+from typing import Callable, Iterator, List
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from postgrest import SyncPostgrestClient
 from app.core.security import verify_supabase_token
+from app.core.supabase import create_user_client
 from app.models.enums import UserRole
 from app.schemas.profile import UserMeResponse
 from app.services.profile_service import get_user_profile
@@ -46,6 +48,17 @@ def get_current_user(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Could not load user profile",
         )
+
+
+def get_user_db(
+    credentials: HTTPAuthorizationCredentials = Security(security_scheme),
+) -> Iterator[SyncPostgrestClient]:
+    """A database client scoped to the caller, for reads that RLS should also guard."""
+    client = create_user_client(credentials.credentials)
+    try:
+        yield client
+    finally:
+        client.aclose()
 
 
 def require_role(allowed_roles: List[UserRole]) -> Callable[[UserMeResponse], UserMeResponse]:

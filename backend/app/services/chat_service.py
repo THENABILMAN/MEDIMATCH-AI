@@ -8,9 +8,10 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
+from postgrest import SyncPostgrestClient
 
 from app.ai.graph import get_symptom_graph
-from app.core.supabase import get_supabase_admin_client, get_supabase_client
+from app.core.supabase import get_supabase_admin_client
 
 logger = logging.getLogger("medimatch.chat_service")
 
@@ -25,7 +26,7 @@ DISCLAIMER_MESSAGE = (
 
 def create_conversation(patient_id: str, title: Optional[str] = None) -> Dict[str, Any]:
     """Creates a new conversation session and seeds initial greeting with mandatory disclaimer."""
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_admin_client()
     if not client:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database service unavailable")
 
@@ -57,14 +58,10 @@ def create_conversation(patient_id: str, title: Optional[str] = None) -> Dict[st
     }
 
 
-def list_patient_conversations(patient_id: str) -> List[Dict[str, Any]]:
+def list_patient_conversations(patient_id: str, db: SyncPostgrestClient) -> List[Dict[str, Any]]:
     """Lists all consultation conversations for the patient, ordered latest first."""
-    client = get_supabase_admin_client() or get_supabase_client()
-    if not client:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database service unavailable")
-
     res = (
-        client.table("conversations")
+        db.table("conversations")
         .select("*")
         .eq("patient_id", patient_id)
         .order("created_at", desc=True)
@@ -73,9 +70,23 @@ def list_patient_conversations(patient_id: str) -> List[Dict[str, Any]]:
     return res.data or []
 
 
-def get_conversation_history(conversation_id: str, patient_id: str) -> Dict[str, Any]:
+def read_messages(conversation_id: str, db: SyncPostgrestClient) -> List[Dict[str, Any]]:
+    """Reads a conversation's messages as the caller, so RLS has the final say."""
+    res = (
+        db.table("messages")
+        .select("*")
+        .eq("conversation_id", conversation_id)
+        .order("created_at", desc=False)
+        .execute()
+    )
+    return res.data or []
+
+
+def get_conversation_history(
+    conversation_id: str, patient_id: str, db: SyncPostgrestClient
+) -> Dict[str, Any]:
     """Retrieves conversation details and complete message history with ownership enforcement."""
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_admin_client()
     if not client:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database service unavailable")
 
@@ -91,21 +102,12 @@ def get_conversation_history(conversation_id: str, patient_id: str) -> Dict[str,
             detail="Access forbidden: You do not own this conversation",
         )
 
-    # Fetch messages
-    msg_res = (
-        client.table("messages")
-        .select("*")
-        .eq("conversation_id", conversation_id)
-        .order("created_at", desc=False)
-        .execute()
-    )
-
     return {
         "id": conversation_id,
         "patient_id": conv["patient_id"],
         "title": conv["title"],
         "created_at": conv.get("created_at"),
-        "messages": msg_res.data or [],
+        "messages": read_messages(conversation_id, db),
     }
 
 
@@ -119,7 +121,7 @@ def send_patient_message(
     if not content:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Message content cannot be empty")
 
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_admin_client()
     if not client:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database service unavailable")
 

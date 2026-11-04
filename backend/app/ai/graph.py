@@ -14,14 +14,14 @@ from app.ai.llm import get_llm_client
 from app.ai.privacy import redact_pii
 from app.ai.safety import check_emergency, get_emergency_response, output_guard
 from app.ai.state import ConversationIntent, ConversationState, ExtractedSymptoms, SearchCriteria
-from app.core.supabase import get_supabase_admin_client, get_supabase_client
+from app.core.supabase import get_supabase_admin_client
 
 logger = logging.getLogger("medimatch.ai.graph")
 
 
 def _get_verified_specialty_names() -> List[str]:
     """Fetch all verified specialty names directly from the Supabase database."""
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_admin_client()
     default_specialties = ["Neurology", "Cardiology", "General Medicine"]
     if not client:
         return default_specialties

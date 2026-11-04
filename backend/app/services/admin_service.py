@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
-from app.core.supabase import contains_pattern, get_supabase_admin_client
+from app.core.supabase import contains_pattern, get_supabase_admin_client, get_supabase_client
 from app.models.enums import VerificationStatus
 from app.schemas.doctor import (
     AuditLogPaginatedResponse,
@@ -290,11 +290,11 @@ def create_specialty(payload: SpecialtyCreate, admin_id: str) -> SpecialtyRead:
 
 
 def list_specialties() -> List[SpecialtyRead]:
-    admin_client = get_supabase_admin_client()
-    if not admin_client:
+    client = get_supabase_client()
+    if not client:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database service unavailable")
 
-    res = admin_client.table("specialties").select("*").order("name", desc=False).execute()
+    res = client.table("specialties").select("*").order("name", desc=False).execute()
     return [
         SpecialtyRead(id=str(row["id"]), name=row["name"], description=row.get("description"))
         for row in res.data or []

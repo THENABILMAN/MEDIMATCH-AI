@@ -2,7 +2,8 @@ import logging
 import uuid
 from typing import Any, Dict, List, Literal, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from app.api.deps import get_current_user, require_doctor
+from postgrest import SyncPostgrestClient
+from app.api.deps import get_current_user, get_user_db, require_doctor
 from app.core.config import settings
 from app.core.rate_limit import limit_by_user
 from app.core.supabase import get_supabase_admin_client
@@ -129,8 +130,9 @@ def upload_credential(
 @router.get("/me/credentials", response_model=List[DoctorCredentialRead], summary="List own credential documents")
 def get_my_credentials(
     current_user: UserMeResponse = Depends(require_doctor),
+    db: SyncPostgrestClient = Depends(get_user_db),
 ) -> List[DoctorCredentialRead]:
-    return list_my_credentials(current_user.id)
+    return list_my_credentials(current_user.id, db)
 
 
 @router.get("/me/verification-history", summary="List own verification status events")

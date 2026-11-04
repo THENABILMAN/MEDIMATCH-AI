@@ -2,6 +2,7 @@ import logging
 from math import ceil
 from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException, status
+from postgrest import SyncPostgrestClient
 from app.core.supabase import contains_pattern, get_supabase_admin_client, get_supabase_client
 from app.models.enums import UserRole, VerificationStatus
 from app.schemas.doctor import (
@@ -42,7 +43,7 @@ def detect_document_type(content: bytes) -> Optional[Tuple[str, str]]:
 
 def get_doctor_profile_by_user_id(user_id: str) -> DoctorProfileRead:
     """Fetch complete doctor profile for the authenticated doctor."""
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_admin_client()
     if not client:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -92,7 +93,7 @@ def upsert_doctor_profile(user_id: str, payload: DoctorProfileCreateOrUpdate) ->
     A suspended doctor cannot edit, since that would clear the suspension.
     Material edits to an approved profile are tracked in audit_logs and trigger on_doctor_updated.
     """
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_admin_client()
     if not client:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -185,7 +186,7 @@ def upsert_doctor_profile(user_id: str, payload: DoctorProfileCreateOrUpdate) ->
 
 def add_doctor_credential(user_id: str, file_path: str, document_type: str) -> DoctorCredentialRead:
     """Store record of uploaded credential document in doctor_credentials table."""
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_admin_client()
     if not client:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -226,12 +227,11 @@ def add_doctor_credential(user_id: str, file_path: str, document_type: str) -> D
     )
 
 
-def list_my_credentials(user_id: str) -> List[DoctorCredentialRead]:
-    """Lists the doctor's own uploaded credential records, newest first."""
+def list_my_credentials(user_id: str, db: SyncPostgrestClient) -> List[DoctorCredentialRead]:
+    """Lists the doctor's own uploaded credential records, newest first, as the caller."""
     doctor = get_doctor_profile_by_user_id(user_id)
-    client = get_supabase_admin_client() or get_supabase_client()
     res = (
-        client.table("doctor_credentials")
+        db.table("doctor_credentials")
         .select("*")
         .eq("doctor_id", doctor.id)
         .order("uploaded_at", desc=True)
@@ -294,7 +294,7 @@ def get_credential_url(credential_id: str, user_id: str, is_admin: bool) -> Dict
 def get_verification_history(user_id: str) -> List[Dict[str, Any]]:
     """Returns status events for the doctor's timeline, without exposing which admin acted."""
     doctor = get_doctor_profile_by_user_id(user_id)
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_admin_client()
     res = (
         client.table("audit_logs")
         .select("action, created_at, metadata")
@@ -343,7 +343,7 @@ def search_public_doctors(
     Strictly returns ONLY doctors where verification_status = 'approved'.
     Never returns credential files, private phone numbers, or unapproved records.
     """
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_client()
     if not client:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -359,8 +359,8 @@ def search_public_doctors(
 
     # Always enforce verification_status = 'approved'
     query = (
-        client.table("doctor_profiles")
-        .select("*, profiles!inner(full_name), doctor_specialties(specialties(*))", count="exact")
+        client.table("public_doctors")
+        .select("*, doctor_specialties(specialties(*))", count="exact")
         .eq("verification_status", VerificationStatus.APPROVED.value)
     )
 
@@ -400,13 +400,10 @@ def search_public_doctors(
             if s:
                 specs.append(SpecialtyRead(id=str(s["id"]), name=s["name"], description=s.get("description")))
 
-        profile_info = doc.get("profiles") or {}
-        full_name = profile_info.get("full_name") or "Dr. Anonymous"
-
         items.append(
             PublicDoctorRead(
                 id=str(doc["id"]),
-                full_name=full_name,
+                full_name=doc["full_name"],
                 bio=doc.get("bio"),
                 qualifications=doc.get("qualifications") or [],
                 years_experience=doc.get("years_experience", 0),
@@ -433,7 +430,7 @@ def get_public_doctor_by_id(doctor_id: str) -> PublicDoctorRead:
     
     Returns 404 if doctor is not found OR verification_status != 'approved'.
     """
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_client()
     if not client:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -441,8 +438,8 @@ def get_public_doctor_by_id(doctor_id: str) -> PublicDoctorRead:
         )
 
     res = (
-        client.table("doctor_profiles")
-        .select("*, profiles!inner(full_name), doctor_specialties(specialties(*))")
+        client.table("public_doctors")
+        .select("*, doctor_specialties(specialties(*))")
         .eq("id", doctor_id)
         .eq("verification_status", VerificationStatus.APPROVED.value)
         .execute()
@@ -461,12 +458,9 @@ def get_public_doctor_by_id(doctor_id: str) -> PublicDoctorRead:
         if s:
             specs.append(SpecialtyRead(id=str(s["id"]), name=s["name"], description=s.get("description")))
 
-    profile_info = raw_doc.get("profiles") or {}
-    full_name = profile_info.get("full_name") or "Dr. Anonymous"
-
     return PublicDoctorRead(
         id=str(raw_doc["id"]),
-        full_name=full_name,
+        full_name=raw_doc["full_name"],
         bio=raw_doc.get("bio"),
         qualifications=raw_doc.get("qualifications") or [],
         years_experience=raw_doc.get("years_experience", 0),

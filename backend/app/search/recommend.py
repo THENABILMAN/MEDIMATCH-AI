@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 from app.ai.privacy import redact_pii
 from app.core.config import settings
-from app.core.supabase import contains_pattern, get_supabase_admin_client, get_supabase_client
+from app.core.supabase import contains_pattern, get_supabase_admin_client
 from app.models.enums import VerificationStatus
 from app.search.embeddings import get_embedding_provider
 from app.search.sync import get_pinecone_index
@@ -167,7 +167,7 @@ def _sql_fallback_search(
 ) -> List[DoctorRecommendation]:
     """Graceful fallback query when Pinecone is down or yields insufficient results."""
     logger.info("[RECOMMENDATION] Executing SQL fallback search")
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_admin_client()
     if not client:
         return []
 
@@ -276,7 +276,7 @@ def recommend_doctors(
     redacted_keywords = [redact_pii(k) for k in raw_keywords if k]
     query_text = " ".join(redacted_keywords) if redacted_keywords else ", ".join(candidate_specialties)
 
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_admin_client()
     now_iso = datetime.now(timezone.utc).isoformat()
 
     vector_matches: Dict[str, float] = {}

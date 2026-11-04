@@ -8,6 +8,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import urlsplit
@@ -25,6 +26,7 @@ INTEGRATION_FILES = {
     "test_appointments.py",
     "test_auth.py",
     "test_chat_api.py",
+    "test_data_access.py",
     "test_doctors.py",
     "test_recommendations.py",
     "test_rls.py",
@@ -46,6 +48,7 @@ def _local_stack() -> Optional[Dict[str, str]]:
             "DB_URL": os.environ["TEST_DATABASE_URL"],
             "ANON_KEY": os.environ["TEST_SUPABASE_ANON_KEY"],
             "SERVICE_ROLE_KEY": os.environ["TEST_SUPABASE_SERVICE_ROLE_KEY"],
+            "JWT_SECRET": os.environ["TEST_SUPABASE_JWT_SECRET"],
         }
 
     npx = shutil.which("npx")
@@ -166,7 +169,14 @@ def ensure_user(user_id: str, role: UserRole, full_name: str) -> None:
 def create_mock_jwt(user_id: str, email: str, role: UserRole, full_name: str = "Test User") -> str:
     """Builds a token for a test user and makes sure that user exists."""
     ensure_user(user_id, role, full_name)
-    return jwt.encode({"sub": user_id, "email": email}, "test-key-" + "x" * 32, algorithm="HS256")
+    claims = {
+        "sub": user_id,
+        "email": email,
+        "role": "authenticated",
+        "aud": "authenticated",
+        "exp": int(time.time()) + 3600,
+    }
+    return jwt.encode(claims, STACK["JWT_SECRET"] if STACK else "x" * 32, algorithm="HS256")
 
 
 @pytest.fixture

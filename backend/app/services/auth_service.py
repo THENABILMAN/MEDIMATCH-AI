@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict
 from fastapi import HTTPException, status
-from app.core.supabase import get_supabase_admin_client, get_supabase_client
+from app.core.supabase import create_auth_client, get_supabase_admin_client, get_supabase_client
 from app.models.enums import UserRole, VerificationStatus
 from app.schemas.auth import LoginRequest, RegisterDoctorRequest, RegisterPatientRequest, TokenResponse
 from app.services.audit_service import log_audit_event
@@ -179,7 +179,7 @@ def register_doctor_service(req: RegisterDoctorRequest) -> Dict[str, Any]:
 
 def login_service(req: LoginRequest) -> TokenResponse:
     """Authenticate via Supabase Auth and return access token with role."""
-    client = get_supabase_client()
+    client = create_auth_client()
     if not client:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

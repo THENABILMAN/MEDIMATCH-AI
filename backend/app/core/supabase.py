@@ -1,5 +1,6 @@
 from functools import lru_cache
 from typing import Optional
+from postgrest import SyncPostgrestClient
 from supabase import Client, create_client
 from app.core.config import settings
 
@@ -21,6 +22,21 @@ def get_supabase_client() -> Optional[Client]:
     if not settings.SUPABASE_URL or not settings.SUPABASE_ANON_KEY:
         return None
     return create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY)
+
+
+def create_auth_client() -> Optional[Client]:
+    """A throwaway client for signing in. A shared one would keep that user's session."""
+    if not settings.SUPABASE_URL or not settings.SUPABASE_ANON_KEY:
+        return None
+    return create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY)
+
+
+def create_user_client(token: str) -> SyncPostgrestClient:
+    """A database client acting as the caller, so their RLS policies apply. Close after use."""
+    return SyncPostgrestClient(
+        f"{settings.SUPABASE_URL}/rest/v1",
+        headers={"apikey": settings.SUPABASE_ANON_KEY, "Authorization": f"Bearer {token}"},
+    )
 
 
 @lru_cache()

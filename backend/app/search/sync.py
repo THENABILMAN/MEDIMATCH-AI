@@ -15,7 +15,7 @@ import logging
 from typing import Any, Dict, List, Optional
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from app.core.config import settings
-from app.core.supabase import get_supabase_admin_client, get_supabase_client
+from app.core.supabase import get_supabase_admin_client
 from app.models.enums import VerificationStatus
 from app.search.builder import build_doctor_embedding_text
 from app.search.embeddings import get_embedding_provider
@@ -46,7 +46,7 @@ def set_pinecone_index_client(client: Optional[Any]) -> None:
 
 def _fetch_doctor_with_specialties(doctor_id: str) -> Optional[Dict[str, Any]]:
     """Fetches complete doctor profile and associated specialties from Supabase."""
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_admin_client()
     if not client:
         return None
 
@@ -71,7 +71,7 @@ def _fetch_doctor_with_specialties(doctor_id: str) -> Optional[Dict[str, Any]]:
 
 def _update_sync_status(doctor_id: str, status: str) -> None:
     """Updates sync_status and last_synced_at in doctor_profiles table."""
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_admin_client()
     if not client:
         return
 

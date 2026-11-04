@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 from fastapi import HTTPException, status
+from postgrest import SyncPostgrestClient
 from app.core.supabase import get_supabase_admin_client, get_supabase_client
 from app.models.enums import AppointmentStatus, UserRole, VerificationStatus
 from app.schemas.appointment import (
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def _get_client():
-    client = get_supabase_admin_client() or get_supabase_client()
+    client = get_supabase_admin_client()
     if not client:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -137,7 +138,12 @@ def list_doctor_slots(
 
 def list_public_doctor_slots(doctor_id: str) -> List[SlotResponse]:
     """Retrieves upcoming available (unbooked) slots for an approved doctor."""
-    client = _get_client()
+    client = get_supabase_client()
+    if not client:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database service unavailable",
+        )
 
     # Check doctor approval
     doc_res = (
@@ -374,11 +380,11 @@ def get_appointment_by_id(appointment_id: str) -> AppointmentResponse:
 def get_user_appointments(
     user_id: str,
     role: UserRole,
-    status_filter: Optional[AppointmentStatus] = None,
+    status_filter: Optional[AppointmentStatus],
+    db: SyncPostgrestClient,
 ) -> List[AppointmentResponse]:
-    """Retrieves appointments for the current user based on their role."""
-    client = _get_client()
-    query = client.table("appointments").select("*").order("created_at", desc=True)
+    """Retrieves appointments as the caller. Names are added only to rows RLS let through."""
+    query = db.table("appointments").select("*").order("created_at", desc=True)
 
     if role == UserRole.PATIENT:
         query = query.eq("patient_id", user_id)

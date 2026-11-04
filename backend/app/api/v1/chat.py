@@ -3,7 +3,9 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field, model_validator
 
-from app.api.deps import require_patient
+from postgrest import SyncPostgrestClient
+
+from app.api.deps import get_user_db, require_patient
 from app.core.rate_limit import limit_by_user
 from app.schemas.common import UuidStr
 from app.schemas.profile import UserMeResponse
@@ -51,9 +53,10 @@ class SendMessageResponse(BaseModel):
 )
 def api_list_conversations(
     current_user: UserMeResponse = Depends(require_patient),
+    db: SyncPostgrestClient = Depends(get_user_db),
 ) -> List[Dict[str, Any]]:
     """Retrieves all consultation conversations belonging to the authenticated patient."""
-    return list_patient_conversations(patient_id=current_user.id)
+    return list_patient_conversations(patient_id=current_user.id, db=db)
 
 
 @router.post(
@@ -107,6 +110,7 @@ def api_send_message(
 def api_get_conversation(
     id: UuidStr,
     current_user: UserMeResponse = Depends(require_patient),
+    db: SyncPostgrestClient = Depends(get_user_db),
 ) -> Dict[str, Any]:
     """Retrieves conversation history. Enforces strict patient ownership."""
-    return get_conversation_history(conversation_id=id, patient_id=current_user.id)
+    return get_conversation_history(conversation_id=id, patient_id=current_user.id, db=db)
