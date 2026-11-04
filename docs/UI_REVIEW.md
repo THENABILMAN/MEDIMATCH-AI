@@ -1,6 +1,8 @@
 # MediMatch AI: UI Review Log
 
-Critique of the web UI against `docs/UI_PRINCIPLES.md`, from reviewing the screenshots in `web/screenshots/` at 360x800, 768x1024 and 1440x900.
+Critique of the web UI against `docs/UI_PRINCIPLES.md`, from screenshots at 360x800, 768x1024 and 1440x900 in `web/screenshots/`.
+
+**Coverage:** about 30 of the 79 screenshots were reviewed by eye, spanning every portal and all three sizes, and including every screen changed by a fix. The rest passed the automated checks below but were not looked at individually.
 
 Screenshots use a mocked API (`web/e2e/support/`) shaped from `backend/scripts/seed.py`. Regenerate them with `npx playwright test screens` from `web/`.
 
@@ -15,6 +17,7 @@ Screenshots use a mocked API (`web/e2e/support/`) shaped from `backend/scripts/s
 | Admin doctors and patients, 360px | Status and Review sat off-screen in a scrolling table | Secondary columns hide on phones; name, status and action stay |
 | Availability | Past days had shorter headers, so columns misaligned | Fixed header height |
 | Availability, 360px | "Week of 2 Nov" wrapped | Kept on one line |
+| Admin specialties, 360px | Edit and delete sat off-screen in a scrolling table | Description hides on phones |
 | Onboarding | A blank fee showed as 0, which reads as free | Unset fee shows an empty field |
 | Verification | No route back to onboarding after "Finish Later" | "Continue Setup" link while in review |
 

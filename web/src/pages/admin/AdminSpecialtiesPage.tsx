@@ -130,7 +130,7 @@ export default function AdminSpecialtiesPage() {
           <TableHead>
             <tr>
               <TableHeader>{t('specialties.name')}</TableHeader>
-              <TableHeader>{t('specialties.descriptionField')}</TableHeader>
+              <TableHeader className="hidden md:table-cell">{t('specialties.descriptionField')}</TableHeader>
               <TableHeader>
                 <span className="sr-only">{t('adminDoctors.actions')}</span>
               </TableHeader>
@@ -140,7 +140,7 @@ export default function AdminSpecialtiesPage() {
             {specialties.data.map((specialty) => (
               <TableRow key={specialty.id}>
                 <TableCell className="font-medium whitespace-nowrap">{specialty.name}</TableCell>
-                <TableCell className="min-w-48 text-muted">{specialty.description}</TableCell>
+                <TableCell className="hidden min-w-48 text-muted md:table-cell">{specialty.description}</TableCell>
                 <TableCell>
                   <div className="flex justify-end">
                     <IconButton label={t('specialties.editNamed', { name: specialty.name })} onClick={() => setEditing(specialty)}>
