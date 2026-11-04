@@ -208,8 +208,8 @@ def test_trigger_prevents_role_escalation(db_conn):
         cur.execute(f"SET LOCAL \"request.jwt.claim.sub\" = '{test_user_id}';")
         cur.execute("SET LOCAL \"request.jwt.claim.role\" = 'authenticated';")
 
-        # Attempt to escalate to admin
-        with pytest.raises(psycopg2.Error):
+        # Attempt to escalate to admin. It may be refused or match no rows, but must never apply
+        try:
             cur.execute(
                 """
                 UPDATE public.profiles
@@ -219,6 +219,12 @@ def test_trigger_prevents_role_escalation(db_conn):
                 (test_user_id,),
             )
             db_conn.commit()
+        except psycopg2.Error:
+            db_conn.rollback()
+
+        cur.execute("RESET ROLE;")
+        cur.execute("SELECT role FROM public.profiles WHERE id = %s;", (test_user_id,))
+        assert cur.fetchone()["role"] == "patient"
 
     finally:
         db_conn.rollback()

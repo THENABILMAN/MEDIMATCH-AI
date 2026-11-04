@@ -53,6 +53,16 @@ class Settings(BaseSettings):
         default=0.10, description="Weight for upcoming appointment availability"
     )
 
+    # Abuse limits, per minute
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_LOGIN: int = Field(default=10, ge=1)
+    RATE_LIMIT_REGISTER: int = Field(default=5, ge=1)
+    RATE_LIMIT_CHAT: int = Field(default=20, ge=1)
+    RATE_LIMIT_UPLOAD: int = Field(default=10, ge=1)
+
+    # Credential uploads
+    MAX_UPLOAD_BYTES: int = Field(default=10 * 1024 * 1024, ge=1)
+
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = [
         "http://localhost:5173",

@@ -1,32 +1,52 @@
 from typing import List, Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from app.models.enums import UserRole
+from app.schemas.common import (
+    MAX_BIO_LENGTH,
+    MAX_CONSULTATION_FEE,
+    MAX_QUALIFICATIONS,
+    MAX_SPECIALTIES,
+    MAX_YEARS_EXPERIENCE,
+    ShortText,
+    UuidStr,
+)
+
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 72  # Supabase Auth hashes with bcrypt, which stops reading at 72 bytes
 
 
 class RegisterPatientRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     email: EmailStr
-    password: str = Field(min_length=6, description="Password must be at least 6 characters")
+    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
     full_name: str = Field(min_length=2, max_length=150)
     phone: Optional[str] = Field(default=None, max_length=25)
 
 
 class RegisterDoctorRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     email: EmailStr
-    password: str = Field(min_length=6, description="Password must be at least 6 characters")
+    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
     full_name: str = Field(min_length=2, max_length=150)
     phone: Optional[str] = Field(default=None, max_length=25)
-    bio: Optional[str] = Field(default=None, max_length=2000)
-    qualifications: List[str] = Field(default_factory=list, description="e.g. ['MBBS', 'FCPS']")
-    years_experience: int = Field(default=0, ge=0)
-    consultation_fee: float = Field(default=0.0, ge=0)
+    bio: Optional[str] = Field(default=None, max_length=MAX_BIO_LENGTH)
+    qualifications: List[ShortText] = Field(
+        default_factory=list, max_length=MAX_QUALIFICATIONS, description="e.g. ['MBBS', 'FCPS']"
+    )
+    years_experience: int = Field(default=0, ge=0, le=MAX_YEARS_EXPERIENCE)
+    consultation_fee: float = Field(default=0.0, ge=0, le=MAX_CONSULTATION_FEE)
     clinic_name: Optional[str] = Field(default=None, max_length=200)
     city: str = Field(default="Dhaka", max_length=100)
-    specialty_ids: List[str] = Field(default_factory=list, description="List of specialty UUIDs")
+    specialty_ids: List[UuidStr] = Field(
+        default_factory=list, max_length=MAX_SPECIALTIES, description="List of specialty UUIDs"
+    )
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(max_length=MAX_PASSWORD_LENGTH)
 
 
 class TokenResponse(BaseModel):

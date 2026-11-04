@@ -159,10 +159,8 @@ def test_doctor_upload_credentials(client: TestClient):
     response = client.post(
         "/doctors/me/credentials",
         headers=headers,
-        data={
-            "document_type": "bmdc_license",
-            "file_path": "a0000000-0000-0000-0000-000000000003/sample_bmdc_license.pdf",
-        },
+        data={"document_type": "bmdc_license"},
+        files={"file": ("sample_bmdc_license.pdf", b"%PDF-1.4 sample", "application/pdf")},
     )
     assert response.status_code == status.HTTP_200_OK
     data = response.json()

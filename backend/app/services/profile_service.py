@@ -76,6 +76,14 @@ def get_user_profile(user_id: str, email: Optional[str] = None) -> UserMeRespons
     )
 
 
+def _require_not_suspended(doctor: DoctorProfileRead) -> None:
+    if doctor.verification_status == VerificationStatus.SUSPENDED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This profile is suspended. Please contact support.",
+        )
+
+
 def update_user_profile(user_id: str, payload: ProfileUpdate, email: Optional[str] = None) -> UserMeResponse:
     """Update profile fields with strict privilege checking.
     
@@ -89,6 +97,12 @@ def update_user_profile(user_id: str, payload: ProfileUpdate, email: Optional[st
         )
 
     current = get_user_profile(user_id, email)
+    renamed = payload.full_name is not None and payload.full_name != current.full_name
+    doctor = current.doctor_profile if current.role == UserRole.DOCTOR else None
+
+    # A patient chooses a doctor by name, so a new name needs review like any other credential
+    if doctor and renamed:
+        _require_not_suspended(doctor)
 
     # 1. Update basic profile table if specified
     profile_updates: Dict[str, Any] = {}
@@ -108,8 +122,21 @@ def update_user_profile(user_id: str, payload: ProfileUpdate, email: Optional[st
             action="UPDATE_PROFILE",
             target_type="profiles",
             target_id=user_id,
-            metadata=profile_updates,
+            metadata={"changed_fields": sorted(profile_updates)},
         )
+
+    if doctor and renamed:
+        client.table("doctor_profiles").update(
+            {"verification_status": VerificationStatus.PENDING.value}
+        ).eq("id", doctor.id).execute()
+        log_audit_event(
+            actor_id=user_id,
+            action="DOCTOR_MATERIAL_PROFILE_UPDATE",
+            target_type="doctor_profiles",
+            target_id=doctor.id,
+            metadata={"new_status": VerificationStatus.PENDING.value, "changed_fields": ["full_name"]},
+        )
+        on_doctor_updated(doctor.id, ["full_name"])
 
     # 2. Update doctor profile if user is doctor and payload supplied
     if current.role == UserRole.DOCTOR and payload.doctor_profile:
@@ -131,11 +158,7 @@ def update_user_profile(user_id: str, payload: ProfileUpdate, email: Optional[st
         if doc_updates:
             # Same rule as upsert_doctor_profile: edited details need review again
             if current.doctor_profile:
-                if current.doctor_profile.verification_status == VerificationStatus.SUSPENDED:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="This profile is suspended. Please contact support.",
-                    )
+                _require_not_suspended(current.doctor_profile)
                 doc_updates["verification_status"] = VerificationStatus.PENDING.value
             client.table("doctor_profiles").update(doc_updates).eq("user_id", user_id).execute()
             log_audit_event(
@@ -143,7 +166,7 @@ def update_user_profile(user_id: str, payload: ProfileUpdate, email: Optional[st
                 action="UPDATE_DOCTOR_PROFILE",
                 target_type="doctor_profiles",
                 target_id=user_id,
-                metadata=doc_updates,
+                metadata={"changed_fields": sorted(doc_updates)},
             )
             if current.doctor_profile:
                 on_doctor_updated(current.doctor_profile.id, list(doc_updates))

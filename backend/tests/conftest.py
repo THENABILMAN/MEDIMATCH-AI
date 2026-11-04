@@ -20,6 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 LOCAL_HOSTS = {"127.0.0.1", "localhost"}
 INTEGRATION_FILES = {
     "test_access_rules.py",
+    "test_abuse_rules.py",
     "test_admin.py",
     "test_appointments.py",
     "test_auth.py",
@@ -78,6 +79,7 @@ os.environ.update(
         "PINECONE_API_KEY": "",
         "OPENROUTER_API_KEY": "",
         "EMBEDDING_PROVIDER": "fake",
+        "RATE_LIMIT_ENABLED": "false",
     }
 )
 

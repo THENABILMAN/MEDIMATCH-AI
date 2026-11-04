@@ -1,9 +1,10 @@
 import logging
 import uuid
-from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from app.api.deps import get_current_user, require_doctor
+from app.core.config import settings
+from app.core.rate_limit import limit_by_user
 from app.core.supabase import get_supabase_admin_client
 from app.models.enums import UserRole
 from app.schemas.common import MAX_CONSULTATION_FEE, MAX_YEARS_EXPERIENCE, UuidStr
@@ -23,7 +24,9 @@ from app.services.appointment_service import (
     list_public_doctor_slots,
 )
 from app.services.doctor_service import (
+    CREDENTIAL_BUCKET,
     add_doctor_credential,
+    detect_document_type,
     get_credential_url,
     get_doctor_profile_by_user_id,
     get_public_doctor_by_id,
@@ -65,53 +68,56 @@ def update_my_doctor_profile(
     return upsert_doctor_profile(current_user.id, payload)
 
 
-@router.post("/me/credentials", response_model=DoctorCredentialRead, summary="Upload verification credential document")
-async def upload_credential(
-    document_type: str = Form(..., description="e.g. bmdc_license, mbbs_degree, certificate"),
-    file: Optional[UploadFile] = File(default=None),
-    file_path: Optional[str] = Form(default=None),
+@router.post(
+    "/me/credentials",
+    response_model=DoctorCredentialRead,
+    summary="Upload verification credential document",
+    dependencies=[Depends(limit_by_user("upload", "RATE_LIMIT_UPLOAD"))],
+)
+def upload_credential(
+    document_type: str = Form(
+        ..., pattern=r"^[a-z_]{2,50}$", description="e.g. bmdc_license, mbbs_degree, certificate"
+    ),
+    file: UploadFile = File(...),
     current_user: UserMeResponse = Depends(require_doctor),
 ) -> DoctorCredentialRead:
-    """Upload a credential document to private Supabase Storage and register credential record."""
-    if file_path and not file_path.startswith(f"{current_user.id}/"):
+    """Stores a verified file in private Storage under a path the caller has no say in."""
+    content = file.file.read(settings.MAX_UPLOAD_BYTES + 1)
+    if len(content) > settings.MAX_UPLOAD_BYTES:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Credential paths must be inside your own folder",
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="This file is too large. The limit is 10 MB.",
         )
 
-    target_path = file_path
-
-    # If an actual file was uploaded, stream it into Supabase Storage
-    if file:
-        admin_client = get_supabase_admin_client()
-        if not admin_client:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Credential storage is unavailable",
-            )
-
-        file_bytes = await file.read()
-        safe_name = Path(file.filename or "document").name
-        target_path = f"{current_user.id}/{uuid.uuid4()}_{safe_name}"
-        try:
-            admin_client.storage.from_("doctor-credentials").upload(
-                path=target_path,
-                file=file_bytes,
-                file_options={"content-type": file.content_type or "application/octet-stream"},
-            )
-        except Exception as e:
-            # A record must never point at a document an admin cannot open
-            logger.error(f"Credential upload failed for {current_user.id}: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Your document could not be uploaded. Please try again.",
-            )
-
-    if not target_path:
+    detected = detect_document_type(content)
+    if not detected:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Either a file upload or file_path must be provided",
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Please upload a PDF, PNG, JPEG or WebP file.",
         )
+    content_type, extension = detected
+
+    admin_client = get_supabase_admin_client()
+    if not admin_client:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Credential storage is unavailable",
+        )
+
+    target_path = f"{current_user.id}/{uuid.uuid4()}{extension}"
+    try:
+        admin_client.storage.from_(CREDENTIAL_BUCKET).upload(
+            path=target_path,
+            file=content,
+            file_options={"content-type": content_type},
+        )
+    except Exception as e:
+        # A record must never point at a document an admin cannot open
+        logger.error(f"Credential upload failed for {current_user.id}: {type(e).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Your document could not be uploaded. Please try again.",
+        ) from e
 
     return add_doctor_credential(
         user_id=current_user.id,

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field, model_validator
 
 from app.api.deps import require_patient
+from app.core.rate_limit import limit_by_user
 from app.schemas.common import UuidStr
 from app.schemas.profile import UserMeResponse
 from app.services.chat_service import (
@@ -74,6 +75,7 @@ def api_create_conversation(
     "/conversations/{id}/messages",
     response_model=SendMessageResponse,
     summary="Send a message in the consultation conversation",
+    dependencies=[Depends(limit_by_user("chat", "RATE_LIMIT_CHAT"))],
 )
 def api_send_message(
     id: UuidStr,

@@ -1,6 +1,6 @@
 import logging
 from math import ceil
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException, status
 from app.core.supabase import contains_pattern, get_supabase_admin_client, get_supabase_client
 from app.models.enums import UserRole, VerificationStatus
@@ -25,6 +25,19 @@ VERIFICATION_ACTIONS = [
     "REJECT_DOCTOR",
     "SUSPEND_DOCTOR",
 ]
+
+
+def detect_document_type(content: bytes) -> Optional[Tuple[str, str]]:
+    """Identifies a file from its bytes. A client's filename and content type are only claims."""
+    if content.startswith(b"%PDF-"):
+        return "application/pdf", ".pdf"
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png", ".png"
+    if content.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg", ".jpg"
+    if content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+        return "image/webp", ".webp"
+    return None
 
 
 def get_doctor_profile_by_user_id(user_id: str) -> DoctorProfileRead:
@@ -201,7 +214,7 @@ def add_doctor_credential(user_id: str, file_path: str, document_type: str) -> D
         action="UPLOAD_CREDENTIAL",
         target_type="doctor_credentials",
         target_id=str(created["id"]),
-        metadata={"document_type": document_type, "file_path": file_path},
+        metadata={"document_type": document_type},
     )
 
     return DoctorCredentialRead(
@@ -259,7 +272,7 @@ def get_credential_url(credential_id: str, user_id: str, is_admin: bool) -> Dict
         )
         url = signed.get("signedURL") or signed.get("signedUrl")
     except Exception as e:
-        logger.error(f"Could not sign credential {credential_id}: {e}")
+        logger.error(f"Could not sign credential {credential_id}: {type(e).__name__}")
         url = None
 
     if not url:
@@ -267,6 +280,14 @@ def get_credential_url(credential_id: str, user_id: str, is_admin: bool) -> Dict
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="This document could not be opened. Please try again.",
         )
+
+    log_audit_event(
+        actor_id=user_id,
+        action="VIEW_CREDENTIAL",
+        target_type="doctor_credentials",
+        target_id=credential_id,
+        metadata={"by_admin": is_admin},
+    )
     return {"url": url}
 
 

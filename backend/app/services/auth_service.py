@@ -9,6 +9,9 @@ from app.services.profile_service import get_user_profile
 
 logger = logging.getLogger(__name__)
 
+# The same answer whatever went wrong, so this cannot be used to test which emails have accounts
+REGISTRATION_FAILED = "We could not create this account. If you already have one, please sign in."
+
 
 def register_patient_service(req: RegisterPatientRequest) -> Dict[str, Any]:
     """Register a new patient account."""
@@ -53,11 +56,11 @@ def register_patient_service(req: RegisterPatientRequest) -> Dict[str, Any]:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sign up failed")
             user_id = str(auth_res.user.id)
     except Exception as e:
-        logger.error(f"Sign up error for {req.email}: {e}")
+        logger.warning(f"Sign up error: {type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Registration failed: {str(e)}",
-        )
+            detail=REGISTRATION_FAILED,
+        ) from e
 
     # 2. Ensure profile exists and role is patient (in case trigger hasn't fired or needs sync)
     if admin_client:
@@ -73,7 +76,6 @@ def register_patient_service(req: RegisterPatientRequest) -> Dict[str, Any]:
         action="REGISTER_PATIENT",
         target_type="profiles",
         target_id=user_id,
-        metadata={"email": req.email},
     )
 
     return {
@@ -125,11 +127,11 @@ def register_doctor_service(req: RegisterDoctorRequest) -> Dict[str, Any]:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sign up failed")
             user_id = str(auth_res.user.id)
     except Exception as e:
-        logger.error(f"Sign up doctor error for {req.email}: {e}")
+        logger.warning(f"Sign up doctor error: {type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Doctor registration failed: {str(e)}",
-        )
+            detail=REGISTRATION_FAILED,
+        ) from e
 
     # 2. Upsert profile as doctor
     if admin_client:
@@ -164,7 +166,7 @@ def register_doctor_service(req: RegisterDoctorRequest) -> Dict[str, Any]:
         action="REGISTER_DOCTOR",
         target_type="doctor_profiles",
         target_id=user_id,
-        metadata={"email": req.email, "city": req.city},
+        metadata={"city": req.city},
     )
 
     return {
@@ -190,7 +192,7 @@ def login_service(req: LoginRequest) -> TokenResponse:
             "password": req.password,
         })
     except Exception as e:
-        logger.warning(f"Login failed for {req.email}: {e}")
+        logger.info(f"Login failed: {type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
