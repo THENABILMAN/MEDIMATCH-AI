@@ -94,35 +94,37 @@ export const LoginPage: React.FC = () => {
           </button>
         </form>
 
-        {/* Demo Fast-Login Helpers */}
-        <div className="mt-6 rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/50 p-4">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-900">
-            Demo Fast-Login Accounts
-          </p>
-          <div className="mt-2.5 grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => fillDemoAccount('patient@medimatch.test', 'Patient123!Safe')}
-              className="rounded-lg border border-indigo-200 bg-white py-1.5 px-2 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 transition"
-            >
-              👤 Patient
-            </button>
-            <button
-              type="button"
-              onClick={() => fillDemoAccount('doctor@medimatch.test', 'Doctor123!Safe')}
-              className="rounded-lg border border-indigo-200 bg-white py-1.5 px-2 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 transition"
-            >
-              🩺 Doctor
-            </button>
-            <button
-              type="button"
-              onClick={() => fillDemoAccount('admin@medimatch.test', 'Admin123!Safe')}
-              className="rounded-lg border border-indigo-200 bg-white py-1.5 px-2 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 transition"
-            >
-              🛡️ Admin
-            </button>
+        {/* Demo Fast-Login Helpers: removed from production builds */}
+        {import.meta.env.DEV && (
+          <div className="mt-6 rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/50 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-900">
+              Demo Fast-Login Accounts
+            </p>
+            <div className="mt-2.5 grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => fillDemoAccount('patient@medimatch.test', 'Patient123!Safe')}
+                className="rounded-lg border border-indigo-200 bg-white py-1.5 px-2 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 transition"
+              >
+                👤 Patient
+              </button>
+              <button
+                type="button"
+                onClick={() => fillDemoAccount('doctor@medimatch.test', 'Doctor123!Safe')}
+                className="rounded-lg border border-indigo-200 bg-white py-1.5 px-2 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 transition"
+              >
+                🩺 Doctor
+              </button>
+              <button
+                type="button"
+                onClick={() => fillDemoAccount('admin@medimatch.test', 'Admin123!Safe')}
+                className="rounded-lg border border-indigo-200 bg-white py-1.5 px-2 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 transition"
+              >
+                🛡️ Admin
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="text-center text-xs text-slate-600">
           Don't have an account?{' '}
