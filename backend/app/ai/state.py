@@ -44,6 +44,19 @@ class SearchCriteria(BaseModel):
     keywords: List[str] = Field(default_factory=list, description="Key symptom keywords for retrieval")
 
 
+# What carries over between turns. Everything else is rebuilt from the messages each time
+PERSISTED_STATE_FIELDS = (
+    "symptoms",
+    "duration",
+    "severity",
+    "age_group",
+    "location",
+    "preferred_max_fee",
+    "candidate_specialty_names",
+    "followup_count",
+)
+
+
 class ConversationState(TypedDict, total=False):
     """Typed state passed through LangGraph nodes."""
     conversation_id: str

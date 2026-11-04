@@ -7,13 +7,13 @@ structured doctor-search criteria without diagnosing or prescribing.
 import logging
 from typing import Any, Dict, List, Optional
 
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 
 from app.ai.llm import get_llm_client
 from app.ai.privacy import redact_pii
 from app.ai.safety import check_emergency, get_emergency_response, output_guard
 from app.ai.state import ConversationIntent, ConversationState, ExtractedSymptoms, SearchCriteria
+from app.core.config import settings
 from app.core.supabase import get_supabase_admin_client
 
 logger = logging.getLogger("medimatch.ai.graph")
@@ -28,6 +28,14 @@ GENERAL_REPLY = (
     "appointment. I cannot diagnose or prescribe. Please tell me your symptoms, how long you have "
     "had them, and your city."
 )
+
+
+def _recent_messages(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """The latest messages, redacted. This is all an LLM provider ever sees of a conversation."""
+    return [
+        {"role": m.get("role", "user"), "content": redact_pii(m.get("content", ""))}
+        for m in messages[-settings.LLM_HISTORY_MESSAGES :]
+    ]
 
 
 def _known_cities() -> List[str]:
@@ -105,11 +113,7 @@ def should_escalate_emergency(state: ConversationState) -> str:
 
 def classify_intent_node(state: ConversationState) -> Dict[str, Any]:
     """Classifies the latest message without using phrase matching."""
-    messages = state.get("messages", [])
-    sanitized_messages = [
-        {"role": m.get("role", "user"), "content": redact_pii(m.get("content", ""))}
-        for m in messages
-    ]
+    sanitized_messages = _recent_messages(state.get("messages", []))
     system_prompt = (
         "You route messages for MediMatch AI, a doctor-matching assistant.\n"
         "Review the full conversation and classify the latest patient message.\n"
@@ -166,13 +170,7 @@ def route_after_intent(state: ConversationState) -> str:
 
 def extract_symptoms_node(state: ConversationState) -> Dict[str, Any]:
     """Redacts PII and extracts structured symptoms via LLM."""
-    raw_messages = state.get("messages", [])
-
-    # Redact all messages before submitting to LLM
-    sanitized_messages = [
-        {"role": m.get("role", "user"), "content": redact_pii(m.get("content", ""))}
-        for m in raw_messages
-    ]
+    sanitized_messages = _recent_messages(state.get("messages", []))
 
     verified_specialties = _get_verified_specialty_names()
     system_prompt = (
@@ -357,11 +355,11 @@ def build_search_criteria_node(state: ConversationState) -> Dict[str, Any]:
 
 
 # ------------------------------------------------------------------------------
-# Workflow Graph Construction & Checkpointer
+# Workflow Graph Construction
 # ------------------------------------------------------------------------------
 
 def build_symptom_graph(checkpointer: Optional[Any] = None) -> Any:
-    """Builds and compiles the LangGraph symptom assessment state machine."""
+    """Builds the symptom state machine. The API saves progress on the conversation row instead."""
     workflow = StateGraph(ConversationState)
 
     # Register nodes
@@ -413,9 +411,7 @@ def build_symptom_graph(checkpointer: Optional[Any] = None) -> Any:
     # build_search_criteria -> END
     workflow.add_edge("build_search_criteria", END)
 
-    # Default to MemorySaver if no checkpointer provided
-    cp = checkpointer or MemorySaver()
-    return workflow.compile(checkpointer=cp)
+    return workflow.compile(checkpointer=checkpointer)
 
 
 # Singleton compiled graph

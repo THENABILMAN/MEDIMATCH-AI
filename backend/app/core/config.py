@@ -35,6 +35,11 @@ class Settings(BaseSettings):
         default="anthropic/claude-3.5-sonnet", description="OpenRouter model identifier"
     )
 
+    # A chat turn makes two LLM calls in a worker thread, so these bound how long it can hold one
+    LLM_TIMEOUT_SECONDS: float = Field(default=12.0, gt=0)
+    LLM_MAX_ATTEMPTS: int = Field(default=2, ge=1)
+    LLM_HISTORY_MESSAGES: int = Field(default=12, ge=1, description="Latest messages sent to the LLM")
+
     # Embedding Settings
     EMBEDDING_PROVIDER: str = Field(
         default="pinecone", description="Embedding provider (pinecone, fake, openai)"

@@ -12,6 +12,7 @@ from postgrest import SyncPostgrestClient
 
 from app.ai.graph import get_symptom_graph
 from app.ai.safety import check_emergency, get_emergency_response
+from app.ai.state import PERSISTED_STATE_FIELDS
 from app.core.supabase import get_supabase_admin_client
 
 logger = logging.getLogger("medimatch.chat_service")
@@ -216,13 +217,18 @@ def send_patient_message(
     # 4. Invoke LangGraph
     graph = get_symptom_graph()
     initial_state = {
+        **(conv.get("graph_state") or {}),
         "conversation_id": conversation_id,
         "patient_id": patient_id,
         "messages": formatted_messages,
     }
 
-    config = {"configurable": {"thread_id": conversation_id}}
-    result_state = graph.invoke(initial_state, config=config)
+    result_state = graph.invoke(initial_state)
+
+    if result_state.get("safety_status") != "emergency":
+        client.table("conversations").update(
+            {"graph_state": {k: result_state[k] for k in PERSISTED_STATE_FIELDS if k in result_state}}
+        ).eq("id", conversation_id).execute()
 
     # A node can leave the reply as None, so a .get() default is not enough
     assistant_reply = (

@@ -2,20 +2,29 @@
 
 OpenRouter wrapper (OpenAI-compatible API) with timeouts, retries,
 and structured Pydantic response generation.
-Crucial Rule: Message contents are NEVER logged at INFO level.
+Crucial Rule: Message contents are NEVER logged, and never placed in exceptions.
 """
 
 import json
 import logging
+import time
 from typing import Any, Dict, List, Optional, Type, TypeVar
+
 import httpx
 from pydantic import BaseModel
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
 from app.core.config import settings
 
 logger = logging.getLogger("medimatch.ai.llm")
 
 T = TypeVar("T", bound=BaseModel)
+
+RETRY_WAIT_SECONDS = 1.0
+RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+
+class LLMUnavailable(Exception):
+    """The provider could not produce a reply. Callers fall back to safe deterministic behaviour."""
 
 
 class LLMClient:
@@ -26,29 +35,47 @@ class LLMClient:
         api_key: Optional[str] = None,
         model: Optional[str] = None,
         base_url: str = "https://openrouter.ai/api/v1",
-        timeout_seconds: float = 30.0,
+        transport: Optional[httpx.BaseTransport] = None,
     ):
-        self.api_key = api_key or settings.OPENROUTER_API_KEY
+        self.api_key = settings.OPENROUTER_API_KEY if api_key is None else api_key
         self.model = model or settings.OPENROUTER_MODEL
         self.base_url = base_url.rstrip("/")
-        self.timeout = timeout_seconds
+        self._http = httpx.Client(
+            timeout=httpx.Timeout(settings.LLM_TIMEOUT_SECONDS, connect=5.0),
+            transport=transport,
+        )
 
     def _get_headers(self) -> Dict[str, str]:
-        headers = {
+        return {
             "Content-Type": "application/json",
             "HTTP-Referer": "https://medimatch.ai",
             "X-Title": "MediMatch AI Assistant",
+            "Authorization": f"Bearer {self.api_key}",
         }
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        return headers
 
-    @retry(
-        retry=retry_if_exception_type((httpx.NetworkError, httpx.TimeoutException)),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=4),
-        reraise=True,
-    )
+    def _post(self, body: Dict[str, Any]) -> httpx.Response:
+        """Sends one request, retrying only failures that can succeed on another attempt."""
+        last_error = "no attempt made"
+        for attempt in range(1, settings.LLM_MAX_ATTEMPTS + 1):
+            try:
+                resp = self._http.post(
+                    f"{self.base_url}/chat/completions", headers=self._get_headers(), json=body
+                )
+            except (httpx.TimeoutException, httpx.TransportError) as e:
+                last_error = type(e).__name__
+            else:
+                if resp.status_code < 400:
+                    return resp
+                last_error = f"HTTP {resp.status_code}"
+                if resp.status_code not in RETRYABLE_STATUS:
+                    break
+
+            logger.warning(f"LLM attempt {attempt} failed: {last_error}")
+            if attempt < settings.LLM_MAX_ATTEMPTS:
+                time.sleep(RETRY_WAIT_SECONDS * attempt)
+
+        raise LLMUnavailable(last_error)
+
     def generate(
         self,
         messages: List[Dict[str, str]],
@@ -57,7 +84,9 @@ class LLMClient:
         max_tokens: int = 1000,
     ) -> str:
         """Sends chat completion request to OpenRouter and returns string reply."""
-        # Clean logging: do NOT log prompt contents at INFO level
+        if not self.api_key:
+            raise LLMUnavailable("OPENROUTER_API_KEY is not set")
+
         logger.info(f"Submitting LLM request to model '{self.model}' with {len(messages)} messages")
 
         payload_messages = []
@@ -65,24 +94,26 @@ class LLMClient:
             payload_messages.append({"role": "system", "content": system_prompt})
         payload_messages.extend(messages)
 
-        body = {
+        body: Dict[str, Any] = {
             "model": self.model,
             "messages": payload_messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        if settings.ENVIRONMENT == "production":
+            body["provider"] = {"data_collection": "deny"}
 
-        with httpx.Client(timeout=self.timeout) as client:
-            resp = client.post(
-                f"{self.base_url}/chat/completions",
-                headers=self._get_headers(),
-                json=body,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            content = data["choices"][0]["message"]["content"]
-            logger.info("LLM completion received successfully")
-            return content.strip()
+        resp = self._post(body)
+        try:
+            content = resp.json()["choices"][0]["message"]["content"]
+        except (ValueError, KeyError, IndexError, TypeError) as e:
+            raise LLMUnavailable("Unexpected response shape") from e
+
+        if not content or not content.strip():
+            raise LLMUnavailable("Empty reply")
+
+        logger.info("LLM completion received successfully")
+        return content.strip()
 
     def generate_structured(
         self,
@@ -116,17 +147,16 @@ class LLMClient:
         cleaned = cleaned.strip()
 
         try:
-            parsed_dict = json.loads(cleaned)
-            return response_model.model_validate(parsed_dict)
-        except Exception as e:
-            logger.warning(f"Structured JSON parsing failed, attempting repair: {type(e).__name__}")
-            # Try parsing with json_repair if available
-            try:
-                import json_repair
-                repaired = json_repair.repair_json(cleaned, return_objects=True)
-                return response_model.model_validate(repaired)
-            except Exception:
-                raise ValueError(f"Failed to parse LLM structured output into {response_model.__name__}") from e
+            return response_model.model_validate(json.loads(cleaned))
+        except Exception:
+            logger.warning(f"Structured output did not parse as {response_model.__name__}; attempting repair")
+
+        try:
+            import json_repair
+
+            return response_model.model_validate(json_repair.repair_json(cleaned, return_objects=True))
+        except Exception:
+            raise ValueError(f"Failed to parse LLM structured output into {response_model.__name__}") from None
 
 
 _DEFAULT_LLM_CLIENT: Optional[LLMClient] = None
@@ -140,8 +170,7 @@ def get_llm_client() -> LLMClient:
     return _DEFAULT_LLM_CLIENT
 
 
-def set_llm_client(client: LLMClient) -> None:
+def set_llm_client(client: Optional[LLMClient]) -> None:
     """Overrides the LLM client (used in testing for deterministic mocks)."""
     global _DEFAULT_LLM_CLIENT
     _DEFAULT_LLM_CLIENT = client
-

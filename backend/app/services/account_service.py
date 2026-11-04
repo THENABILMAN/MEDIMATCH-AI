@@ -7,7 +7,6 @@ from typing import Any, Dict
 
 from fastapi import HTTPException, status
 
-from app.ai.graph import get_symptom_graph
 from app.core.supabase import get_supabase_admin_client
 from app.models.enums import AppointmentStatus, UserRole
 from app.services.audit_service import log_audit_event
@@ -30,19 +29,12 @@ def _get_admin_client() -> Any:
 def _erase_chat_data(client: Any, user_id: str) -> int:
     """Removes conversations, their messages (by cascade) and symptom sessions."""
     conversations = client.table("conversations").select("id").eq("patient_id", user_id).execute()
-    conversation_ids = [str(row["id"]) for row in conversations.data or []]
 
+    # Messages and saved assistant state go with their conversation
     client.table("conversations").delete().eq("patient_id", user_id).execute()
     client.table("patient_symptom_sessions").delete().eq("patient_id", user_id).execute()
 
-    checkpointer = get_symptom_graph().checkpointer
-    for conversation_id in conversation_ids:
-        try:
-            checkpointer.delete_thread(conversation_id)
-        except Exception as e:
-            logger.warning(f"Could not clear checkpoint for {conversation_id}: {e}")
-
-    return len(conversation_ids)
+    return len(conversations.data or [])
 
 
 def delete_chat_history(user_id: str) -> Dict[str, Any]:
