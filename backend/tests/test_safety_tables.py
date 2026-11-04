@@ -130,6 +130,248 @@ mukh beka hoye geche
 ek pash oboshh
 """.strip().splitlines()
 
+# Phrases written after the patterns, to measure them on unseen wording. Rules alone missed 61% of
+# the first batch and 88% of the second, deliberately indirect one. Rules were then extended, so
+# these now guard against regressions and say nothing about unseen wording. See docs/EVAL_REPORT.md.
+HELD_OUT_EMERGENCIES = """
+my heart hurts really badly
+there is an elephant sitting on my chest
+i feel like my chest is being squeezed
+pressure in the middle of my chest going to my arm
+sweating with chest discomfort
+gasping
+my son can barely breathe
+wheezing badly and lips turning grey
+inhaler is not helping and i can't get air
+i can't get enough air
+my wife is not breathing properly
+my arm went numb and my speech is strange
+he can't lift his right arm suddenly
+her words are not making sense suddenly
+my father is confused and can't stand
+woke up unable to move my leg
+my baby had a seizure with high fever
+he is shaking all over and won't respond
+she fell and is not moving
+the bleeding is soaking through the bandage
+my nose has been bleeding for two hours and won't stop
+cut my hand deeply and it's spurting blood
+blood coming from my ears after a fall
+bike crash and my leg is bent the wrong way
+he was hit on the head and is vomiting
+my child swallowed a battery
+my toddler drank kerosene
+my daughter ate my pills
+i took 40 tablets of napa
+i have decided to end my life tonight
+i am thinking of taking all my pills
+i wish i was dead
+life is not worth living
+nobody would miss me if i was gone
+i will jump from the roof
+bee sting and my tongue is swelling
+face and lips swelling after eating shrimp
+8 months pregnant and baby stopped kicking
+bleeding heavily after giving birth
+she is pregnant and had a fit
+বুক ধড়ফড় করছে আর ঘাম হচ্ছে
+বুকের মাঝখানে ব্যথা
+বুকে প্রচণ্ড চাপ লাগছে
+শ্বাস নিতে পারছে না
+শ্বাস আটকে আসছে
+হাত পা অবশ হয়ে যাচ্ছে
+কথা বলতে পারছে না
+হঠাৎ অজ্ঞান হয়ে পড়ে গেছে
+ছেলেটা জ্ঞান হারিয়ে ফেলেছে
+খিচুনি হচ্ছে
+মাথা ঘুরে পড়ে গেছে
+অনেক রক্ত পড়ছে
+বমির সাথে রক্ত যাচ্ছে
+কালো পায়খানা হচ্ছে
+আত্মহত্যা করতে চাই
+আমি আর বাঁচব না
+নিজের ক্ষতি করতে ইচ্ছে করছে
+বিষ খেয়ে ফেলেছে
+ঘুমের বড়ি খেয়ে ফেলেছি
+গর্ভবতী মা অজ্ঞান
+buk e onek batha
+buker moddhe chap
+buk dhorphor korche
+shash nite parche na
+sash nite kosto hocche
+nishash atke ashche
+ajnan hoye geche
+oggan hoye porse
+kotha bolte parche na
+hat pa obosh hoye geche
+onek rokto porche
+rokto bondho hoy na
+bomir sathe rokto
+amar morte icche korche
+ar bachte ichcha kore na
+ami atmohotta korbo
+bish kheye felechi
+kitnashok kheyeche
+sap e kamrheche
+bachcha norche na
+feels like someone is standing on my ribs and i'm sweating
+sharp pain under my breastbone going into my back
+my left arm is heavy and i feel sick and clammy
+my heart keeps stopping and starting
+i keep pausing to get my breath between words
+mum is breathing very fast and her lips look purple
+she keeps grabbing her throat and can't make a sound
+a piece of food is stuck in his windpipe
+half his smile is gone
+he woke up and can't remember who we are
+he stopped making sense an hour ago
+my eyes went dark for a minute and i dropped to the floor
+she is foaming at the mouth
+he has been jerking for five minutes
+the worst pain of my life in my head
+my neck is stiff and light hurts my eyes and i have a fever
+purple spots spreading fast with fever
+the wound won't clot
+blood is pouring from the cut
+i am throwing up something like coffee grounds
+my belly is hard as a board and i can't move for the pain
+he was stabbed in the stomach
+my brother got shot
+a tree fell on him
+he got crushed by a machine
+his clothes caught fire
+she fell in the pond and was underwater
+i got bitten by a cobra
+my kid put bleach in his mouth
+i mixed all my medicines and drank them
+there is no way out and tonight i will finish it
+i've written my goodbye letters
+i want everything to stop forever
+i bought rope to end this
+i keep thinking about crashing my car on purpose
+my throat feels like it's shutting after the injection
+i'm allergic to nuts and just ate some and i'm covered in hives and can't swallow
+i am 30 weeks and bleeding bright red
+my wife's waters broke at 28 weeks
+the baby's cord came out
+my newborn is limp and floppy
+my two month old is hot and won't wake to feed
+বুকটা ভারী লাগছে আর ঘাম দিচ্ছে
+বাঁ হাতে ব্যথা ছড়িয়ে পড়ছে আর ঘামছি
+দম নিতে পারছি না
+ঠোঁট নীল হয়ে গেছে
+গলায় খাবার আটকে গেছে
+মুখ একদিকে বেঁকে গেছে
+ডান হাত নাড়াতে পারছি না
+কাউকে চিনতে পারছে না
+রক্ত থামছে না
+পেটে ছুরি লেগেছে
+গাছ থেকে পড়ে গেছে
+কারেন্টে ধরেছে
+আগুনে পুড়ে গেছে শরীর
+পুকুরে ডুবে গিয়েছিল
+কুকুরে কামড়ে অনেক রক্ত
+আর বেঁচে থেকে লাভ নেই
+গলায় দড়ি দেব
+সব শেষ করে দিতে চাই
+ঘুমের ট্যাবলেট অনেকগুলো খেয়েছি
+ইঁদুর মারার ওষুধ খেয়েছে
+সন্তান প্রসবের পর রক্ত বন্ধ হচ্ছে না
+নবজাতক নীল হয়ে গেছে
+buk ta bhari lagche ar gham hocche
+dom nite parchi na
+thot nil hoye geche
+golay khabar atke geche
+mukh ek dike beke geche
+dan hat narate parchi na
+kauke chinte parche na
+pete churi legeche
+gach theke pore geche
+current e dhoreche
+pukur e dube gechilo
+ar beche theke labh nai
+golay dori dibo
+sob shesh kore dite chai
+ghumer tablet onek gula khaisi
+idur marar oshudh kheyeche
+prosober por rokto bondho hocche na
+""".strip().splitlines()
+
+HELD_OUT_ORDINARY = """
+my heart specialist retired, need a new one
+breathing exercises for stress
+chest x-ray report review
+i want a second opinion on my blood test
+my stomach hurts after meals
+bleeding gums when brushing
+small cut on my finger
+nose block during winter
+i feel weak after the flu
+mild headache in the evening
+how do i book a slot
+my son has a cold
+pregnant, need a routine checkup
+pregnancy vitamins question
+back pain after lifting
+numbness in my toes for months
+প্রেগন্যান্সি চেকআপ করাতে চাই
+দাঁতে ব্যথা
+হাঁটুতে ব্যথা
+গলা ব্যথা আর জ্বর
+routine checkup korte chai
+dat e betha
+hatu batha
+gola betha
+hair fall on my head
+no air conditioning at the clinic
+grey hair at 25
+my head feels heavy after work
+i fell off my bike last month, knee still sore
+i can't sleep well
+can't lose weight
+i have a sharp pain in my knee
+pain in my lower back
+stomach pain and gas
+i feel dizzy when hungry
+my eyes are dry
+my hands feel cold
+neck pain from my pillow
+acid reflux at night
+blood pressure medicine refill
+blood test results explained
+cholesterol is high
+my period is late
+irregular periods for months
+pregnancy test was positive, what next
+need a pediatrician for vaccination
+child has a mild cough
+baby has a diaper rash
+my father needs a knee specialist
+i need a dermatologist for acne
+migraine for years, need a neurologist
+anxiety and trouble concentrating
+feeling sad lately
+i'm stressed about exams
+tired and low energy
+weight gain
+hello
+thank you
+what are your fees
+চুল পড়ছে
+পেট ব্যথা
+কোমর ব্যথা
+ঘুম হচ্ছে না
+ত্বকে চুলকানি
+ডায়াবেটিস চেকআপ
+চোখে ঝাপসা দেখি অনেকদিন ধরে
+হাত ঝিনঝিন করে মাঝে মাঝে
+chul pore jachhe
+pet betha
+komor betha
+ghum hocche na
+chulkani hocche
+""".strip().splitlines()
+
 MUST_NOT_TRIGGER = """
 no chest pain
 i do not have chest pain
@@ -237,7 +479,12 @@ def test_emergency_is_detected(phrase):
     assert check_emergency(phrase)[0] is True
 
 
-@pytest.mark.parametrize("phrase", MUST_NOT_TRIGGER)
+@pytest.mark.parametrize("phrase", HELD_OUT_EMERGENCIES)
+def test_measured_emergency_stays_detected(phrase):
+    assert check_emergency(phrase)[0] is True
+
+
+@pytest.mark.parametrize("phrase", MUST_NOT_TRIGGER + HELD_OUT_ORDINARY)
 def test_ordinary_message_is_not_an_emergency(phrase):
     assert check_emergency(phrase)[0] is False
 
@@ -405,3 +652,37 @@ def test_emergency_alert_arrives_when_there_is_no_database_client(monkeypatch):
     monkeypatch.setattr(chat_service, "get_supabase_admin_client", lambda: None)
     result = chat_service.send_patient_message("c1", "p1", "bish kheyechi")
     assert result["is_emergency"] is True
+
+
+class FlaggingLLM(EvilLLM):
+    """The rules saw nothing, but the model recognised an emergency."""
+
+    def generate_structured(self, messages, response_model, system_prompt=None):
+        if response_model is ConversationIntent:
+            return ConversationIntent(intent="symptom_update", possible_emergency=True)
+        raise AssertionError("an escalated turn must not reach extraction")
+
+
+def test_the_model_can_add_an_emergency_alert(run_turn):
+    result = run_turn(FlaggingLLM(), "something feels very wrong tonight")
+    assert result["safety_status"] == "emergency"
+    assert "999" in result["assistant_reply"]
+    assert result.get("search_criteria") is None
+
+
+def test_the_model_cannot_cancel_an_emergency(run_turn):
+    class Dismissive(EvilLLM):
+        def generate_structured(self, messages, response_model, system_prompt=None):
+            raise AssertionError("rules must escalate before the model is asked")
+
+    assert run_turn(Dismissive(), "my chest hurts")["safety_status"] == "emergency"
+
+
+def test_llm_outage_still_answers_safely(run_turn):
+    class Down(EvilLLM):
+        def generate_structured(self, messages, response_model, system_prompt=None):
+            raise ConnectionError("provider down")
+
+    result = run_turn(Down(), "itchy rash on my arm for a week in Dhaka")
+    assert result["safety_status"] == "safe"
+    assert result["assistant_reply"]

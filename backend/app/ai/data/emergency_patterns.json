@@ -1,5 +1,5 @@
 {
-  "_review_note": "Patterns are regular expressions, matched case-insensitively after normalization. A clinician must review this file before real patients use it. If a category sets negatable to true, a plain negation such as 'no chest pain' or 'buke betha nai' does not trigger it. Self-harm and pregnancy categories are never negatable. Past-tense mentions trigger on purpose: a false alarm costs less than a missed emergency.",
+  "_review_note": "Patterns are regular expressions, matched case-insensitively after normalization. Each category has exact patterns, plus combinations: every group in a combination must match somewhere in the message, which catches wording nobody listed. A clinician must review this file before real patients use it. If a category sets negatable to true, a plain negation such as 'no chest pain' or 'buke betha nai' does not trigger it. Self-harm and pregnancy categories are never negatable. Past-tense mentions trigger on purpose: a false alarm costs less than a missed emergency.",
   "negation": {
     "before": "(?:\\bno\\b|\\bnot\\b|\\bnever\\b|\\bwithout\\b|\\bdenies\\b|\\bdeny\\b|\\bdon'?t\\s+have\\b|\\bdo\\s+not\\s+have\\b|\\bdidn'?t\\s+have\\b|\\bhaven'?t\\s+had\\b)(?:\\s+(?:any|severe|sudden|serious|real|bad|bad|major))*\\s*$",
     "after": "^\\s*(?:নেই|নাই|\\bnai\\b|\\bnei\\b)"
@@ -35,7 +35,50 @@
         "দম\\s*বন্ধ",
         "\\bbuke?\\s+(?:\\w+\\s+){0,2}(?:betha|batha|byatha|bytha|beta|bedona|chap|dhorphor)\\b",
         "\\b(?:shash|shas|sash|swas|shwash|shwas|nishash|nisshash|nishshash|nissash|nisshas|nishas)\\s*(?:nite|nitey|nete|felte)?\\s*(?:\\w+\\s+)?(?:kosto|koshto|kashto|parsi\\s*na|parchi\\s*na|parcina|parchina|pari\\s*na|parse\\s*na|parche\\s*na|bondho|bandho)\\b",
-        "\\bdom\\s*bondho\\b"
+        "\\bdom\\s*bondho\\b",
+        "\\bwheez\\w*\\b.{0,30}\\b(?:badly|severe|grey|gray|blue)\\b",
+        "\\b(?:grey|gray)\\b.{0,20}\\b(?:lips?|face|skin)\\b",
+        "\\blips?\\s+(?:is\\s+|are\\s+)?turning\\s+(?:grey|gray|blue)\\b",
+        "শ্বাস\\s*আটকে",
+        "\\b(?:nishash|nisshash|shash|shas|sash)\\s*(?:atke|atkay)\\b",
+        "\\blips?\\b.{0,20}\\b(?:blue|purple|grey|gray)\\b",
+        "ঠোঁট\\s*নীল",
+        "\\bthot\\s*nil\\b",
+        "নীল\\s*হয়ে\\s*গেছে",
+        "দম\\s*নিতে",
+        "\\bdom\\s*nite\\b",
+        "\\bbreastbone\\b",
+        "\\bheart\\s+(?:keeps\\s+)?(?:stopping|skipping)\\b"
+      ],
+      "combinations": [
+        [
+          "\\bchest\\b|বুক|\\bbuk(?:e|er)?\\b",
+          "\\b(?:discomfort|pain\\w*|hurt\\w*|tight\\w*|pressure|squeez\\w*|heavy|heaviness|crush\\w*|sitting\\s+on|stabbing|burning)\\b|চাপ|ব্যথা|ব্যাথা|ধড়ফড়|\\b(?:batha|betha|byatha|chap|dhorphor)\\b|ভারী|\\bbhari\\b"
+        ],
+        [
+          "\\bheart\\b",
+          "\\b(?:hurt\\w*|pain\\w*|aching)\\b"
+        ],
+        [
+          "\\bbreath\\w*|শ্বাস|নিঃশ্বাস|\\b(?:shash|shas|sash|nishash|nisshash)\\b",
+          "\\b(?:barely|can'?t|cannot|can\\s+not|struggl\\w*|unable|hardly)\\b|আটকে|\\b(?:atke|kosto|koshto)\\b"
+        ],
+        [
+          "\\b(?:air|oxygen)\\b",
+          "\\b(?:can'?t\\s+get|cant\\s+get|cannot\\s+get|not\\s+enough|running\\s+out\\s+of)\\b"
+        ],
+        [
+          "\\binhaler\\b",
+          "\\b(?:not\\s+help\\w*|no\\s+help|isn'?t\\s+help\\w*|not\\s+work\\w*|doesn'?t\\s+work)\\b"
+        ],
+        [
+          "\\b(?:sweat\\w*|clammy)\\b|ঘাম|\\bgham\\b",
+          "\\b(?:arm|jaw|ribs?|breastbone|chest)\\b|বুক|\\bbuk\\b|বাঁ\\s*হাত"
+        ],
+        [
+          "\\b(?:throat|windpipe|airway)\\b|গলা|\\bgolay?\\b",
+          "\\b(?:stuck|shutting|closing|can'?t\\s+make\\s+a\\s+sound)\\b|আটকে|\\batke\\b"
+        ]
       ]
     },
     {
@@ -91,7 +134,57 @@
         "\\b(?:gyan|ggan|jnan)\\s*(?:nai|nei|harano|harie|hariye|fereni)\\b",
         "\\bbehosh\\b",
         "\\bkhichuni\\b",
-        "\\bek\\s*pash[e]?\\s*(?:\\w+\\s+)?(?:obosh+|ovosh+|ochol|durbol)\\b"
+        "\\bek\\s*pash[e]?\\s*(?:\\w+\\s+)?(?:obosh+|ovosh+|ochol|durbol)\\b",
+        "\\bconfused\\b",
+        "\\bwon'?t\\s+respond\\b",
+        "\\b(?:speech|words?)\\b.{0,25}\\b(?:strange|not\\s+making\\s+sense|nonsense|jumbled|garbled)\\b",
+        "\\b(?:can'?t|cannot|can\\s+not)\\s+(?:stand|walk)\\b",
+        "খিচুনি",
+        "(?:হাত|পা)\\s*(?:পা\\s*)?অবশ",
+        "কথা\\s*বলতে\\s*পার(?:ছে|ছি|ছেন)?\\s*না",
+        "(?:মাথা\\s*ঘুরে\\s*)?পড়ে\\s*গেছে",
+        "\\b(?:ajnan|ojnan|ognan|aggan|agyan)\\b",
+        "\\bkotha\\s*bolte\\s*par(?:che|chi|se|si|cen)?\\s*na\\b",
+        "\\b(?:hat|pa)\\s+(?:pa\\s+)?(?:obosh+|ovosh+|abosh+)\\b",
+        "\\bfoaming\\b",
+        "\\bjerking\\s+for\\b",
+        "\\b(?:can'?t|cannot|doesn'?t|does\\s+not)\\s+(?:remember|recogni[sz]e)\\s+(?:who|us|me|anyone)\\b",
+        "কাউকে\\s*চিনতে\\s*পার",
+        "\\bkauke\\s*chinte\\s*par\\w*",
+        "মুখ\\s*(?:[^\\s]+\\s+){0,2}বেঁকে",
+        "\\bmukh\\s+(?:\\w+\\s+){0,3}beke\\b",
+        "নাড়াতে\\s*পার(?:ছি|ছে)?\\s*না",
+        "\\bnarate\\s*par\\w*\\s*na\\b",
+        "\\bhalf\\s+(?:his|her|my|their)\\s+(?:smile|face)\\b",
+        "\\bdropped\\s+to\\s+the\\s+floor\\b",
+        "\\bworst\\s+pain\\s+of\\s+my\\s+life\\b",
+        "\\bstopped\\s+making\\s+sense\\b"
+      ],
+      "combinations": [
+        [
+          "\\bsudden\\w*\\b|হঠাৎ|\\b(?:hothat|hotat)\\b",
+          "\\b(?:numb\\w*|weak\\w*|confus\\w*|dizz\\w*|blind|blurr\\w*)\\b|অবশ|দুর্বল"
+        ],
+        [
+          "\\b(?:numb\\w*|tingling)\\b",
+          "\\b(?:speech|speak|talk|face|vision|strange)\\b"
+        ],
+        [
+          "\\b(?:fell|fallen|fall|collapsed|dropped)\\b",
+          "\\b(?:not\\s+moving|not\\s+responding|won'?t\\s+move|unconscious)\\b"
+        ],
+        [
+          "\\b(?:shaking|jerking|twitching)\\b",
+          "\\b(?:all\\s+over|won'?t\\s+respond|not\\s+responding|unconscious|whole\\s+body)\\b"
+        ],
+        [
+          "\\bneck\\b.{0,15}\\bstiff\\b|\\bstiff\\s+neck\\b",
+          "\\bfever\\b"
+        ],
+        [
+          "\\b(?:purple|dark)\\s+spots?\\b|\\brash\\b",
+          "\\bspreading\\b"
+        ]
       ]
     },
     {
@@ -140,7 +233,44 @@
         "\\brokto\\s*(?:\\w+\\s+)?(?:bondho\\s*(?:hochche|hocche|hoche|hoy)\\s*na|thamsena|thamchena|thamche\\s*na|thamse\\s*na)\\b",
         "\\brokto\\s*bomi\\b",
         "\\bshape?\\s*(?:e\\s+)?(?:kamr\\w*|kete\\s*\\w*|kat\\w*)",
-        "\\bpanite\\s*dube\\b"
+        "\\bpanite\\s*dube\\b",
+        "\\bspurting\\b",
+        "\\bblood\\s+coming\\s+from\\s+(?:my\\s+|his\\s+|her\\s+|the\\s+)?(?:ears?|nose|mouth)\\b",
+        "\\bhit\\s+on\\s+the\\s+head\\b",
+        "\\bleg\\b.{0,30}\\bwrong\\s+way\\b",
+        "অনেক\\s*রক্ত",
+        "বমি[র]?\\s*(?:সাথে|সঙ্গে)\\s*রক্ত",
+        "কালো\\s*পায়খানা",
+        "\\bonek\\s*rokto\\b",
+        "\\bbomir?\\s*(?:sathe|shathe)\\s*rokto\\b",
+        "\\bkalo\\s*paykhana\\b",
+        "\\bsh?ap\\s*e?\\s*(?:kam\\w*|kat\\w*|kete\\w*)",
+        "\\b(?:got|been|was)\\s+shot\\b",
+        "\\bcoffee\\s+grounds\\b",
+        "ছুরি",
+        "\\bchuri\\b",
+        "\\b(?:crushed|trapped)\\s+(?:by|under)\\b",
+        "\\b(?:tree|wall|roof)\\s+fell\\s+on\\b",
+        "\\bcaught\\s+fire\\b",
+        "\\bunderwater\\b",
+        "\\b(?:cobra|viper)\\b",
+        "\\bwon'?t\\s+clot\\b",
+        "\\bbelly\\s+is\\s+hard\\b",
+        "কারেন্টে\\s*ধরে",
+        "\\bcurrent\\s*e?\\s*dhor\\w*",
+        "ডুবে\\s*(?:গেছে|গিয়েছিল|যাচ্ছে)",
+        "\\bdube\\s*(?:gechilo|geche|gese|jachhe)\\b",
+        "\\bgach\\s+theke\\s+pore\\b"
+      ],
+      "combinations": [
+        [
+          "\\bbleed\\w*|\\bblood\\b|রক্ত|\\brokto\\b",
+          "\\b(?:won'?t\\s+stop|not\\s+stop\\w*|soaking|spurting|for\\s+(?:\\w+\\s+)?hours?|a\\s+lot|heavily|badly|pouring|gushing)\\b|অনেক|\\bonek\\b"
+        ],
+        [
+          "\\b(?:head|skull)\\b|মাথা",
+          "\\b(?:vomit\\w*|unconscious|fell|accident|hit)\\b|দুর্ঘটনা"
+        ]
       ]
     },
     {
@@ -173,8 +303,32 @@
         "\\bmorte\\s*chai\\b",
         "\\bmore\\s*jete\\s*chai\\b",
         "\\bba(?:n)?c?h?te\\s*(?:chai|ichcha\\s*kore|icche\\s*kore)\\s*na\\b",
-        "\\bnijeke\\s*(?:shesh|sesh|mere)\\b"
-      ]
+        "\\bnijeke\\s*(?:shesh|sesh|mere)\\b",
+        "\\bwish\\s+i\\s+(?:was|were)\\s+dead\\b",
+        "\\bnot\\s+worth\\s+living\\b",
+        "\\blife\\s+is\\s+(?:pointless|meaningless|not\\s+worth)\\b",
+        "\\b(?:nobody|no\\s+one)\\s+would\\s+(?:miss|care)\\b",
+        "\\bbetter\\s+off\\s+without\\s+me\\b",
+        "\\bjump\\s+(?:from|off)\\s+(?:the\\s+|a\\s+)?(?:roof|bridge|building|balcony)\\b",
+        "\\b(?:taking|take|took)\\s+all\\s+(?:my|the|of\\s+my)\\s+(?:pills|tablets|medicine)\\b",
+        "\\bgive\\s+up\\s+on\\s+life\\b",
+        "বাঁচব\\s*না",
+        "নিজের\\s*ক্ষতি",
+        "\\bmorte\\s*(?:icche|ichcha|issa)\\b",
+        "\\bno\\s+way\\s+out\\b",
+        "\\bgoodbye\\s+letters?\\b",
+        "\\bsuicide\\s+note\\b",
+        "\\bwant\\s+(?:everything|it\\s+all)\\s+to\\s+(?:stop|end)\\b",
+        "\\brope\\s+to\\s+end\\b",
+        "\\bcrash\\w*\\s+my\\s+car\\b",
+        "বেঁচে\\s*থেকে\\s*লাভ",
+        "\\bar\\s+beche\\s+theke\\s+labh\\b",
+        "গলায়\\s*দড়ি",
+        "\\bgolay\\s*dori\\b",
+        "সব\\s*শেষ\\s*করে",
+        "\\bsob\\s*shesh\\s*kore\\b"
+      ],
+      "combinations": []
     },
     {
       "name": "anaphylaxis_poisoning",
@@ -199,7 +353,23 @@
         "\\bbi(?:sh?)\\s*(?:khe|kha)\\w*",
         "\\b(?:kitnashok|keetnashok|kitnashak)\\s*(?:khe|kha)\\w*",
         "\\bghumer\\s*(?:oshudh?|osudh|ousudh|tablet)\\s*(?:\\w+\\s+)?(?:khe|kha)\\w*",
-        "\\bgola\\s*fule?\\s*ge?[sc]h?e\\b"
+        "\\bgola\\s*fule?\\s*ge?[sc]h?e\\b",
+        "\\b(?:swallowed|ate|drank)\\s+(?:\\w+\\s+){0,2}(?:battery|batteries|pills?|tablets?|medicine|coin|magnet)\\b",
+        "\\btook\\s+\\d{2,}\\s+(?:\\w+\\s+)?(?:tablets?|pills?)\\b",
+        "\\b(?:face|lips?|tongue|throat)\\b.{0,20}\\bswell\\w*",
+        "\\bbee\\s+sting\\b.{0,30}\\bswell\\w*",
+        "\\bbleach\\b.{0,20}\\bmouth\\b",
+        "\\b(?:medicines?|pills|tablets)\\b.{0,25}\\bdrank\\b",
+        "ঘুমের\\s*ট্যাবলেট[^\\s]*\\s*(?:[^\\s]+\\s+){0,2}খে",
+        "\\bghumer\\s*tablet\\s*(?:\\w+\\s+){0,3}kha\\w*",
+        "ইঁদুর\\s*মারার",
+        "\\bidur\\s*marar\\b"
+      ],
+      "combinations": [
+        [
+          "\\b(?:allerg\\w*|hives)\\b",
+          "\\b(?:can'?t\\s+(?:swallow|breathe)|swell\\w*|swollen)\\b"
+        ]
       ]
     },
     {
@@ -217,8 +387,20 @@
         "গর্ভবতী.*রক্তপাত",
         "প্রসব[^\\s]*\\s*(?:[^\\s]+\\s+){0,3}রক্তপাত",
         "(?:বাচ্চা|শিশু)\\s*নড়ছে\\s*না",
-        "\\bgorvoboti\\b.{0,20}\\brokto\\b"
-      ]
+        "\\bgorvoboti\\b.{0,20}\\brokto\\b",
+        "\\bbaby\\b.{0,15}\\b(?:stopped|not)\\s+(?:kicking|moving)\\b",
+        "\\b(?:after|while)\\s+giving\\s+birth\\b",
+        "\\bbachcha\\s*norche\\s*na\\b",
+        "\\bbaccha\\s*norche\\s*na\\b",
+        "গর্ভবতী.*অজ্ঞান",
+        "\\b\\d{2}\\s*weeks?\\b.{0,30}\\b(?:bleed\\w*|waters?)\\b",
+        "\\bwaters?\\s+broke\\s+at\\s+\\d+\\s+weeks\\b",
+        "\\bcord\\s+came\\s+out\\b",
+        "\\b(?:newborn|infant)\\b.{0,20}\\b(?:limp|floppy|blue)\\b",
+        "\\bwon'?t\\s+wake\\s+to\\s+feed\\b",
+        "নবজাতক\\s*(?:[^\\s]+\\s+)?নীল"
+      ],
+      "combinations": []
     }
   ]
 }

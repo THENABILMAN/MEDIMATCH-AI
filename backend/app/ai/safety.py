@@ -43,8 +43,17 @@ class EmergencyRule(NamedTuple):
     negatable: bool
 
 
+class CombinationRule(NamedTuple):
+    """Every group must match somewhere in the message, in any order."""
+
+    category: str
+    groups: List[re.Pattern]
+    negatable: bool
+
+
 class Triage(NamedTuple):
     rules: List[EmergencyRule]
+    combinations: List[CombinationRule]
     negated_before: re.Pattern
     negated_after: re.Pattern
 
@@ -59,17 +68,25 @@ def _load_patterns(path: Path = PATTERNS_FILE) -> Triage:
         data = json.load(f)
 
     rules: List[EmergencyRule] = []
+    combinations: List[CombinationRule] = []
     for cat in data.get("categories", []):
         cat_name = cat.get("name", "general_emergency")
         negatable = bool(cat.get("negatable", False))
         for pat in cat.get("patterns", []):
             rules.append(EmergencyRule(cat_name, _compile(pat), negatable))
+        for groups in cat.get("combinations", []):
+            combinations.append(CombinationRule(cat_name, [_compile(g) for g in groups], negatable))
 
     if not rules:
         raise RuntimeError(f"No emergency patterns loaded from {path}")
 
     negation = data.get("negation", {})
-    return Triage(rules, _compile(negation.get("before", "(?!)")), _compile(negation.get("after", "(?!)")))
+    return Triage(
+        rules,
+        combinations,
+        _compile(negation.get("before", "(?!)")),
+        _compile(negation.get("after", "(?!)")),
+    )
 
 
 # Load and compile patterns at import time
@@ -80,6 +97,19 @@ def _is_negated(text: str, match: re.Match) -> bool:
     """True for a plain negation in the same clause, such as "no chest pain"."""
     clause = _CLAUSE_BREAK.split(text[: match.start()])[-1]
     return bool(_TRIAGE.negated_before.search(clause) or _TRIAGE.negated_after.match(text[match.end() :]))
+
+
+def _combination_matches(rule: CombinationRule, text: str) -> Optional[str]:
+    """Returns the first group's matched text if every group has a match that is not negated."""
+    found: Optional[str] = None
+    for group in rule.groups:
+        matches = [
+            m for m in group.finditer(text) if not (rule.negatable and _is_negated(text, m))
+        ]
+        if not matches:
+            return None
+        found = found or matches[0].group(0)
+    return found
 
 
 def check_emergency(text: str) -> Tuple[bool, Optional[str], Optional[str]]:
@@ -101,6 +131,12 @@ def check_emergency(text: str) -> Tuple[bool, Optional[str], Optional[str]]:
                 continue
             logger.warning(f"[SAFETY ESCALATION] Emergency detected in category '{rule.category}'")
             return True, rule.category, match.group(0)
+
+    for combination in _TRIAGE.combinations:
+        found = _combination_matches(combination, normalized)
+        if found:
+            logger.warning(f"[SAFETY ESCALATION] Emergency detected in category '{combination.category}'")
+            return True, combination.category, found
 
     return False, None, None
 

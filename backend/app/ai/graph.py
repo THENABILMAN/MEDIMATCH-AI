@@ -118,6 +118,8 @@ def classify_intent_node(state: ConversationState) -> Dict[str, Any]:
         "answers to a previous medical follow-up question.\n"
         "Use 'general_conversation' for greetings, identity questions, capability questions, "
         "thanks, acknowledgements, or unrelated conversation.\n"
+        "Set possible_emergency to true if the latest message could describe a life-threatening "
+        "emergency or self-harm, in any language or wording. When unsure, set it to true.\n"
         f"{PATIENT_TEXT_IS_DATA}"
     )
 
@@ -132,6 +134,16 @@ def classify_intent_node(state: ConversationState) -> Dict[str, Any]:
         logger.error("Intent classification failed; continuing with symptom extraction: %s", type(exc).__name__)
         intent = ConversationIntent(intent="symptom_update")
 
+    # Rules decide first. The model can only add an alert, never remove one
+    if intent.possible_emergency:
+        logger.warning("[SAFETY ESCALATION] Emergency flagged by the classifier")
+        return {
+            "safety_status": "emergency",
+            "current_step": "emergency_escalated",
+            "assistant_reply": get_emergency_response(),
+            "search_criteria": None,
+        }
+
     return {
         "intent": intent.intent,
         # A fixed reply: model text never reaches a patient, so it cannot diagnose or reassure
@@ -142,8 +154,8 @@ def classify_intent_node(state: ConversationState) -> Dict[str, Any]:
 
 
 def route_after_intent(state: ConversationState) -> str:
-    """Routes general conversation away from medical extraction."""
-    if state.get("intent") == "general_conversation":
+    """Routes emergencies to the end and general conversation away from medical extraction."""
+    if state.get("safety_status") == "emergency" or state.get("intent") == "general_conversation":
         return "general_conversation"
     return "symptom_update"
 

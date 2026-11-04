@@ -28,6 +28,10 @@ class ConversationIntent(BaseModel):
     intent: Literal["symptom_update", "general_conversation"] = Field(
         description="Whether the latest message adds clinical/search information or is conversational."
     )
+    possible_emergency: bool = Field(
+        default=False,
+        description="True if the latest message could describe a life-threatening emergency or self-harm.",
+    )
 
     model_config = ConfigDict(extra="ignore")
 
