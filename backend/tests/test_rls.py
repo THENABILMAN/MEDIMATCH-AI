@@ -12,11 +12,12 @@ Requirements to run against a real Postgres database:
 - If DATABASE_URL is unreachable or in offline test mode, tests skip gracefully with clear instructions.
 """
 
-import os
 import uuid
-import pytest
+
 import psycopg2
+import pytest
 from psycopg2.extras import RealDictCursor
+
 from app.core.config import settings
 
 
@@ -128,7 +129,14 @@ def test_rls_unapproved_doctor_hidden(db_conn):
                 (%s, 'authenticated', 'authenticated', %s)
             ON CONFLICT (id) DO NOTHING;
             """,
-            (doc_pending, email_doc_pending, doc_approved, email_doc_app, patient_id, email_patient),
+            (
+                doc_pending,
+                email_doc_pending,
+                doc_approved,
+                email_doc_app,
+                patient_id,
+                email_patient,
+            ),
         )
 
         # Seed doctors with different verification statuses

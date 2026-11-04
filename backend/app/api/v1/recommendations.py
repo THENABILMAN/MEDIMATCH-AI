@@ -4,15 +4,14 @@ Provides direct programmatic access to hybrid doctor recommendations based on
 structured clinical criteria, keywords, budget, and location.
 """
 
-from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
+
 from app.ai.safety import check_emergency
 from app.api.deps import require_patient
 from app.schemas.common import MAX_CONSULTATION_FEE, ShortText
 from app.schemas.profile import UserMeResponse
 from app.search.recommend import (
-    DoctorRecommendation,
     RecommendationResponse,
     recommend_doctors,
 )
@@ -23,15 +22,26 @@ router = APIRouter(prefix="/recommendations", tags=["Doctor Recommendations"])
 class RecommendationQueryRequest(BaseModel):
     """Payload for requesting doctor recommendations."""
 
-    candidate_specialties: List[ShortText] = Field(
+    candidate_specialties: list[ShortText] = Field(
         default_factory=lambda: ["General Medicine"],
         max_length=10,
         description="Target medical specialties from DB (e.g. Neurology, Cardiology)",
     )
-    city: str = Field(default="Dhaka", max_length=100, description="Target city for doctor consultation")
-    max_fee: Optional[float] = Field(default=None, ge=0, le=MAX_CONSULTATION_FEE, description="Maximum consultation fee filter in BDT")
-    keywords: List[ShortText] = Field(default_factory=list, max_length=10, description="Symptom keywords for semantic retrieval")
-    top_k: int = Field(default=5, ge=1, le=20, description="Maximum number of recommendations to return")
+    city: str = Field(
+        default="Dhaka", max_length=100, description="Target city for doctor consultation"
+    )
+    max_fee: float | None = Field(
+        default=None,
+        ge=0,
+        le=MAX_CONSULTATION_FEE,
+        description="Maximum consultation fee filter in BDT",
+    )
+    keywords: list[ShortText] = Field(
+        default_factory=list, max_length=10, description="Symptom keywords for semantic retrieval"
+    )
+    top_k: int = Field(
+        default=5, ge=1, le=20, description="Maximum number of recommendations to return"
+    )
 
 
 @router.post(
@@ -65,4 +75,3 @@ def api_get_recommendations(
         "keywords": payload.keywords,
     }
     return recommend_doctors(search_criteria=search_criteria, top_k=payload.top_k)
-

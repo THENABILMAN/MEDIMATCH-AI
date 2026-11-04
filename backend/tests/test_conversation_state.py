@@ -21,7 +21,9 @@ class NoDetailsLLM(LLMClient):
     def generate_structured(self, messages, response_model, system_prompt=None):
         if response_model is ConversationIntent:
             return ConversationIntent(intent="symptom_update")
-        return ExtractedSymptoms(symptoms=["itchy skin"], candidate_specialty_names=["General Medicine"])
+        return ExtractedSymptoms(
+            symptoms=["itchy skin"], candidate_specialty_names=["General Medicine"]
+        )
 
 
 @pytest.fixture
@@ -43,7 +45,9 @@ def restart_server(monkeypatch) -> None:
 
 
 def send(client, headers, conversation, text="itchy skin"):
-    res = client.post(f"/chat/conversations/{conversation}/messages", headers=headers, json={"content": text})
+    res = client.post(
+        f"/chat/conversations/{conversation}/messages", headers=headers, json={"content": text}
+    )
     assert res.status_code == 200
     return res.json()
 
@@ -62,7 +66,13 @@ def test_saved_state_holds_progress_but_no_messages(client, patient_headers):
     conversation = client.post("/chat/conversations", headers=patient_headers, json={}).json()["id"]
     send(client, patient_headers, conversation)
 
-    row = get_supabase_admin_client().table("conversations").select("graph_state").eq("id", conversation).execute()
+    row = (
+        get_supabase_admin_client()
+        .table("conversations")
+        .select("graph_state")
+        .eq("id", conversation)
+        .execute()
+    )
     state = row.data[0]["graph_state"]
     assert state["followup_count"] == 1
     assert "messages" not in state
@@ -75,4 +85,7 @@ def test_erasing_history_removes_saved_state(client, patient_headers):
 
     admin = get_supabase_admin_client()
     assert admin.table("conversations").select("id").eq("id", conversation).execute().data == []
-    assert admin.table("messages").select("id").eq("conversation_id", conversation).execute().data == []
+    assert (
+        admin.table("messages").select("id").eq("conversation_id", conversation).execute().data
+        == []
+    )

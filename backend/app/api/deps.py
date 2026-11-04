@@ -1,8 +1,10 @@
 import logging
-from typing import Callable, Iterator, List
+from collections.abc import Callable, Iterator
+
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from postgrest import SyncPostgrestClient
+
 from app.core.security import verify_supabase_token
 from app.core.supabase import create_user_client
 from app.models.enums import UserRole
@@ -47,7 +49,7 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Could not load user profile",
-        )
+        ) from e
 
 
 def get_user_db(
@@ -61,8 +63,9 @@ def get_user_db(
         client.aclose()
 
 
-def require_role(allowed_roles: List[UserRole]) -> Callable[[UserMeResponse], UserMeResponse]:
+def require_role(allowed_roles: list[UserRole]) -> Callable[[UserMeResponse], UserMeResponse]:
     """Dependency factory restricting route access to specified roles."""
+
     def role_checker(current_user: UserMeResponse = Depends(get_current_user)) -> UserMeResponse:
         if current_user.role not in allowed_roles:
             raise HTTPException(

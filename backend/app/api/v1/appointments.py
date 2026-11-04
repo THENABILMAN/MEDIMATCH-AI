@@ -1,8 +1,8 @@
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from postgrest import SyncPostgrestClient
+
 from app.api.deps import get_current_user, get_user_db, require_doctor, require_patient
-from app.models.enums import AppointmentStatus, UserRole
+from app.models.enums import AppointmentStatus
 from app.schemas.appointment import (
     AppointmentCancelRequest,
     AppointmentCreate,
@@ -31,7 +31,7 @@ def book_appointment(
     current_user: UserMeResponse = Depends(require_patient),
 ) -> AppointmentResponse:
     """Atomically books an upcoming unbooked slot for the current patient.
-    
+
     Protected against race conditions via database-level row locking
     and partial unique index.
     """
@@ -43,16 +43,18 @@ def book_appointment(
 
 @router.get(
     "/me",
-    response_model=List[AppointmentResponse],
+    response_model=list[AppointmentResponse],
     summary="List current user's appointments",
 )
 def get_my_appointments(
-    status: Optional[AppointmentStatus] = Query(default=None, description="Optional appointment status filter"),
+    status: AppointmentStatus | None = Query(
+        default=None, description="Optional appointment status filter"
+    ),
     limit: int = Query(default=100, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     current_user: UserMeResponse = Depends(get_current_user),
     db: SyncPostgrestClient = Depends(get_user_db),
-) -> List[AppointmentResponse]:
+) -> list[AppointmentResponse]:
     """Retrieve appointments for the authenticated user (patient or doctor view)."""
     return get_user_appointments(
         user_id=current_user.id,
@@ -71,11 +73,11 @@ def get_my_appointments(
 )
 def cancel_my_appointment(
     id: UuidStr,
-    payload: Optional[AppointmentCancelRequest] = None,
+    payload: AppointmentCancelRequest | None = None,
     current_user: UserMeResponse = Depends(get_current_user),
 ) -> AppointmentResponse:
     """Cancels an appointment, frees the associated slot, and logs an audit log entry.
-    
+
     Allowed only for the involved patient or doctor (or system admin).
     """
     reason = payload.reason if payload else None
@@ -101,4 +103,3 @@ def complete_my_appointment(
         doctor_user_id=current_user.id,
         appointment_id=id,
     )
-

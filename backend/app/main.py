@@ -3,9 +3,10 @@ import re
 import sys
 import time
 import uuid
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Awaitable, Callable, Dict, Optional
+from typing import Any
 
 # Ensure backend root is on sys.path so 'app.*' imports work from any working directory
 backend_dir = Path(__file__).resolve().parent.parent
@@ -63,12 +64,12 @@ SECURITY_HEADERS = {
 }
 
 
-ERROR_RESPONSES: Dict[int | str, Dict[str, Any]] = {
+ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     code: {"model": ErrorResponse} for code in (400, 401, 403, 404, 409, 429, 503)
 }
 
 
-def _error_body(status_code: int, detail: Any) -> Dict[str, Any]:
+def _error_body(status_code: int, detail: Any) -> dict[str, Any]:
     """Every error keeps `detail`, which the web app reads, and adds a code and request id."""
     return {
         "detail": detail,
@@ -106,7 +107,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     wait_for_background_syncs()
 
 
-def _content_length(request: Request) -> Optional[int]:
+def _content_length(request: Request) -> int | None:
     value = request.headers.get("content-length")
     return int(value) if value and value.isdigit() else None
 
@@ -156,8 +157,8 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    application.add_exception_handler(StarletteHTTPException, _http_error)
-    application.add_exception_handler(RequestValidationError, _validation_error)
+    application.add_exception_handler(StarletteHTTPException, _http_error)  # type: ignore[arg-type]
+    application.add_exception_handler(RequestValidationError, _validation_error)  # type: ignore[arg-type]
     application.add_exception_handler(Exception, _unexpected_error)
 
     # Sign-in uses bearer tokens, not cookies, so browsers need no credentialed access
@@ -188,12 +189,14 @@ def create_app() -> FastAPI:
     ):
         application.include_router(router, responses=ERROR_RESPONSES)
 
-    @application.get("/specialties", response_model=list[SpecialtyRead], summary="Public specialties listing")
+    @application.get(
+        "/specialties", response_model=list[SpecialtyRead], summary="Public specialties listing"
+    )
     def root_specialties() -> list[SpecialtyRead]:
         return list_specialties()
 
-    @application.get("/", response_model=Dict[str, str], summary="Root index")
-    def root_index() -> Dict[str, str]:
+    @application.get("/", response_model=dict[str, str], summary="Root index")
+    def root_index() -> dict[str, str]:
         return {"message": f"Welcome to {settings.PROJECT_NAME} API", "health_check": "/health"}
 
     return application

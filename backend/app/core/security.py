@@ -1,14 +1,16 @@
 import logging
-from typing import Any, Dict
+from typing import Any
+
 import httpx
 from fastapi import HTTPException, status
 from supabase_auth.errors import AuthRetryableError
+
 from app.core.supabase import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
 
-def verify_supabase_token(token: str) -> Dict[str, Any]:
+def verify_supabase_token(token: str) -> dict[str, Any]:
     """Verify a Supabase JWT with the Supabase Auth API.
 
     A token that Supabase does not confirm is rejected. If Supabase cannot be reached, the

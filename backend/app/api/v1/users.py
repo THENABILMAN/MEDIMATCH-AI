@@ -1,6 +1,7 @@
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, Depends
+
 from app.api.deps import get_current_user
 from app.schemas.profile import ProfileUpdate, UserMeResponse
 from app.schemas.responses import ChatHistoryDeleted, MessageResponse
@@ -34,10 +35,12 @@ def update_me(
 )
 def delete_my_conversations(
     current_user: UserMeResponse = Depends(get_current_user),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     return delete_chat_history(current_user.id)
 
 
-@router.delete("/me", response_model=MessageResponse, summary="Close and anonymize the current patient account")
-def delete_me(current_user: UserMeResponse = Depends(get_current_user)) -> Dict[str, Any]:
+@router.delete(
+    "/me", response_model=MessageResponse, summary="Close and anonymize the current patient account"
+)
+def delete_me(current_user: UserMeResponse = Depends(get_current_user)) -> dict[str, Any]:
     return anonymize_patient_account(current_user.id, current_user.role)

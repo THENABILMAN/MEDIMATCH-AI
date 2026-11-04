@@ -5,7 +5,7 @@ persists message history, and coordinates LangGraph workflow execution.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import HTTPException, status
 from postgrest import SyncPostgrestClient
@@ -26,30 +26,42 @@ DISCLAIMER_MESSAGE = (
 )
 
 
-def create_conversation(patient_id: str, title: Optional[str] = None) -> Dict[str, Any]:
+def create_conversation(patient_id: str, title: str | None = None) -> dict[str, Any]:
     """Creates a new conversation session and seeds initial greeting with mandatory disclaimer."""
     client = get_supabase_admin_client()
     if not client:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database service unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database service unavailable"
+        )
 
     conv_title = title.strip() if title else "Symptom Consultation"
-    res = client.table("conversations").insert({
-        "patient_id": patient_id,
-        "title": conv_title,
-    }).execute()
+    res = (
+        client.table("conversations")
+        .insert(
+            {
+                "patient_id": patient_id,
+                "title": conv_title,
+            }
+        )
+        .execute()
+    )
 
     if not res.data:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to initialize conversation")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to initialize conversation"
+        )
 
     conv = res.data[0]
     conversation_id = str(conv["id"])
 
     # Persist the initial greeting message with disclaimer
-    client.table("messages").insert({
-        "conversation_id": conversation_id,
-        "sender": "assistant",
-        "content": DISCLAIMER_MESSAGE,
-    }).execute()
+    client.table("messages").insert(
+        {
+            "conversation_id": conversation_id,
+            "sender": "assistant",
+            "content": DISCLAIMER_MESSAGE,
+        }
+    ).execute()
 
     return {
         "id": conversation_id,
@@ -62,7 +74,7 @@ def create_conversation(patient_id: str, title: Optional[str] = None) -> Dict[st
 
 def list_patient_conversations(
     patient_id: str, db: SyncPostgrestClient, limit: int = 100, offset: int = 0
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Lists all consultation conversations for the patient, ordered latest first."""
     res = (
         db.table("conversations")
@@ -72,10 +84,10 @@ def list_patient_conversations(
         .range(offset, offset + limit - 1)
         .execute()
     )
-    return res.data or []
+    return res.data or []  # type: ignore[return-value]
 
 
-def read_messages(conversation_id: str, db: SyncPostgrestClient) -> List[Dict[str, Any]]:
+def read_messages(conversation_id: str, db: SyncPostgrestClient) -> list[dict[str, Any]]:
     """Reads a conversation's messages as the caller, so RLS has the final say."""
     res = (
         db.table("messages")
@@ -84,16 +96,18 @@ def read_messages(conversation_id: str, db: SyncPostgrestClient) -> List[Dict[st
         .order("created_at", desc=False)
         .execute()
     )
-    return res.data or []
+    return res.data or []  # type: ignore[return-value]
 
 
 def get_conversation_history(
     conversation_id: str, patient_id: str, db: SyncPostgrestClient
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Retrieves conversation details and complete message history with ownership enforcement."""
     client = get_supabase_admin_client()
     if not client:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database service unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database service unavailable"
+        )
 
     # Verify ownership
     conv_res = client.table("conversations").select("*").eq("id", conversation_id).execute()
@@ -118,7 +132,7 @@ def get_conversation_history(
 
 def _emergency_turn(
     conversation_id: str, patient_id: str, content: str, consented: bool
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Answers an emergency with the fixed alert. It must arrive even if saving it fails.
 
     Someone else's conversation is still refused, but a database outage only loses the record.
@@ -127,9 +141,13 @@ def _emergency_turn(
     reply = get_emergency_response()
     try:
         client = get_supabase_admin_client()
-        conversation = client.table("conversations").select("patient_id").eq("id", conversation_id).execute()
+        conversation = (
+            client.table("conversations").select("patient_id").eq("id", conversation_id).execute()
+        )
         if not conversation.data:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
+            )
         if conversation.data[0]["patient_id"] != patient_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -178,11 +196,13 @@ def send_patient_message(
     patient_id: str,
     message_content: str,
     consented: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Processes incoming patient message through LangGraph and persists dialogue."""
     content = message_content.strip()
     if not content:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Message content cannot be empty")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Message content cannot be empty"
+        )
 
     if check_emergency(content)[0]:
         return _emergency_turn(conversation_id, patient_id, content, consented)
@@ -195,7 +215,9 @@ def send_patient_message(
 
     client = get_supabase_admin_client()
     if not client:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database service unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database service unavailable"
+        )
 
     # 1. Enforce ownership
     conv_res = client.table("conversations").select("*").eq("id", conversation_id).execute()
@@ -210,11 +232,13 @@ def send_patient_message(
         )
 
     # 2. Persist patient message
-    client.table("messages").insert({
-        "conversation_id": conversation_id,
-        "sender": "patient",
-        "content": content,
-    }).execute()
+    client.table("messages").insert(
+        {
+            "conversation_id": conversation_id,
+            "sender": "patient",
+            "content": content,
+        }
+    ).execute()
 
     # 3. Load past message history to feed the workflow state
     history_res = (
@@ -246,7 +270,11 @@ def send_patient_message(
 
     if result_state.get("safety_status") != "emergency":
         client.table("conversations").update(
-            {"graph_state": {k: result_state[k] for k in PERSISTED_STATE_FIELDS if k in result_state}}
+            {
+                "graph_state": {
+                    k: result_state[k] for k in PERSISTED_STATE_FIELDS if k in result_state
+                }
+            }
         ).eq("id", conversation_id).execute()
 
     # A node can leave the reply as None, so a .get() default is not enough
@@ -259,10 +287,12 @@ def send_patient_message(
 
     # The field being asked about lets the UI offer suggested answers
     missing_fields = result_state.get("missing_fields") or []
-    followup_field = missing_fields[0] if current_step == "ask_followup" and missing_fields else None
+    followup_field = (
+        missing_fields[0] if current_step == "ask_followup" and missing_fields else None
+    )
 
     # 5. If search criteria formed, call hybrid recommender
-    recommendations_list: List[Dict[str, Any]] = []
+    recommendations_list: list[dict[str, Any]] = []
     if search_criteria:
         from app.search.recommend import recommend_doctors
 
@@ -275,21 +305,25 @@ def send_patient_message(
 
     # 6. Persist assistant reply, with what the UI needs to redraw it on reload
     is_emergency = result_state.get("safety_status") == "emergency"
-    client.table("messages").insert({
-        "conversation_id": conversation_id,
-        "sender": "assistant",
-        "content": assistant_reply,
-        "metadata": {"is_emergency": is_emergency, "recommendations": recommendations_list},
-    }).execute()
+    client.table("messages").insert(
+        {
+            "conversation_id": conversation_id,
+            "sender": "assistant",
+            "content": assistant_reply,
+            "metadata": {"is_emergency": is_emergency, "recommendations": recommendations_list},
+        }
+    ).execute()
 
     # 7. If search criteria formed or emergency flagged, record in patient_symptom_sessions
     if search_criteria or is_emergency:
-        client.table("patient_symptom_sessions").insert({
-            "patient_id": patient_id,
-            "raw_symptoms": content,
-            "extracted_criteria": search_criteria or {},
-            "emergency_flag": is_emergency,
-        }).execute()
+        client.table("patient_symptom_sessions").insert(
+            {
+                "patient_id": patient_id,
+                "raw_symptoms": content,
+                "extracted_criteria": search_criteria or {},
+                "emergency_flag": is_emergency,
+            }
+        ).execute()
 
     return {
         "conversation_id": conversation_id,

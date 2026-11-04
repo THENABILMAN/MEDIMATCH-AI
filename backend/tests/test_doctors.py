@@ -1,12 +1,12 @@
-import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
+
 from app.models.enums import UserRole, VerificationStatus
 
 
 def test_public_search_returns_only_approved_doctors(client: TestClient):
     """Public search must strictly return ONLY approved doctors.
-    
+
     Pending, suspended, and rejected demo doctors seeded in the database
     must never be exposed in public search results.
     """
@@ -101,6 +101,7 @@ def test_doctor_can_get_own_profile(client: TestClient, doctor_token: str):
     """A doctor can fetch their own profile via /doctors/me/profile."""
     # Seeded demo doctor user_id: a0000000-0000-0000-0000-000000000003
     from conftest import create_mock_jwt
+
     demo_doc_token = create_mock_jwt(
         "a0000000-0000-0000-0000-000000000003",
         "doctor@medimatch.test",
@@ -118,6 +119,7 @@ def test_doctor_can_get_own_profile(client: TestClient, doctor_token: str):
 def test_doctor_update_resets_status_to_pending(client: TestClient):
     """A doctor modifying their profile resets their status to pending."""
     from conftest import create_mock_jwt
+
     demo_doc_token = create_mock_jwt(
         "a0000000-0000-0000-0000-000000000003",
         "doctor@medimatch.test",
@@ -141,14 +143,18 @@ def test_doctor_update_resets_status_to_pending(client: TestClient):
         assert data["verification_status"] == VerificationStatus.PENDING.value
     finally:
         from app.core.supabase import get_supabase_admin_client
+
         admin_client = get_supabase_admin_client()
         if admin_client:
-            admin_client.table("doctor_profiles").update({"verification_status": "approved"}).eq("id", "d0000000-0000-0000-0000-000000000000").execute()
+            admin_client.table("doctor_profiles").update({"verification_status": "approved"}).eq(
+                "id", "d0000000-0000-0000-0000-000000000000"
+            ).execute()
 
 
 def test_doctor_upload_credentials(client: TestClient):
     """A doctor can upload a credential record."""
     from conftest import create_mock_jwt
+
     demo_doc_token = create_mock_jwt(
         "a0000000-0000-0000-0000-000000000003",
         "doctor@medimatch.test",

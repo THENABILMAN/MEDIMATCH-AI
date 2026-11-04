@@ -7,12 +7,13 @@ Provides:
 - get_embedding_provider() & set_embedding_provider(): Factory and test fixture hooks.
 """
 
-from abc import ABC, abstractmethod
 import hashlib
 import logging
 import math
-from typing import List, Optional
+from abc import ABC, abstractmethod
+
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
 from app.core.config import settings
 
 logger = logging.getLogger("medimatch.search.embeddings")
@@ -28,12 +29,12 @@ class BaseEmbeddingProvider(ABC):
         pass
 
     @abstractmethod
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """Embeds a list of document strings (passage mode)."""
         pass
 
     @abstractmethod
-    def embed_query(self, text: str) -> List[float]:
+    def embed_query(self, text: str) -> list[float]:
         """Embeds a search query string (query mode)."""
         pass
 
@@ -47,9 +48,9 @@ class PineconeInferenceEmbeddingProvider(BaseEmbeddingProvider):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        model: Optional[str] = None,
-        dimension: Optional[int] = None,
+        api_key: str | None = None,
+        model: str | None = None,
+        dimension: int | None = None,
     ):
         from pinecone import Pinecone
 
@@ -68,7 +69,7 @@ class PineconeInferenceEmbeddingProvider(BaseEmbeddingProvider):
         wait=wait_exponential(multiplier=1, min=1, max=4),
         reraise=True,
     )
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
 
@@ -86,7 +87,7 @@ class PineconeInferenceEmbeddingProvider(BaseEmbeddingProvider):
         wait=wait_exponential(multiplier=1, min=1, max=4),
         reraise=True,
     )
-    def embed_query(self, text: str) -> List[float]:
+    def embed_query(self, text: str) -> list[float]:
         if not text or not text.strip():
             # Return zero vector for empty query
             return [0.0] * self._dimension
@@ -113,7 +114,7 @@ class FakeEmbeddingProvider(BaseEmbeddingProvider):
     def dimension(self) -> int:
         return self._dimension
 
-    def _hash_to_vector(self, text: str) -> List[float]:
+    def _hash_to_vector(self, text: str) -> list[float]:
         dim = self._dimension
         vec = [0.0] * dim
         tokens = text.lower().strip().split()
@@ -125,7 +126,9 @@ class FakeEmbeddingProvider(BaseEmbeddingProvider):
         for token in tokens:
             seed = hashlib.sha256(token.encode("utf-8")).digest()
             for i in range(min(len(seed), 32)):
-                idx = (int.from_bytes(seed[i : i + 2], "big") if i + 2 <= len(seed) else seed[i]) % dim
+                idx = (
+                    int.from_bytes(seed[i : i + 2], "big") if i + 2 <= len(seed) else seed[i]
+                ) % dim
                 sign = 1.0 if seed[i] % 2 == 0 else -1.0
                 val = (seed[i] / 255.0) * sign
                 vec[idx] += val
@@ -137,14 +140,14 @@ class FakeEmbeddingProvider(BaseEmbeddingProvider):
         vec[0] = 1.0
         return vec
 
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return [self._hash_to_vector(t) for t in texts]
 
-    def embed_query(self, text: str) -> List[float]:
+    def embed_query(self, text: str) -> list[float]:
         return self._hash_to_vector(text)
 
 
-_GLOBAL_EMBEDDING_PROVIDER: Optional[BaseEmbeddingProvider] = None
+_GLOBAL_EMBEDDING_PROVIDER: BaseEmbeddingProvider | None = None
 
 
 def get_embedding_provider() -> BaseEmbeddingProvider:
@@ -169,8 +172,7 @@ def get_embedding_provider() -> BaseEmbeddingProvider:
     raise ValueError(f"Unsupported EMBEDDING_PROVIDER: {settings.EMBEDDING_PROVIDER}")
 
 
-def set_embedding_provider(provider: Optional[BaseEmbeddingProvider]) -> None:
+def set_embedding_provider(provider: BaseEmbeddingProvider | None) -> None:
     """Overrides the global embedding provider (used in unit test fixtures)."""
     global _GLOBAL_EMBEDDING_PROVIDER
     _GLOBAL_EMBEDDING_PROVIDER = provider
-

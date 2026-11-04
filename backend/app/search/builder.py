@@ -5,12 +5,12 @@ Strict Rule: Must NEVER include doctor full names, phone numbers, email addresse
 or consultation fees to preserve privacy and prevent fee bias in vector similarity.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 from app.ai.privacy import redact_pii
 
 
-def build_doctor_embedding_text(doctor: Dict[str, Any]) -> str:
+def build_doctor_embedding_text(doctor: dict[str, Any]) -> str:
     """Builds a rich, clinical semantic text representation of a doctor profile
 
     for vector indexing.
@@ -25,7 +25,7 @@ def build_doctor_embedding_text(doctor: Dict[str, Any]) -> str:
     Excluded fields:
     - full_name, phone, email, consultation_fee, user_id
     """
-    parts: List[str] = []
+    parts: list[str] = []
 
     # 1. Specialties & Clinical Descriptions
     specialties = doctor.get("specialties") or []
@@ -75,4 +75,3 @@ def build_doctor_embedding_text(doctor: Dict[str, Any]) -> str:
         parts.append(f"Location: {city.strip()}, Bangladesh.")
 
     return "\n".join(parts)
-

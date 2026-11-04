@@ -7,7 +7,7 @@ such as Redis is the next step if that stops being enough.
 import threading
 import time
 from collections import defaultdict, deque
-from typing import Callable, Deque, Dict
+from collections.abc import Callable
 
 from fastapi import Depends, HTTPException, Request, status
 
@@ -21,7 +21,7 @@ MAX_TRACKED_KEYS = 100_000
 
 class SlidingWindowLimiter:
     def __init__(self) -> None:
-        self._hits: Dict[str, Deque[float]] = defaultdict(deque)
+        self._hits: dict[str, deque[float]] = defaultdict(deque)
         self._lock = threading.Lock()
 
     def reset(self) -> None:

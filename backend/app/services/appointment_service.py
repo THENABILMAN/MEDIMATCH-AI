@@ -1,8 +1,10 @@
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
+
 from fastapi import HTTPException, status
 from postgrest import APIError, SyncPostgrestClient
+
 from app.core.config import settings
 from app.core.supabase import get_supabase_admin_client, get_supabase_client
 from app.models.enums import AppointmentStatus, UserRole, VerificationStatus
@@ -18,7 +20,7 @@ from app.services.doctor_service import get_doctor_profile_by_user_id
 logger = logging.getLogger(__name__)
 
 
-def _get_client():
+def _get_client() -> Any:
     client = get_supabase_admin_client()
     if not client:
         raise HTTPException(
@@ -87,7 +89,7 @@ def create_availability_slot(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="This slot overlaps with an existing availability slot",
-            )
+            ) from e
         logger.error(f"Error creating slot: {type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -98,7 +100,7 @@ def create_availability_slot(
 def list_doctor_slots(
     doctor_user_id: str,
     include_booked: bool = True,
-) -> List[SlotResponse]:
+) -> list[SlotResponse]:
     """Retrieves all slots for the authenticated doctor."""
     doctor = get_doctor_profile_by_user_id(doctor_user_id)
     client = _get_client()
@@ -111,7 +113,7 @@ def list_doctor_slots(
     )
 
     if not include_booked:
-        now_utc = datetime.now(timezone.utc).isoformat()
+        now_utc = datetime.now(UTC).isoformat()
         query = query.eq("is_booked", False).gt("start_time", now_utc)
 
     res = query.execute()
@@ -130,7 +132,7 @@ def list_doctor_slots(
     return slots
 
 
-def list_public_doctor_slots(doctor_id: str) -> List[SlotResponse]:
+def list_public_doctor_slots(doctor_id: str) -> list[SlotResponse]:
     """Retrieves upcoming available (unbooked) slots for an approved doctor."""
     client = get_supabase_client()
     if not client:
@@ -146,13 +148,16 @@ def list_public_doctor_slots(doctor_id: str) -> List[SlotResponse]:
         .eq("id", doctor_id)
         .execute()
     )
-    if not doc_res.data or doc_res.data[0]["verification_status"] != VerificationStatus.APPROVED.value:
+    if (
+        not doc_res.data
+        or doc_res.data[0]["verification_status"] != VerificationStatus.APPROVED.value
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Doctor not found or not approved",
         )
 
-    now_utc = datetime.now(timezone.utc).isoformat()
+    now_utc = datetime.now(UTC).isoformat()
     res = (
         client.table("availability_slots")
         .select("*")
@@ -183,12 +188,7 @@ def delete_availability_slot(doctor_user_id: str, slot_id: str) -> None:
     doctor = get_doctor_profile_by_user_id(doctor_user_id)
     client = _get_client()
 
-    slot_res = (
-        client.table("availability_slots")
-        .select("*")
-        .eq("id", slot_id)
-        .execute()
-    )
+    slot_res = client.table("availability_slots").select("*").eq("id", slot_id).execute()
     if not slot_res.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -204,7 +204,11 @@ def delete_availability_slot(doctor_user_id: str, slot_id: str) -> None:
 
     # The is_booked condition makes this safe against a booking that lands at the same moment
     deleted = (
-        client.table("availability_slots").delete().eq("id", slot_id).eq("is_booked", False).execute()
+        client.table("availability_slots")
+        .delete()
+        .eq("id", slot_id)
+        .eq("is_booked", False)
+        .execute()
     )
     if not deleted.data:
         raise HTTPException(
@@ -213,7 +217,7 @@ def delete_availability_slot(doctor_user_id: str, slot_id: str) -> None:
         )
 
 
-def _call_atomic(function: str, params: Dict[str, Any]) -> Dict[str, Any]:
+def _call_atomic(function: str, params: dict[str, Any]) -> dict[str, Any]:
     """Runs a stored procedure and turns its outcome into an API response."""
     try:
         result = _get_client().rpc(function, params).execute().data
@@ -232,7 +236,9 @@ def _call_atomic(function: str, params: Dict[str, Any]) -> Dict[str, Any]:
             detail="The appointment could not be updated. Please try again.",
         )
     if not result.get("success"):
-        raise HTTPException(status_code=result.get("code", 400), detail=result.get("error", "Request failed"))
+        raise HTTPException(
+            status_code=result.get("code", 400), detail=result.get("error", "Request failed")
+        )
     return result
 
 
@@ -262,7 +268,7 @@ def book_slot_atomic(patient_user_id: str, slot_id: str) -> AppointmentResponse:
     return get_appointment_by_id(appointment_id)
 
 
-def _hydrate_appointments(raw_appointments: List[Dict[str, Any]]) -> List[AppointmentResponse]:
+def _hydrate_appointments(raw_appointments: list[dict[str, Any]]) -> list[AppointmentResponse]:
     """Helper to join doctor details, patient details, and slot times to appointments."""
     if not raw_appointments:
         return []
@@ -273,11 +279,13 @@ def _hydrate_appointments(raw_appointments: List[Dict[str, Any]]) -> List[Appoin
     patient_ids = list({str(a["patient_id"]) for a in raw_appointments if a.get("patient_id")})
 
     # Bulk fetch doctors with profiles and specialties
-    doctors_map: Dict[str, AppointmentDoctorInfo] = {}
+    doctors_map: dict[str, AppointmentDoctorInfo] = {}
     if doc_ids:
         docs_res = (
             client.table("doctor_profiles")
-            .select("id, consultation_fee, clinic_name, city, profiles!inner(full_name), doctor_specialties(specialties(name))")
+            .select(
+                "id, consultation_fee, clinic_name, city, profiles!inner(full_name), doctor_specialties(specialties(name))"
+            )
             .in_("id", doc_ids)
             .execute()
         )
@@ -299,13 +307,10 @@ def _hydrate_appointments(raw_appointments: List[Dict[str, Any]]) -> List[Appoin
             )
 
     # Bulk fetch patients
-    patients_map: Dict[str, AppointmentPatientInfo] = {}
+    patients_map: dict[str, AppointmentPatientInfo] = {}
     if patient_ids:
         patients_res = (
-            client.table("profiles")
-            .select("id, full_name, phone")
-            .in_("id", patient_ids)
-            .execute()
+            client.table("profiles").select("id, full_name, phone").in_("id", patient_ids).execute()
         )
         for p in patients_res.data or []:
             p_id = str(p["id"])
@@ -316,7 +321,7 @@ def _hydrate_appointments(raw_appointments: List[Dict[str, Any]]) -> List[Appoin
                 email=None,
             )
 
-    results: List[AppointmentResponse] = []
+    results: list[AppointmentResponse] = []
     for row in raw_appointments:
         a_id = str(row["id"])
         d_id = str(row["doctor_id"])
@@ -345,12 +350,7 @@ def _hydrate_appointments(raw_appointments: List[Dict[str, Any]]) -> List[Appoin
 def get_appointment_by_id(appointment_id: str) -> AppointmentResponse:
     """Fetch single appointment with hydrated doctor, patient, and slot details."""
     client = _get_client()
-    res = (
-        client.table("appointments")
-        .select("*")
-        .eq("id", appointment_id)
-        .execute()
-    )
+    res = client.table("appointments").select("*").eq("id", appointment_id).execute()
     if not res.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -363,11 +363,11 @@ def get_appointment_by_id(appointment_id: str) -> AppointmentResponse:
 def get_user_appointments(
     user_id: str,
     role: UserRole,
-    status_filter: Optional[AppointmentStatus],
+    status_filter: AppointmentStatus | None,
     db: SyncPostgrestClient,
     limit: int = 100,
     offset: int = 0,
-) -> List[AppointmentResponse]:
+) -> list[AppointmentResponse]:
     """Retrieves appointments as the caller. Names are added only to rows RLS let through."""
     query = db.table("appointments").select("*").order("created_at", desc=True)
 
@@ -376,33 +376,26 @@ def get_user_appointments(
     elif role == UserRole.DOCTOR:
         doctor = get_doctor_profile_by_user_id(user_id)
         query = query.eq("doctor_id", doctor.id)
-    elif role == UserRole.ADMIN:
-        pass  # Admins can view all appointments
-    else:
-        return []
+    # Admins see every appointment, and RLS lets only them do so
 
     if status_filter:
         query = query.eq("status", status_filter.value)
 
     res = query.range(offset, offset + limit - 1).execute()
-    return _hydrate_appointments(res.data or [])
+    rows: list[dict[str, Any]] = res.data or []  # type: ignore[assignment]
+    return _hydrate_appointments(rows)
 
 
 def cancel_appointment(
     user_id: str,
     role: UserRole,
     appointment_id: str,
-    reason: Optional[str] = None,
+    reason: str | None = None,
 ) -> AppointmentResponse:
     """Cancels an appointment, frees the associated slot, and logs an audit event."""
     client = _get_client()
 
-    res = (
-        client.table("appointments")
-        .select("*")
-        .eq("id", appointment_id)
-        .execute()
-    )
+    res = client.table("appointments").select("*").eq("id", appointment_id).execute()
     if not res.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -425,11 +418,6 @@ def cancel_appointment(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to cancel this appointment",
             )
-    elif role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden",
-        )
 
     _call_atomic("cancel_appointment_atomic", {"p_appointment_id": appointment_id})
     slot_id = app.get("slot_id")
@@ -457,12 +445,7 @@ def complete_appointment(doctor_user_id: str, appointment_id: str) -> Appointmen
     doctor = get_doctor_profile_by_user_id(doctor_user_id)
     client = _get_client()
 
-    res = (
-        client.table("appointments")
-        .select("*")
-        .eq("id", appointment_id)
-        .execute()
-    )
+    res = client.table("appointments").select("*").eq("id", appointment_id).execute()
     if not res.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -490,4 +473,3 @@ def complete_appointment(doctor_user_id: str, appointment_id: str) -> Appointmen
     )
 
     return get_appointment_by_id(appointment_id)
-

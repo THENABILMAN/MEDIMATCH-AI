@@ -1,6 +1,8 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
+
 from app.models.enums import VerificationStatus
 from app.schemas.common import (
     MAX_BIO_LENGTH,
@@ -16,16 +18,20 @@ from app.schemas.profile import SpecialtyRead
 
 
 class DoctorProfileCreateOrUpdate(BaseModel):
-    bio: Optional[str] = Field(default=None, max_length=MAX_BIO_LENGTH)
-    qualifications: List[ShortText] = Field(
-        default_factory=list, max_length=MAX_QUALIFICATIONS, description="List of degrees e.g. ['MBBS', 'FCPS']"
+    bio: str | None = Field(default=None, max_length=MAX_BIO_LENGTH)
+    qualifications: list[ShortText] = Field(
+        default_factory=list,
+        max_length=MAX_QUALIFICATIONS,
+        description="List of degrees e.g. ['MBBS', 'FCPS']",
     )
     years_experience: int = Field(default=0, ge=0, le=MAX_YEARS_EXPERIENCE)
     consultation_fee: float = Field(default=0.0, ge=0, le=MAX_CONSULTATION_FEE)
-    clinic_name: Optional[str] = Field(default=None, max_length=200)
+    clinic_name: str | None = Field(default=None, max_length=200)
     city: str = Field(default="Dhaka", max_length=100)
-    specialty_ids: List[UuidStr] = Field(
-        default_factory=list, max_length=MAX_SPECIALTIES, description="UUIDs of associated specialties"
+    specialty_ids: list[UuidStr] = Field(
+        default_factory=list,
+        max_length=MAX_SPECIALTIES,
+        description="UUIDs of associated specialties",
     )
 
     model_config = ConfigDict(extra="forbid")
@@ -44,20 +50,20 @@ class DoctorCredentialRead(BaseModel):
 class PublicDoctorRead(BaseModel):
     id: str
     full_name: str
-    bio: Optional[str] = None
-    qualifications: List[str] = Field(default_factory=list)
+    bio: str | None = None
+    qualifications: list[str] = Field(default_factory=list)
     years_experience: int = 0
     consultation_fee: float = 0.0
-    clinic_name: Optional[str] = None
+    clinic_name: str | None = None
     city: str
     verification_status: VerificationStatus
-    specialties: List[SpecialtyRead] = Field(default_factory=list)
+    specialties: list[SpecialtyRead] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class DoctorSearchResult(BaseModel):
-    items: List[PublicDoctorRead]
+    items: list[PublicDoctorRead]
     total: int
     page: int
     page_size: int
@@ -65,36 +71,35 @@ class DoctorSearchResult(BaseModel):
 
 
 class AdminDoctorActionRequest(BaseModel):
-    reason: Optional[str] = Field(
+    reason: str | None = Field(
         default=None, max_length=MAX_REASON_LENGTH, description="Reason for rejection or suspension"
     )
 
 
 class SpecialtyCreate(BaseModel):
     name: str = Field(min_length=2, max_length=100)
-    description: Optional[str] = Field(default=None, max_length=1000)
+    description: str | None = Field(default=None, max_length=1000)
 
 
 class SpecialtyUpdate(BaseModel):
-    name: Optional[str] = Field(default=None, min_length=2, max_length=100)
-    description: Optional[str] = Field(default=None, max_length=1000)
+    name: str | None = Field(default=None, min_length=2, max_length=100)
+    description: str | None = Field(default=None, max_length=1000)
 
 
 class AuditLogRead(BaseModel):
     id: str
-    actor_id: Optional[str] = None
+    actor_id: str | None = None
     action: str
     target_type: str
-    target_id: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    target_id: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class AuditLogPaginatedResponse(BaseModel):
-    items: List[AuditLogRead]
+    items: list[AuditLogRead]
     total: int
     limit: int
     offset: int
-

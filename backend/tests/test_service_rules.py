@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import HTTPException
 
-from app.schemas.doctor import DoctorProfileCreateOrUpdate
 from app.models.enums import UserRole
+from app.schemas.doctor import DoctorProfileCreateOrUpdate
 from app.services import account_service, admin_service, chat_service, doctor_service
 
 SPECIALTY_ID = "11111111-0000-0000-0000-000000000001"
@@ -214,7 +214,11 @@ def test_doctors_cannot_close_accounts_here(account_client):
 
 def test_upcoming_appointment_blocks_account_closure(account_client):
     client = account_client(
-        {"appointments": [{"id": "a1", "availability_slots": {"start_time": "2999-01-01T00:00:00+00:00"}}]}
+        {
+            "appointments": [
+                {"id": "a1", "availability_slots": {"start_time": "2999-01-01T00:00:00+00:00"}}
+            ]
+        }
     )
 
     with pytest.raises(HTTPException) as exc:
@@ -227,7 +231,9 @@ def test_upcoming_appointment_blocks_account_closure(account_client):
 def test_closing_account_clears_identity_and_chat_but_not_appointments(account_client):
     client = account_client(
         {
-            "appointments": [{"id": "a1", "availability_slots": {"start_time": "2001-01-01T00:00:00+00:00"}}],
+            "appointments": [
+                {"id": "a1", "availability_slots": {"start_time": "2001-01-01T00:00:00+00:00"}}
+            ],
             "conversations": [{"id": "c1"}],
         }
     )
@@ -255,17 +261,27 @@ def test_failed_identity_update_erases_nothing(account_client):
 
 def test_only_the_owner_or_an_admin_can_open_a_credential(monkeypatch):
     client = fake_client(
-        {"doctor_credentials": [{"file_path": "owner/a.pdf", "doctor_profiles": {"user_id": "owner"}}]}
+        {
+            "doctor_credentials": [
+                {"file_path": "owner/a.pdf", "doctor_profiles": {"user_id": "owner"}}
+            ]
+        }
     )
-    client.storage.from_.return_value.create_signed_url.return_value = {"signedURL": "https://signed"}
+    client.storage.from_.return_value.create_signed_url.return_value = {
+        "signedURL": "https://signed"
+    }
     monkeypatch.setattr(doctor_service, "get_supabase_admin_client", lambda: client)
 
     with pytest.raises(HTTPException) as exc:
         doctor_service.get_credential_url("c1", "someone-else", is_admin=False)
     assert exc.value.status_code == 403
 
-    assert doctor_service.get_credential_url("c1", "owner", is_admin=False)["url"] == "https://signed"
-    assert doctor_service.get_credential_url("c1", "admin", is_admin=True)["url"] == "https://signed"
+    assert (
+        doctor_service.get_credential_url("c1", "owner", is_admin=False)["url"] == "https://signed"
+    )
+    assert (
+        doctor_service.get_credential_url("c1", "admin", is_admin=True)["url"] == "https://signed"
+    )
 
 
 def test_admin_tables_reject_unknown_sort_columns(monkeypatch):

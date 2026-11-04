@@ -10,11 +10,14 @@ Ensures:
 4. Transient network errors are automatically retried.
 """
 
-from concurrent.futures import Future, ThreadPoolExecutor, wait
-from datetime import datetime, timezone
 import logging
-from typing import Any, Callable, Dict, List, Optional, Set
+from collections.abc import Callable
+from concurrent.futures import Future, ThreadPoolExecutor, wait
+from datetime import UTC, datetime
+from typing import Any
+
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
 from app.core.config import settings
 from app.core.supabase import get_supabase_admin_client
 from app.models.enums import VerificationStatus
@@ -24,12 +27,12 @@ from app.search.embeddings import get_embedding_provider
 logger = logging.getLogger("medimatch.search.sync")
 
 # Mockable Pinecone Index Client for unit tests
-_MOCK_PINECONE_INDEX: Optional[Any] = None
-_PINECONE_INDEX: Optional[Any] = None
+_MOCK_PINECONE_INDEX: Any | None = None
+_PINECONE_INDEX: Any | None = None
 
 # Provider calls are slow and retried, so they must not hold up an admin's request
 _sync_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="vector-sync")
-_pending_syncs: Set[Future] = set()
+_pending_syncs: set[Future] = set()
 
 
 def run_in_background(task: Callable[..., Any], *args: Any) -> None:
@@ -58,18 +61,20 @@ def get_pinecone_index() -> Any:
     if _PINECONE_INDEX is None:
         from pinecone import Pinecone
 
-        client = Pinecone(api_key=settings.PINECONE_API_KEY, timeout=settings.PINECONE_TIMEOUT_SECONDS)
+        client = Pinecone(
+            api_key=settings.PINECONE_API_KEY, timeout=settings.PINECONE_TIMEOUT_SECONDS
+        )
         _PINECONE_INDEX = client.Index(settings.PINECONE_INDEX)
     return _PINECONE_INDEX
 
 
-def set_pinecone_index_client(client: Optional[Any]) -> None:
+def set_pinecone_index_client(client: Any | None) -> None:
     """Sets a mock Pinecone index client for unit tests."""
     global _MOCK_PINECONE_INDEX
     _MOCK_PINECONE_INDEX = client
 
 
-def _fetch_doctor_with_specialties(doctor_id: str) -> Optional[Dict[str, Any]]:
+def _fetch_doctor_with_specialties(doctor_id: str) -> dict[str, Any] | None:
     """Fetches complete doctor profile and associated specialties from Supabase."""
     client = get_supabase_admin_client()
     if not client:
@@ -100,9 +105,9 @@ def _update_sync_status(doctor_id: str, status: str) -> None:
     if not client:
         return
 
-    updates: Dict[str, Any] = {"sync_status": status}
+    updates: dict[str, Any] = {"sync_status": status}
     if status == "synced":
-        updates["last_synced_at"] = datetime.now(timezone.utc).isoformat()
+        updates["last_synced_at"] = datetime.now(UTC).isoformat()
 
     try:
         client.table("doctor_profiles").update(updates).eq("id", doctor_id).execute()
@@ -116,7 +121,9 @@ def _update_sync_status(doctor_id: str, status: str) -> None:
     wait=wait_exponential(multiplier=1, min=1, max=4),
     reraise=True,
 )
-def _upsert_vector_to_pinecone(doctor_id: str, vector: List[float], metadata: Dict[str, Any]) -> None:
+def _upsert_vector_to_pinecone(
+    doctor_id: str, vector: list[float], metadata: dict[str, Any]
+) -> None:
     index = get_pinecone_index()
     index.upsert(
         vectors=[
@@ -168,7 +175,9 @@ def sync_doctor_vector(doctor_id: str) -> bool:
             _update_sync_status(doctor_id, "synced")
             return True
         except Exception as e:
-            logger.error(f"[VECTOR_SYNC] Failed removing vector for doctor {doctor_id}: {type(e).__name__}")
+            logger.error(
+                f"[VECTOR_SYNC] Failed removing vector for doctor {doctor_id}: {type(e).__name__}"
+            )
             _update_sync_status(doctor_id, "failed")
             return False
 
@@ -198,7 +207,9 @@ def sync_doctor_vector(doctor_id: str) -> bool:
         return True
 
     except Exception as e:
-        logger.error(f"[VECTOR_SYNC] Error syncing vector for doctor {doctor_id}: {type(e).__name__}")
+        logger.error(
+            f"[VECTOR_SYNC] Error syncing vector for doctor {doctor_id}: {type(e).__name__}"
+        )
         _update_sync_status(doctor_id, "failed")
         return False
 
@@ -211,7 +222,9 @@ def delete_doctor_vector(doctor_id: str) -> bool:
         _update_sync_status(doctor_id, "synced")
         return True
     except Exception as e:
-        logger.error(f"[VECTOR_SYNC] Failed deleting vector for doctor {doctor_id}: {type(e).__name__}")
+        logger.error(
+            f"[VECTOR_SYNC] Failed deleting vector for doctor {doctor_id}: {type(e).__name__}"
+        )
         _update_sync_status(doctor_id, "failed")
         return False
 
@@ -223,7 +236,10 @@ def retry_unsynced() -> int:
         return 0
 
     rows = (
-        client.table("doctor_profiles").select("id").in_("sync_status", ["pending", "failed"]).execute()
+        client.table("doctor_profiles")
+        .select("id")
+        .in_("sync_status", ["pending", "failed"])
+        .execute()
     )
     doctor_ids = [str(row["id"]) for row in rows.data or []]
     for doctor_id in doctor_ids:

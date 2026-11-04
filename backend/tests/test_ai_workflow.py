@@ -8,7 +8,7 @@ Verifies:
 5. Specialty mapping strictly uses verified database specialties with General Medicine fallback.
 """
 
-from typing import Any, Dict, List, Optional, Type
+from typing import Any
 
 import pytest
 from langgraph.checkpoint.memory import MemorySaver
@@ -27,8 +27,8 @@ class MockLLMClient(LLMClient):
 
     def __init__(
         self,
-        extraction_response: Optional[ExtractedSymptoms] = None,
-        intent_response: Optional[ConversationIntent] = None,
+        extraction_response: ExtractedSymptoms | None = None,
+        intent_response: ConversationIntent | None = None,
     ):
         super().__init__(api_key="mock", model="mock")
         self.extraction_response = extraction_response or ExtractedSymptoms(
@@ -41,9 +41,9 @@ class MockLLMClient(LLMClient):
 
     def generate_structured(
         self,
-        messages: List[Dict[str, str]],
-        response_model: Type[Any],
-        system_prompt: Optional[str] = None,
+        messages: list[dict[str, str]],
+        response_model: type[Any],
+        system_prompt: str | None = None,
     ) -> Any:
         if response_model is ConversationIntent:
             return self.intent_response
@@ -95,7 +95,9 @@ def test_complete_symptom_flow_produces_search_criteria():
     criteria = result["search_criteria"]
     assert criteria["city"] == "Dhaka"
     assert "Neurology" in criteria["candidate_specialties"]
-    assert "severe migraine" in criteria["keywords"] or "throbbing head pain" in criteria["keywords"]
+    assert (
+        "severe migraine" in criteria["keywords"] or "throbbing head pain" in criteria["keywords"]
+    )
     assert "Neurology" in result["assistant_reply"]
 
 
@@ -277,9 +279,9 @@ def test_general_conversation_after_symptoms_does_not_repeat_recommendations():
 
         def generate_structured(
             self,
-            messages: List[Dict[str, str]],
-            response_model: Type[Any],
-            system_prompt: Optional[str] = None,
+            messages: list[dict[str, str]],
+            response_model: type[Any],
+            system_prompt: str | None = None,
         ) -> Any:
             if response_model is ConversationIntent:
                 self.intent_calls += 1

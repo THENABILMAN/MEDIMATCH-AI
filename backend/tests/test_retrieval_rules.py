@@ -13,7 +13,11 @@ from app.core.config import Settings, settings
 from app.search import recommend as recommend_module
 from app.search import sync as sync_module
 from app.search.builder import build_doctor_embedding_text
-from app.search.embeddings import FakeEmbeddingProvider, get_embedding_provider, set_embedding_provider
+from app.search.embeddings import (
+    FakeEmbeddingProvider,
+    get_embedding_provider,
+    set_embedding_provider,
+)
 from app.search.recommend import _calculate_score, recommend_doctors
 from app.search.sync import set_pinecone_index_client, sync_doctor_vector
 from app.services import doctor_events
@@ -77,7 +81,12 @@ def test_contact_details_in_a_bio_never_reach_the_embedding_provider():
 
 def test_names_and_fees_stay_out_of_embedded_text():
     text = build_doctor_embedding_text(
-        {"full_name": "Dr. Secret", "consultation_fee": 1500, "phone": "01712345678", "city": "Dhaka"}
+        {
+            "full_name": "Dr. Secret",
+            "consultation_fee": 1500,
+            "phone": "01712345678",
+            "city": "Dhaka",
+        }
     )
     assert "Secret" not in text and "1500" not in text and "01712345678" not in text
 
@@ -89,7 +98,8 @@ def test_failed_sync_does_not_claim_it_synced(search_doubles):
     assert sync_doctor_vector(APPROVED_NEURO) is False
 
     status, synced_at = sql(
-        "SELECT sync_status, last_synced_at FROM public.doctor_profiles WHERE id = %s", (APPROVED_NEURO,)
+        "SELECT sync_status, last_synced_at FROM public.doctor_profiles WHERE id = %s",
+        (APPROVED_NEURO,),
     )[0]
     assert status == "failed"
     assert synced_at is None
@@ -98,7 +108,8 @@ def test_failed_sync_does_not_claim_it_synced(search_doubles):
 def test_successful_sync_records_the_time(search_doubles):
     assert sync_doctor_vector(APPROVED_NEURO) is True
     status, synced_at = sql(
-        "SELECT sync_status, last_synced_at FROM public.doctor_profiles WHERE id = %s", (APPROVED_NEURO,)
+        "SELECT sync_status, last_synced_at FROM public.doctor_profiles WHERE id = %s",
+        (APPROVED_NEURO,),
     )[0]
     assert status == "synced" and synced_at is not None
 
@@ -106,7 +117,9 @@ def test_successful_sync_records_the_time(search_doubles):
 def test_retry_picks_up_failed_doctors(search_doubles):
     sql("UPDATE public.doctor_profiles SET sync_status = 'failed' WHERE id = %s", (APPROVED_NEURO,))
     assert sync_module.retry_unsynced() >= 1
-    status = sql("SELECT sync_status FROM public.doctor_profiles WHERE id = %s", (APPROVED_NEURO,))[0][0]
+    status = sql("SELECT sync_status FROM public.doctor_profiles WHERE id = %s", (APPROVED_NEURO,))[
+        0
+    ][0]
     assert status == "synced"
 
 
@@ -134,7 +147,10 @@ def test_a_failing_background_sync_is_recorded(monkeypatch, search_doubles):
     doctor_events.on_doctor_suspended(SUSPENDED, "admin", "reason")
     sync_module.wait_for_background_syncs()
 
-    assert sql("SELECT sync_status FROM public.doctor_profiles WHERE id = %s", (SUSPENDED,))[0][0] == "failed"
+    assert (
+        sql("SELECT sync_status FROM public.doctor_profiles WHERE id = %s", (SUSPENDED,))[0][0]
+        == "failed"
+    )
 
 
 def test_editing_a_specialty_reindexes_its_doctors(client, admin_token, search_doubles):
@@ -175,20 +191,22 @@ def test_few_vector_matches_are_topped_up_not_thrown_away(search_doubles):
 
 
 def test_missing_fee_does_not_outrank_a_real_fee():
-    args = dict(
-        vector_sim=0.5,
-        doctor_specialties=["Neurology"],
-        candidate_specialties=["Neurology"],
-        years_experience=10,
-        max_fee=None,
-        available_slots_count=5,
-    )
+    args = {
+        "vector_sim": 0.5,
+        "doctor_specialties": ["Neurology"],
+        "candidate_specialties": ["Neurology"],
+        "years_experience": 10,
+        "max_fee": None,
+        "available_slots_count": 5,
+    }
     assert _calculate_score(fee=0.0, **args) <= _calculate_score(fee=500.0, **args)
 
 
 def test_sql_fallback_is_bounded(monkeypatch):
     monkeypatch.setattr(recommend_module, "MAX_SQL_CANDIDATES", 1)
-    assert len(recommend_module._sql_fallback_search(["General Medicine"], "Bangladesh", limit=5)) <= 1
+    assert (
+        len(recommend_module._sql_fallback_search(["General Medicine"], "Bangladesh", limit=5)) <= 1
+    )
 
 
 def test_mistyped_provider_fails_instead_of_using_fake_vectors(monkeypatch):

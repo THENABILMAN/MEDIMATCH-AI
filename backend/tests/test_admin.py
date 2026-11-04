@@ -1,7 +1,8 @@
 import pytest
+from conftest import create_mock_jwt
 from fastapi import status
 from fastapi.testclient import TestClient
-from conftest import create_mock_jwt
+
 from app.models.enums import UserRole, VerificationStatus
 
 
@@ -67,9 +68,12 @@ def test_admin_reject_doctor_with_reason(client: TestClient, admin_headers: dict
     finally:
         # Restore to pending for test isolation
         from app.core.supabase import get_supabase_admin_client
+
         admin_client = get_supabase_admin_client()
         if admin_client:
-            admin_client.table("doctor_profiles").update({"verification_status": "pending"}).eq("id", doctor_id).execute()
+            admin_client.table("doctor_profiles").update({"verification_status": "pending"}).eq(
+                "id", doctor_id
+            ).execute()
 
 
 def test_admin_suspend_doctor_removes_from_search(client: TestClient, admin_headers: dict):
@@ -77,7 +81,9 @@ def test_admin_suspend_doctor_removes_from_search(client: TestClient, admin_head
     doctor_id = "d2000000-0000-0000-0000-000000000002"  # Dr. Samira Rahman (initially approved)
     payload = {"reason": "Temporary suspension pending certificate renewal"}
     try:
-        res = client.post(f"/admin/doctors/{doctor_id}/suspend", headers=admin_headers, json=payload)
+        res = client.post(
+            f"/admin/doctors/{doctor_id}/suspend", headers=admin_headers, json=payload
+        )
         assert res.status_code == status.HTTP_200_OK
 
         # Detail endpoint must now return 404
@@ -86,9 +92,12 @@ def test_admin_suspend_doctor_removes_from_search(client: TestClient, admin_head
     finally:
         # Restore to approved
         from app.core.supabase import get_supabase_admin_client
+
         admin_client = get_supabase_admin_client()
         if admin_client:
-            admin_client.table("doctor_profiles").update({"verification_status": "approved"}).eq("id", doctor_id).execute()
+            admin_client.table("doctor_profiles").update({"verification_status": "approved"}).eq(
+                "id", doctor_id
+            ).execute()
 
 
 def test_admin_approval_makes_doctor_searchable(client: TestClient, admin_headers: dict):
@@ -113,9 +122,12 @@ def test_admin_approval_makes_doctor_searchable(client: TestClient, admin_header
     finally:
         # Restore to pending
         from app.core.supabase import get_supabase_admin_client
+
         admin_client = get_supabase_admin_client()
         if admin_client:
-            admin_client.table("doctor_profiles").update({"verification_status": "pending"}).eq("id", doctor_id).execute()
+            admin_client.table("doctor_profiles").update({"verification_status": "pending"}).eq(
+                "id", doctor_id
+            ).execute()
     assert post_check.json()["id"] == doctor_id
     assert post_check.json()["verification_status"] == VerificationStatus.APPROVED.value
 
@@ -155,7 +167,9 @@ def test_admin_specialty_crud(client: TestClient, admin_headers: dict):
 
     # 3. Update specialty
     update_payload = {"description": "Updated skin & aesthetic clinical dermatology care."}
-    res_update = client.put(f"/admin/specialties/{specialty_id}", headers=admin_headers, json=update_payload)
+    res_update = client.put(
+        f"/admin/specialties/{specialty_id}", headers=admin_headers, json=update_payload
+    )
     assert res_update.status_code == status.HTTP_200_OK
     assert res_update.json()["description"] == update_payload["description"]
 

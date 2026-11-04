@@ -2,8 +2,8 @@
 
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi import HTTPException, status
 
@@ -41,7 +41,7 @@ def _erase_chat_data(client: Any, user_id: str) -> int:
 def purge_expired_chats() -> int:
     """Erases chats and symptom sessions past the retention period. Run on a schedule."""
     client = _get_admin_client()
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=settings.CHAT_RETENTION_DAYS)).isoformat()
+    cutoff = (datetime.now(UTC) - timedelta(days=settings.CHAT_RETENTION_DAYS)).isoformat()
 
     expired = client.table("conversations").delete().lt("updated_at", cutoff).execute()
     client.table("patient_symptom_sessions").delete().lt("created_at", cutoff).execute()
@@ -56,7 +56,7 @@ def purge_expired_chats() -> int:
     return count
 
 
-def delete_chat_history(user_id: str) -> Dict[str, Any]:
+def delete_chat_history(user_id: str) -> dict[str, Any]:
     """Permanently erases the user's conversations and symptom sessions."""
     client = _get_admin_client()
     deleted = _erase_chat_data(client, user_id)
@@ -79,7 +79,7 @@ def _has_upcoming_appointment(client: Any, user_id: str) -> bool:
         .eq("status", AppointmentStatus.BOOKED.value)
         .execute()
     )
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     for row in res.data or []:
         start_time = (row.get("availability_slots") or {}).get("start_time")
         if start_time and start_time > now:
@@ -87,7 +87,7 @@ def _has_upcoming_appointment(client: Any, user_id: str) -> bool:
     return False
 
 
-def anonymize_patient_account(user_id: str, role: UserRole) -> Dict[str, Any]:
+def anonymize_patient_account(user_id: str, role: UserRole) -> dict[str, Any]:
     """Closes a patient account while keeping doctors' appointment records intact.
 
     The profile row must stay because appointments reference it, so identifying fields are
@@ -122,15 +122,17 @@ def anonymize_patient_account(user_id: str, role: UserRole) -> Dict[str, Any]:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Your account could not be closed. Please try again.",
-        )
+        ) from e
 
     _erase_chat_data(client, user_id)
-    client.table("profiles").update({
-        "full_name": DELETED_PATIENT_NAME,
-        "phone": None,
-        "ai_consent_at": None,
-        "deleted_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("id", user_id).execute()
+    client.table("profiles").update(
+        {
+            "full_name": DELETED_PATIENT_NAME,
+            "phone": None,
+            "ai_consent_at": None,
+            "deleted_at": datetime.now(UTC).isoformat(),
+        }
+    ).eq("id", user_id).execute()
 
     log_audit_event(
         actor_id=user_id,

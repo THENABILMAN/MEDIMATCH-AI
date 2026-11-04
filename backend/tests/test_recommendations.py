@@ -35,9 +35,15 @@ def setup_test_search():
     mock_index.query = MagicMock(
         return_value=MagicMock(
             matches=[
-                MagicMock(id="d2000000-0000-0000-0000-000000000001", score=0.88),  # Dr. Kazi Ahmed (Approved Neuro)
-                MagicMock(id="d2000000-0000-0000-0000-000000000006", score=0.82),  # Dr. Rubina Akhter (Approved Neuro)
-                MagicMock(id="d2000000-0000-0000-0000-000000000003", score=0.74),  # Dr. Mahmudul Hasan (Approved Gen)
+                MagicMock(
+                    id="d2000000-0000-0000-0000-000000000001", score=0.88
+                ),  # Dr. Kazi Ahmed (Approved Neuro)
+                MagicMock(
+                    id="d2000000-0000-0000-0000-000000000006", score=0.82
+                ),  # Dr. Rubina Akhter (Approved Neuro)
+                MagicMock(
+                    id="d2000000-0000-0000-0000-000000000003", score=0.74
+                ),  # Dr. Mahmudul Hasan (Approved Gen)
             ]
         )
     )
@@ -60,8 +66,12 @@ def test_stale_unapproved_or_suspended_vector_never_recommended():
     mock_index.query = MagicMock(
         return_value=MagicMock(
             matches=[
-                MagicMock(id="d2000000-0000-0000-0000-000000000009", score=0.99),  # Suspended doctor!
-                MagicMock(id="d2000000-0000-0000-0000-000000000010", score=0.98),  # Rejected doctor!
+                MagicMock(
+                    id="d2000000-0000-0000-0000-000000000009", score=0.99
+                ),  # Suspended doctor!
+                MagicMock(
+                    id="d2000000-0000-0000-0000-000000000010", score=0.98
+                ),  # Rejected doctor!
                 MagicMock(id="d2000000-0000-0000-0000-000000000001", score=0.85),  # Approved doctor
             ]
         )
@@ -192,7 +202,9 @@ def test_chat_completion_populates_recommendations(client: TestClient):
     headers = {"Authorization": f"Bearer {token}"}
 
     # 1. Create conversation
-    create_res = client.post("/chat/conversations", headers=headers, json={"title": "Neuro Consultation"})
+    create_res = client.post(
+        "/chat/conversations", headers=headers, json={"title": "Neuro Consultation"}
+    )
     assert create_res.status_code == status.HTTP_201_CREATED
     conv_id = create_res.json()["id"]
 

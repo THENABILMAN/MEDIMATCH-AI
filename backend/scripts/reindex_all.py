@@ -13,10 +13,10 @@ Usage:
     python backend/scripts/reindex_all.py
 """
 
-from datetime import datetime, timezone
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 # Ensure UTF-8 output on Windows
 if hasattr(sys.stdout, "reconfigure"):
@@ -27,15 +27,14 @@ backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
+import argparse
+
 from app.core.config import settings
 from app.core.supabase import get_supabase_admin_client
 from app.models.enums import VerificationStatus
 from app.search.builder import build_doctor_embedding_text
 from app.search.embeddings import get_embedding_provider
-from app.search.sync import retry_unsynced
-import argparse
-from app.search.sync import retry_unsynced
-from app.search.sync import get_pinecone_index
+from app.search.sync import get_pinecone_index, retry_unsynced
 
 
 def reindex_all():
@@ -61,11 +60,11 @@ def reindex_all():
         .select("*, doctor_specialties(specialties(id, name, description))")
         .execute()
     )
-    all_doctors: List[Dict[str, Any]] = res.data or []
+    all_doctors: list[dict[str, Any]] = res.data or []
     print(f"[INFO] Found {len(all_doctors)} total doctor profile(s) in Supabase.")
 
-    approved_docs: List[Dict[str, Any]] = []
-    unapproved_doc_ids: List[str] = []
+    approved_docs: list[dict[str, Any]] = []
+    unapproved_doc_ids: list[str] = []
 
     for doc in all_doctors:
         specs = []
@@ -85,7 +84,9 @@ def reindex_all():
 
     # 2. Purge unapproved doctors from Pinecone
     if unapproved_doc_ids:
-        print(f"[INFO] Purging {len(unapproved_doc_ids)} unapproved/suspended vectors from Pinecone...")
+        print(
+            f"[INFO] Purging {len(unapproved_doc_ids)} unapproved/suspended vectors from Pinecone..."
+        )
         try:
             index.delete(ids=unapproved_doc_ids)
             print("[SUCCESS] Purged unapproved vectors from index.")
@@ -97,14 +98,16 @@ def reindex_all():
         print("[WARNING] No approved doctors found to index.")
         return
 
-    print(f"[INFO] Building documents and generating embeddings for {len(approved_docs)} doctor(s)...")
+    print(
+        f"[INFO] Building documents and generating embeddings for {len(approved_docs)} doctor(s)..."
+    )
     doc_texts = [build_doctor_embedding_text(d) for d in approved_docs]
     embeddings = provider.embed_documents(doc_texts)
 
     vectors_to_upsert = []
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = datetime.now(UTC).isoformat()
 
-    for doc, vec in zip(approved_docs, embeddings):
+    for doc, vec in zip(approved_docs, embeddings, strict=False):
         doc_id = str(doc["id"])
         specialty_ids = [s["id"] for s in doc.get("specialties", [])]
         specialty_names = [s["name"] for s in doc.get("specialties", [])]
@@ -117,11 +120,13 @@ def reindex_all():
             "status": "approved",
         }
 
-        vectors_to_upsert.append({
-            "id": doc_id,
-            "values": vec,
-            "metadata": metadata,
-        })
+        vectors_to_upsert.append(
+            {
+                "id": doc_id,
+                "values": vec,
+                "metadata": metadata,
+            }
+        )
 
     # 4. Batch upsert to Pinecone
     batch_size = 50
@@ -130,21 +135,27 @@ def reindex_all():
         batch = vectors_to_upsert[i : i + batch_size]
         index.upsert(vectors=batch)
         total_upserted += len(batch)
-        print(f"  • Upserted batch {i + 1} to {i + len(batch)} ({total_upserted}/{len(vectors_to_upsert)})")
+        print(
+            f"  • Upserted batch {i + 1} to {i + len(batch)} ({total_upserted}/{len(vectors_to_upsert)})"
+        )
 
     # 5. Update sync_status in Supabase
     approved_ids = [str(d["id"]) for d in approved_docs]
     for doc_id in approved_ids:
-        client.table("doctor_profiles").update({
-            "sync_status": "synced",
-            "last_synced_at": now_iso,
-        }).eq("id", doc_id).execute()
+        client.table("doctor_profiles").update(
+            {
+                "sync_status": "synced",
+                "last_synced_at": now_iso,
+            }
+        ).eq("id", doc_id).execute()
 
     for doc_id in unapproved_doc_ids:
-        client.table("doctor_profiles").update({
-            "sync_status": "synced",
-            "last_synced_at": now_iso,
-        }).eq("id", doc_id).execute()
+        client.table("doctor_profiles").update(
+            {
+                "sync_status": "synced",
+                "last_synced_at": now_iso,
+            }
+        ).eq("id", doc_id).execute()
 
     # 6. Report final stats
     stats = index.describe_index_stats()
@@ -159,9 +170,10 @@ def reindex_all():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Rebuild the vector index from Supabase")
-    parser.add_argument("--unsynced", action="store_true", help="Only retry pending or failed doctors")
+    parser.add_argument(
+        "--unsynced", action="store_true", help="Only retry pending or failed doctors"
+    )
     if parser.parse_args().unsynced:
         print(f"[INFO] Retried {retry_unsynced()} doctor(s).")
     else:
         reindex_all()
-

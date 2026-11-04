@@ -1,17 +1,19 @@
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime
+from typing import Any
+
 from fastapi import HTTPException, status
+
 from app.core.supabase import get_supabase_admin_client
 from app.models.enums import UserRole, VerificationStatus
-from app.schemas.profile import DoctorProfileRead, ProfileRead, ProfileUpdate, UserMeResponse
+from app.schemas.profile import DoctorProfileRead, ProfileUpdate, UserMeResponse
 from app.services.audit_service import log_audit_event
 from app.services.doctor_events import on_doctor_updated
 
 logger = logging.getLogger(__name__)
 
 
-def get_user_profile(user_id: str, email: Optional[str] = None) -> UserMeResponse:
+def get_user_profile(user_id: str, email: str | None = None) -> UserMeResponse:
     """Fetch complete user profile, including doctor details if applicable."""
     client = get_supabase_admin_client()
     if not client:
@@ -30,7 +32,7 @@ def get_user_profile(user_id: str, email: Optional[str] = None) -> UserMeRespons
 
     profile_data = resp.data[0]
     role = UserRole(profile_data.get("role", "patient"))
-    doctor_profile_obj: Optional[DoctorProfileRead] = None
+    doctor_profile_obj: DoctorProfileRead | None = None
 
     # 2. If doctor, fetch doctor profile and specialties
     if role == UserRole.DOCTOR:
@@ -84,9 +86,11 @@ def _require_not_suspended(doctor: DoctorProfileRead) -> None:
         )
 
 
-def update_user_profile(user_id: str, payload: ProfileUpdate, email: Optional[str] = None) -> UserMeResponse:
+def update_user_profile(
+    user_id: str, payload: ProfileUpdate, email: str | None = None
+) -> UserMeResponse:
     """Update profile fields with strict privilege checking.
-    
+
     Users CANNOT modify role or verification_status through this endpoint.
     """
     client = get_supabase_admin_client()
@@ -105,14 +109,14 @@ def update_user_profile(user_id: str, payload: ProfileUpdate, email: Optional[st
         _require_not_suspended(doctor)
 
     # 1. Update basic profile table if specified
-    profile_updates: Dict[str, Any] = {}
+    profile_updates: dict[str, Any] = {}
     if payload.full_name is not None:
         profile_updates["full_name"] = payload.full_name
     if payload.phone is not None:
         profile_updates["phone"] = payload.phone
     if payload.ai_consent is not None:
         profile_updates["ai_consent_at"] = (
-            datetime.now(timezone.utc).isoformat() if payload.ai_consent else None
+            datetime.now(UTC).isoformat() if payload.ai_consent else None
         )
 
     if profile_updates:
@@ -134,13 +138,16 @@ def update_user_profile(user_id: str, payload: ProfileUpdate, email: Optional[st
             action="DOCTOR_MATERIAL_PROFILE_UPDATE",
             target_type="doctor_profiles",
             target_id=doctor.id,
-            metadata={"new_status": VerificationStatus.PENDING.value, "changed_fields": ["full_name"]},
+            metadata={
+                "new_status": VerificationStatus.PENDING.value,
+                "changed_fields": ["full_name"],
+            },
         )
         on_doctor_updated(doctor.id, ["full_name"])
 
     # 2. Update doctor profile if user is doctor and payload supplied
     if current.role == UserRole.DOCTOR and payload.doctor_profile:
-        doc_updates: Dict[str, Any] = {}
+        doc_updates: dict[str, Any] = {}
         dp = payload.doctor_profile
         if dp.bio is not None:
             doc_updates["bio"] = dp.bio
@@ -172,4 +179,3 @@ def update_user_profile(user_id: str, payload: ProfileUpdate, email: Optional[st
                 on_doctor_updated(current.doctor_profile.id, list(doc_updates))
 
     return get_user_profile(user_id, email)
-

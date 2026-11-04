@@ -38,7 +38,9 @@ class Settings(BaseSettings):
     # A chat turn makes two LLM calls in a worker thread, so these bound how long it can hold one
     LLM_TIMEOUT_SECONDS: float = Field(default=12.0, gt=0)
     LLM_MAX_ATTEMPTS: int = Field(default=2, ge=1)
-    LLM_HISTORY_MESSAGES: int = Field(default=12, ge=1, description="Latest messages sent to the LLM")
+    LLM_HISTORY_MESSAGES: int = Field(
+        default=12, ge=1, description="Latest messages sent to the LLM"
+    )
 
     # Embedding Settings
     EMBEDDING_PROVIDER: str = Field(
@@ -49,7 +51,9 @@ class Settings(BaseSettings):
 
     # Vector Search
     SYNC_IN_BACKGROUND: bool = True
-    VECTOR_CANDIDATES: int = Field(default=30, ge=1, description="Vector matches fetched before filtering")
+    VECTOR_CANDIDATES: int = Field(
+        default=30, ge=1, description="Vector matches fetched before filtering"
+    )
     PINECONE_TIMEOUT_SECONDS: float = Field(default=5.0, gt=0)
 
     # Recommendation Weights (must sum to 1.0)

@@ -5,7 +5,7 @@ structured doctor-search criteria without diagnosing or prescribing.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from langgraph.graph import END, StateGraph
 
@@ -30,7 +30,7 @@ GENERAL_REPLY = (
 )
 
 
-def _recent_messages(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+def _recent_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
     """The latest messages, redacted. This is all an LLM provider ever sees of a conversation."""
     return [
         {"role": m.get("role", "user"), "content": redact_pii(m.get("content", ""))}
@@ -38,7 +38,7 @@ def _recent_messages(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
     ]
 
 
-def _known_cities() -> List[str]:
+def _known_cities() -> list[str]:
     """Cities with an approved doctor. Only these are repeated back in a reply."""
     client = get_supabase_admin_client()
     if not client:
@@ -51,7 +51,7 @@ def _known_cities() -> List[str]:
         return []
 
 
-def _get_verified_specialty_names() -> List[str]:
+def _get_verified_specialty_names() -> list[str]:
     """Fetch all verified specialty names directly from the Supabase database."""
     client = get_supabase_admin_client()
     default_specialties = ["Neurology", "Cardiology", "General Medicine"]
@@ -68,10 +68,10 @@ def _get_verified_specialty_names() -> List[str]:
     return default_specialties
 
 
-def _match_verified_specialties(names: List[str], verified: List[str]) -> List[str]:
+def _match_verified_specialties(names: list[str], verified: list[str]) -> list[str]:
     """Keeps only names that exist in the database, using their stored spelling."""
     by_lower = {v.lower(): v for v in verified}
-    matched: List[str] = []
+    matched: list[str] = []
     for name in names:
         spec = by_lower.get(name.strip().lower())
         if spec and spec not in matched:
@@ -83,7 +83,8 @@ def _match_verified_specialties(names: List[str], verified: List[str]) -> List[s
 # Node 1: Safety Check (Rule-based deterministic emergency triage)
 # ------------------------------------------------------------------------------
 
-def safety_check_node(state: ConversationState) -> Dict[str, Any]:
+
+def safety_check_node(state: ConversationState) -> dict[str, Any]:
     """Inspects the most recent patient message for emergency patterns."""
     messages = state.get("messages", [])
     if not messages:
@@ -111,7 +112,7 @@ def should_escalate_emergency(state: ConversationState) -> str:
     return "continue"
 
 
-def classify_intent_node(state: ConversationState) -> Dict[str, Any]:
+def classify_intent_node(state: ConversationState) -> dict[str, Any]:
     """Classifies the latest message without using phrase matching."""
     sanitized_messages = _recent_messages(state.get("messages", []))
     system_prompt = (
@@ -135,7 +136,10 @@ def classify_intent_node(state: ConversationState) -> Dict[str, Any]:
             system_prompt=system_prompt,
         )
     except Exception as exc:
-        logger.error("Intent classification failed; continuing with symptom extraction: %s", type(exc).__name__)
+        logger.error(
+            "Intent classification failed; continuing with symptom extraction: %s",
+            type(exc).__name__,
+        )
         intent = ConversationIntent(intent="symptom_update")
 
     # Rules decide first. The model can only add an alert, never remove one
@@ -152,7 +156,9 @@ def classify_intent_node(state: ConversationState) -> Dict[str, Any]:
         "intent": intent.intent,
         # A fixed reply: model text never reaches a patient, so it cannot diagnose or reassure
         "assistant_reply": GENERAL_REPLY if intent.intent == "general_conversation" else None,
-        "search_criteria": None if intent.intent == "general_conversation" else state.get("search_criteria"),
+        "search_criteria": None
+        if intent.intent == "general_conversation"
+        else state.get("search_criteria"),
         "current_step": "classify_intent",
     }
 
@@ -168,7 +174,8 @@ def route_after_intent(state: ConversationState) -> str:
 # Node 3: Extract Symptoms (PII-redacted structured extraction)
 # ------------------------------------------------------------------------------
 
-def extract_symptoms_node(state: ConversationState) -> Dict[str, Any]:
+
+def extract_symptoms_node(state: ConversationState) -> dict[str, Any]:
     """Redacts PII and extracts structured symptoms via LLM."""
     sanitized_messages = _recent_messages(state.get("messages", []))
 
@@ -227,9 +234,10 @@ def extract_symptoms_node(state: ConversationState) -> Dict[str, Any]:
 # Node 4: Check Missing Fields (Deterministic Python code, NOT LLM)
 # ------------------------------------------------------------------------------
 
-def check_missing_node(state: ConversationState) -> Dict[str, Any]:
+
+def check_missing_node(state: ConversationState) -> dict[str, Any]:
     """Evaluates whether essential information is missing to formulate search criteria."""
-    missing: List[str] = []
+    missing: list[str] = []
 
     symptoms = state.get("symptoms", [])
     if not symptoms:
@@ -262,7 +270,8 @@ def route_after_check_missing(state: ConversationState) -> str:
 # Node 5: Ask Follow-up (Single question, max 3 rounds, output guarded)
 # ------------------------------------------------------------------------------
 
-def ask_followup_node(state: ConversationState) -> Dict[str, Any]:
+
+def ask_followup_node(state: ConversationState) -> dict[str, Any]:
     """Generates ONE single clarifying question for the highest-priority missing field."""
     missing = state.get("missing_fields", [])
     target_field = missing[0] if missing else "duration"
@@ -294,7 +303,8 @@ def ask_followup_node(state: ConversationState) -> Dict[str, Any]:
 # Node 6: Build Search Criteria (Mapped ONLY to verified DB specialties)
 # ------------------------------------------------------------------------------
 
-def build_search_criteria_node(state: ConversationState) -> Dict[str, Any]:
+
+def build_search_criteria_node(state: ConversationState) -> dict[str, Any]:
     """Finalizes search criteria mapped strictly to DB specialties with General Medicine fallback."""
     verified_specialties = _get_verified_specialty_names()
     symptoms = state.get("symptoms", [])
@@ -308,18 +318,35 @@ def build_search_criteria_node(state: ConversationState) -> Dict[str, Any]:
     symptoms_text = " ".join(symptoms).lower()
 
     # Rule-based / semantic mapping to verified specialties
-    if any(k in symptoms_text for k in ["headache", "migraine", "dizziness", "seizure", "numbness", "nerve", "neuro", "brain"]):
+    if any(
+        k in symptoms_text
+        for k in [
+            "headache",
+            "migraine",
+            "dizziness",
+            "seizure",
+            "numbness",
+            "nerve",
+            "neuro",
+            "brain",
+        ]
+    ):
         for spec in verified_specialties:
             if "neuro" in spec.lower() and spec not in candidate_specialties:
                 candidate_specialties.append(spec)
 
-    if any(k in symptoms_text for k in ["heart", "cardio", "chest", "palpitation", "high blood pressure", "hypertension"]):
+    if any(
+        k in symptoms_text
+        for k in ["heart", "cardio", "chest", "palpitation", "high blood pressure", "hypertension"]
+    ):
         for spec in verified_specialties:
             if "cardio" in spec.lower() and spec not in candidate_specialties:
                 candidate_specialties.append(spec)
 
     # General Medicine fallback if no specialty identified or as co-candidate
-    if not candidate_specialties or any(k in symptoms_text for k in ["fever", "cough", "cold", "pain", "fatigue", "general"]):
+    if not candidate_specialties or any(
+        k in symptoms_text for k in ["fever", "cough", "cold", "pain", "fatigue", "general"]
+    ):
         for spec in verified_specialties:
             if "general" in spec.lower() or "medicine" in spec.lower():
                 if spec not in candidate_specialties:
@@ -338,7 +365,11 @@ def build_search_criteria_node(state: ConversationState) -> Dict[str, Any]:
 
     # Location comes from the model. Repeat it only if it is a city the database knows
     by_lower = {city.lower(): city for city in _known_cities()}
-    city_text = f"**{by_lower[location.strip().lower()]}**" if location.strip().lower() in by_lower else "your city"
+    city_text = (
+        f"**{by_lower[location.strip().lower()]}**"
+        if location.strip().lower() in by_lower
+        else "your city"
+    )
 
     specialty_names = ", ".join(candidate_specialties)
     reply = (
@@ -358,7 +389,8 @@ def build_search_criteria_node(state: ConversationState) -> Dict[str, Any]:
 # Workflow Graph Construction
 # ------------------------------------------------------------------------------
 
-def build_symptom_graph(checkpointer: Optional[Any] = None) -> Any:
+
+def build_symptom_graph(checkpointer: Any | None = None) -> Any:
     """Builds the symptom state machine. The API saves progress on the conversation row instead."""
     workflow = StateGraph(ConversationState)
 

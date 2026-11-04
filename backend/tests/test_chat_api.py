@@ -88,10 +88,21 @@ def chat_patients(db_conn):
 
     # Teardown
     try:
-        cur.execute("DELETE FROM public.messages WHERE conversation_id IN (SELECT id FROM public.conversations WHERE patient_id IN (%s, %s));", (patient_a_id, patient_b_id))
-        cur.execute("DELETE FROM public.patient_symptom_sessions WHERE patient_id IN (%s, %s);", (patient_a_id, patient_b_id))
-        cur.execute("DELETE FROM public.conversations WHERE patient_id IN (%s, %s);", (patient_a_id, patient_b_id))
-        cur.execute("DELETE FROM public.profiles WHERE id IN (%s, %s);", (patient_a_id, patient_b_id))
+        cur.execute(
+            "DELETE FROM public.messages WHERE conversation_id IN (SELECT id FROM public.conversations WHERE patient_id IN (%s, %s));",
+            (patient_a_id, patient_b_id),
+        )
+        cur.execute(
+            "DELETE FROM public.patient_symptom_sessions WHERE patient_id IN (%s, %s);",
+            (patient_a_id, patient_b_id),
+        )
+        cur.execute(
+            "DELETE FROM public.conversations WHERE patient_id IN (%s, %s);",
+            (patient_a_id, patient_b_id),
+        )
+        cur.execute(
+            "DELETE FROM public.profiles WHERE id IN (%s, %s);", (patient_a_id, patient_b_id)
+        )
         cur.execute("DELETE FROM auth.users WHERE id IN (%s, %s);", (patient_a_id, patient_b_id))
         db_conn.commit()
     except Exception:
@@ -161,7 +172,9 @@ def test_send_patient_message_processes_workflow(client: TestClient, chat_patien
     patient = chat_patients["patient_a"]
 
     # 1. Create conversation
-    create_res = client.post("/chat/conversations", headers=patient["headers"], json={"title": "Neurology Query"})
+    create_res = client.post(
+        "/chat/conversations", headers=patient["headers"], json={"title": "Neurology Query"}
+    )
     assert create_res.status_code == status.HTTP_201_CREATED
     conv_id = create_res.json()["id"]
 
@@ -179,7 +192,9 @@ def test_send_patient_message_processes_workflow(client: TestClient, chat_patien
 
     # 3. Send message
     msg_payload = {"content": "I have had a throbbing migraine for 3 days in Dhaka."}
-    msg_res = client.post(f"/chat/conversations/{conv_id}/messages", headers=patient["headers"], json=msg_payload)
+    msg_res = client.post(
+        f"/chat/conversations/{conv_id}/messages", headers=patient["headers"], json=msg_payload
+    )
     assert msg_res.status_code == status.HTTP_200_OK
     data = msg_res.json()
 
@@ -243,13 +258,21 @@ def test_emergency_message_triggers_immediate_alert(client: TestClient, chat_pat
     patient = chat_patients["patient_a"]
 
     # 1. Create conversation
-    create_res = client.post("/chat/conversations", headers=patient["headers"], json={"title": "Urgent Triage"})
+    create_res = client.post(
+        "/chat/conversations", headers=patient["headers"], json={"title": "Urgent Triage"}
+    )
     assert create_res.status_code == status.HTTP_201_CREATED
     conv_id = create_res.json()["id"]
 
     # 2. Send emergency message
-    emergency_payload = {"content": "I have severe crushing chest pain radiating to left arm and cannot breathe!"}
-    res = client.post(f"/chat/conversations/{conv_id}/messages", headers=patient["headers"], json=emergency_payload)
+    emergency_payload = {
+        "content": "I have severe crushing chest pain radiating to left arm and cannot breathe!"
+    }
+    res = client.post(
+        f"/chat/conversations/{conv_id}/messages",
+        headers=patient["headers"],
+        json=emergency_payload,
+    )
     assert res.status_code == status.HTTP_200_OK
     data = res.json()
 
@@ -265,7 +288,11 @@ def test_patient_isolation_forbidden_access(client: TestClient, chat_patients: d
     patient_b = chat_patients["patient_b"]
 
     # 1. Patient A creates conversation
-    create_res = client.post("/chat/conversations", headers=patient_a["headers"], json={"title": "Patient A Private Chat"})
+    create_res = client.post(
+        "/chat/conversations",
+        headers=patient_a["headers"],
+        json={"title": "Patient A Private Chat"},
+    )
     assert create_res.status_code == status.HTTP_201_CREATED
     conv_id_a = create_res.json()["id"]
 

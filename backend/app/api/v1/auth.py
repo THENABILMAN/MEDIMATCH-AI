@@ -1,8 +1,20 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, status
+
 from app.core.rate_limit import limit_by_ip
+from app.schemas.auth import (
+    LoginRequest,
+    RegisterDoctorRequest,
+    RegisterPatientRequest,
+    TokenResponse,
+)
 from app.schemas.responses import RegisterResponse
-from app.schemas.auth import LoginRequest, RegisterDoctorRequest, RegisterPatientRequest, TokenResponse
-from app.services.auth_service import login_service, register_doctor_service, register_patient_service
+from app.services.auth_service import (
+    login_service,
+    register_doctor_service,
+    register_patient_service,
+)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -14,7 +26,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
     summary="Register a new patient account",
     dependencies=[Depends(limit_by_ip("register", "RATE_LIMIT_REGISTER"))],
 )
-def register_patient(payload: RegisterPatientRequest):
+def register_patient(payload: RegisterPatientRequest) -> dict[str, Any]:
     return register_patient_service(payload)
 
 
@@ -25,7 +37,7 @@ def register_patient(payload: RegisterPatientRequest):
     summary="Register a new doctor account with pending verification",
     dependencies=[Depends(limit_by_ip("register", "RATE_LIMIT_REGISTER"))],
 )
-def register_doctor(payload: RegisterDoctorRequest):
+def register_doctor(payload: RegisterDoctorRequest) -> dict[str, Any]:
     return register_doctor_service(payload)
 
 
@@ -35,6 +47,5 @@ def register_doctor(payload: RegisterDoctorRequest):
     summary="Authenticate and receive JWT access token",
     dependencies=[Depends(limit_by_ip("login", "RATE_LIMIT_LOGIN"))],
 )
-def login(payload: LoginRequest):
+def login(payload: LoginRequest) -> TokenResponse:
     return login_service(payload)
-

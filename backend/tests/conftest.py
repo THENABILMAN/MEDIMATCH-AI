@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import urlsplit
 
 import jwt
@@ -45,7 +45,7 @@ def assert_local(url: str) -> None:
         raise RuntimeError(f"Tests only run against local Supabase, not {urlsplit(url).hostname}")
 
 
-def _local_stack() -> Optional[Dict[str, str]]:
+def _local_stack() -> dict[str, str] | None:
     """Reads connection details from the environment (CI) or the Supabase CLI."""
     if os.environ.get("TEST_SUPABASE_URL"):
         return {
@@ -124,7 +124,7 @@ def pytest_collection_finish(session: pytest.Session) -> None:
     run_seed()
 
 
-def _decode_test_token(token: str) -> Dict[str, Any]:
+def _decode_test_token(token: str) -> dict[str, Any]:
     try:
         payload = jwt.decode(token, options={"verify_signature": False})
     except jwt.PyJWTError as exc:
@@ -208,17 +208,23 @@ def admin_user_id() -> str:
 
 @pytest.fixture
 def patient_token(patient_user_id: str) -> str:
-    return create_mock_jwt(patient_user_id, "patient@tests.invalid", UserRole.PATIENT, "Patient Alice")
+    return create_mock_jwt(
+        patient_user_id, "patient@tests.invalid", UserRole.PATIENT, "Patient Alice"
+    )
 
 
 @pytest.fixture
 def other_patient_token(other_patient_user_id: str) -> str:
-    return create_mock_jwt(other_patient_user_id, "other@tests.invalid", UserRole.PATIENT, "Patient Bob")
+    return create_mock_jwt(
+        other_patient_user_id, "other@tests.invalid", UserRole.PATIENT, "Patient Bob"
+    )
 
 
 @pytest.fixture
 def doctor_token(doctor_user_id: str) -> str:
-    return create_mock_jwt(doctor_user_id, "doctor@tests.invalid", UserRole.DOCTOR, "Dr. Sarah Khan")
+    return create_mock_jwt(
+        doctor_user_id, "doctor@tests.invalid", UserRole.DOCTOR, "Dr. Sarah Khan"
+    )
 
 
 @pytest.fixture

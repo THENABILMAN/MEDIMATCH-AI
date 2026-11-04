@@ -1,7 +1,7 @@
-import pytest
 from fastapi import APIRouter, Depends, status
 from fastapi.testclient import TestClient
-from app.api.deps import get_current_user, require_admin, require_doctor, require_patient
+
+from app.api.deps import require_admin, require_doctor, require_patient
 from app.main import app
 from app.models.enums import UserRole
 from app.schemas.profile import UserMeResponse
@@ -53,7 +53,7 @@ def test_patient_can_access_me(client: TestClient, patient_token: str, patient_u
 
 def test_role_escalation_prevention_via_patch_me(client: TestClient, patient_token: str):
     """A user attempting to escalate their role to admin via PATCH /me must be rejected.
-    
+
     Pydantic config extra='forbid' strictly rejects extra fields like 'role'.
     """
     headers = {"Authorization": f"Bearer {patient_token}"}
@@ -104,4 +104,3 @@ def test_rbac_admin_can_access_admin_route(client: TestClient, admin_token: str)
     response = client.get("/test-rbac/admin-only", headers=headers)
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["message"] == "Welcome Admin"
-

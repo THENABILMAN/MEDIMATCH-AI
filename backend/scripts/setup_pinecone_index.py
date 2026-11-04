@@ -19,6 +19,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from pinecone import Pinecone, ServerlessSpec
+
 from app.core.config import settings
 
 
@@ -37,7 +38,7 @@ def setup_pinecone_index():
 
     print(f"Target Index Name : {index_name}")
     print(f"Target Dimension  : {target_dim}")
-    print(f"Target Metric     : cosine\n")
+    print("Target Metric     : cosine\n")
 
     existing_indexes = [idx.name for idx in pc.list_indexes()]
 
@@ -61,7 +62,9 @@ def setup_pinecone_index():
     try:
         desc = pc.describe_index(index_name)
         print("\nIndex Details:")
-        print(f"  • Status    : {desc.status.get('state', 'Ready') if isinstance(desc.status, dict) else desc.status}")
+        print(
+            f"  • Status    : {desc.status.get('state', 'Ready') if isinstance(desc.status, dict) else desc.status}"
+        )
         print(f"  • Host      : {desc.host}")
         print(f"  • Dimension : {desc.dimension}")
         print(f"  • Metric    : {desc.metric}")
@@ -71,7 +74,9 @@ def setup_pinecone_index():
                 f"\n[WARNING] Index dimension ({desc.dimension}) differs from configured target ({target_dim})!"
             )
         else:
-            print(f"\n[SUCCESS] Index dimension matches embedding model ({target_dim}). Ready for vector search!")
+            print(
+                f"\n[SUCCESS] Index dimension matches embedding model ({target_dim}). Ready for vector search!"
+            )
 
         # Check vector stats
         idx = pc.Index(index_name)

@@ -17,7 +17,6 @@ Usage:
 
 import sys
 from pathlib import Path
-from typing import List, Tuple
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -30,7 +29,7 @@ from app.search.recommend import recommend_doctors
 
 ALL_SPECIALTIES = ["Neurology", "Cardiology", "General Medicine"]
 
-CASES: List[Tuple[str, str]] = [
+CASES: list[tuple[str, str]] = [
     ("throbbing headache on one side with light sensitivity", "Neurology"),
     ("tension headaches and tight neck for three weeks", "Neurology"),
     ("numbness and tingling in my feet and hands", "Neurology"),
@@ -69,11 +68,15 @@ def run_evaluation() -> None:
     precision_total = 0.0
     hits = 0
     modes = {"hybrid": 0, "sql_fallback": 0}
-    failures: List[str] = []
+    failures: list[str] = []
 
     for symptoms, expected in CASES:
         res = recommend_doctors(
-            {"candidate_specialties": ALL_SPECIALTIES, "city": "Bangladesh", "keywords": [symptoms]},
+            {
+                "candidate_specialties": ALL_SPECIALTIES,
+                "city": "Bangladesh",
+                "keywords": [symptoms],
+            },
             top_k=3,
         )
         modes[res.retrieval_mode] = modes.get(res.retrieval_mode, 0) + 1

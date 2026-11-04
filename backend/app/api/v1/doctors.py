@@ -1,15 +1,17 @@
 import logging
 import uuid
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from postgrest import SyncPostgrestClient
+
 from app.api.deps import get_current_user, get_user_db, require_doctor
 from app.core.config import settings
 from app.core.rate_limit import limit_by_user
 from app.core.supabase import get_supabase_admin_client
 from app.models.enums import UserRole
-from app.schemas.common import MAX_CONSULTATION_FEE, MAX_YEARS_EXPERIENCE, UuidStr
 from app.schemas.appointment import SlotCreate, SlotResponse
+from app.schemas.common import MAX_CONSULTATION_FEE, MAX_YEARS_EXPERIENCE, UuidStr
 from app.schemas.doctor import (
     DoctorCredentialRead,
     DoctorProfileCreateOrUpdate,
@@ -47,6 +49,7 @@ router = APIRouter(prefix="/doctors", tags=["Doctors"])
 # Doctor Self-Management (Role: Doctor)
 # ------------------------------------------------------------------------------
 
+
 @router.get("/me/profile", response_model=DoctorProfileRead, summary="Get own doctor profile")
 def get_my_doctor_profile(
     current_user: UserMeResponse = Depends(require_doctor),
@@ -54,7 +57,9 @@ def get_my_doctor_profile(
     return get_doctor_profile_by_user_id(current_user.id)
 
 
-@router.post("/me/profile", response_model=DoctorProfileRead, summary="Create or update own doctor profile")
+@router.post(
+    "/me/profile", response_model=DoctorProfileRead, summary="Create or update own doctor profile"
+)
 def create_my_doctor_profile(
     payload: DoctorProfileCreateOrUpdate,
     current_user: UserMeResponse = Depends(require_doctor),
@@ -128,22 +133,26 @@ def upload_credential(
     )
 
 
-@router.get("/me/credentials", response_model=List[DoctorCredentialRead], summary="List own credential documents")
+@router.get(
+    "/me/credentials",
+    response_model=list[DoctorCredentialRead],
+    summary="List own credential documents",
+)
 def get_my_credentials(
     current_user: UserMeResponse = Depends(require_doctor),
     db: SyncPostgrestClient = Depends(get_user_db),
-) -> List[DoctorCredentialRead]:
+) -> list[DoctorCredentialRead]:
     return list_my_credentials(current_user.id, db)
 
 
 @router.get(
     "/me/verification-history",
-    response_model=List[VerificationEvent],
+    response_model=list[VerificationEvent],
     summary="List own verification status events",
 )
 def get_my_verification_history(
     current_user: UserMeResponse = Depends(require_doctor),
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     return get_verification_history(current_user.id)
 
 
@@ -155,11 +164,16 @@ def get_my_verification_history(
 def get_credential_link(
     id: UuidStr,
     current_user: UserMeResponse = Depends(get_current_user),
-) -> Dict[str, str]:
+) -> dict[str, str]:
     return get_credential_url(id, current_user.id, current_user.role == UserRole.ADMIN)
 
 
-@router.post("/me/slots", response_model=SlotResponse, status_code=status.HTTP_201_CREATED, summary="Create an availability slot")
+@router.post(
+    "/me/slots",
+    response_model=SlotResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create an availability slot",
+)
 def create_slot(
     payload: SlotCreate,
     current_user: UserMeResponse = Depends(require_doctor),
@@ -172,11 +186,13 @@ def create_slot(
     )
 
 
-@router.get("/me/slots", response_model=List[SlotResponse], summary="List doctor's availability slots")
+@router.get(
+    "/me/slots", response_model=list[SlotResponse], summary="List doctor's availability slots"
+)
 def get_my_slots(
     include_booked: bool = Query(default=True, description="Whether to include booked slots"),
     current_user: UserMeResponse = Depends(require_doctor),
-) -> List[SlotResponse]:
+) -> list[SlotResponse]:
     """Retrieve all availability slots for the authenticated doctor."""
     return list_doctor_slots(
         doctor_user_id=current_user.id,
@@ -184,7 +200,11 @@ def get_my_slots(
     )
 
 
-@router.delete("/me/slots/{slot_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete an availability slot")
+@router.delete(
+    "/me/slots/{slot_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete an availability slot",
+)
 def delete_my_slot(
     slot_id: UuidStr,
     current_user: UserMeResponse = Depends(require_doctor),
@@ -200,24 +220,40 @@ def delete_my_slot(
 # Public Patient-Facing Directory & Search (Anonymous-Safe)
 # ------------------------------------------------------------------------------
 
-@router.get("/specialties", response_model=List[SpecialtyRead], summary="List all medical specialties")
-def get_public_specialties() -> List[SpecialtyRead]:
+
+@router.get(
+    "/specialties", response_model=list[SpecialtyRead], summary="List all medical specialties"
+)
+def get_public_specialties() -> list[SpecialtyRead]:
     """Public listing of all available medical specialties."""
     return list_specialties()
 
 
-@router.get("/search", response_model=DoctorSearchResult, summary="Search verified approved doctors")
+@router.get(
+    "/search", response_model=DoctorSearchResult, summary="Search verified approved doctors"
+)
 def search_doctors(
-    specialty: Optional[str] = Query(default=None, max_length=100, description="Specialty name or ID filter"),
-    city: Optional[str] = Query(default=None, max_length=100, description="City location filter"),
-    max_fee: Optional[float] = Query(default=None, ge=0, le=MAX_CONSULTATION_FEE, description="Maximum consultation fee (BDT)"),
-    min_experience: Optional[int] = Query(default=None, ge=0, le=MAX_YEARS_EXPERIENCE, description="Minimum years of clinical experience"),
-    sort_by: Optional[Literal["fee_asc", "fee_desc", "experience_desc"]] = Query(default=None, description="Sort order"),
+    specialty: str | None = Query(
+        default=None, max_length=100, description="Specialty name or ID filter"
+    ),
+    city: str | None = Query(default=None, max_length=100, description="City location filter"),
+    max_fee: float | None = Query(
+        default=None, ge=0, le=MAX_CONSULTATION_FEE, description="Maximum consultation fee (BDT)"
+    ),
+    min_experience: int | None = Query(
+        default=None,
+        ge=0,
+        le=MAX_YEARS_EXPERIENCE,
+        description="Minimum years of clinical experience",
+    ),
+    sort_by: Literal["fee_asc", "fee_desc", "experience_desc"] | None = Query(
+        default=None, description="Sort order"
+    ),
     page: int = Query(default=1, ge=1, le=10000, description="Page number"),
     page_size: int = Query(default=10, ge=1, le=50, description="Items per page"),
 ) -> DoctorSearchResult:
     """Public search endpoint.
-    
+
     Guaranteed: Returns ONLY doctors with verification_status = 'approved'.
     Does not leak credential files, personal phone numbers, or unapproved profiles.
     """
@@ -232,7 +268,9 @@ def search_doctors(
     )
 
 
-@router.get("/{id}", response_model=PublicDoctorRead, summary="Get public profile of an approved doctor")
+@router.get(
+    "/{id}", response_model=PublicDoctorRead, summary="Get public profile of an approved doctor"
+)
 def get_doctor_by_id(
     id: UuidStr,
 ) -> PublicDoctorRead:
@@ -240,11 +278,13 @@ def get_doctor_by_id(
     return get_public_doctor_by_id(doctor_id=id)
 
 
-@router.get("/{id}/slots", response_model=List[SlotResponse], summary="Get public upcoming available slots of an approved doctor")
+@router.get(
+    "/{id}/slots",
+    response_model=list[SlotResponse],
+    summary="Get public upcoming available slots of an approved doctor",
+)
 def get_doctor_slots(
     id: UuidStr,
-) -> List[SlotResponse]:
+) -> list[SlotResponse]:
     """Fetch upcoming unbooked slots for an approved doctor."""
     return list_public_doctor_slots(doctor_id=id)
-
-

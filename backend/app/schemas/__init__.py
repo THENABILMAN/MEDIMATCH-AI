@@ -1,4 +1,9 @@
-from app.schemas.auth import LoginRequest, RegisterDoctorRequest, RegisterPatientRequest, TokenResponse
+from app.schemas.auth import (
+    LoginRequest,
+    RegisterDoctorRequest,
+    RegisterPatientRequest,
+    TokenResponse,
+)
 from app.schemas.doctor import (
     AdminDoctorActionRequest,
     AuditLogPaginatedResponse,

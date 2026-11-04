@@ -1,7 +1,7 @@
-from datetime import datetime, timezone
-from typing import List, Optional
-from uuid import UUID
+from datetime import UTC, datetime
+
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+
 from app.models.enums import AppointmentStatus
 from app.schemas.common import UuidStr
 
@@ -16,7 +16,7 @@ class SlotCreate(BaseModel):
     def validate_slot_times(self) -> "SlotCreate":
         start, end = self.start_time, self.end_time
 
-        if start <= datetime.now(timezone.utc):
+        if start <= datetime.now(UTC):
             raise ValueError("Slot start_time must be in the future.")
 
         if end <= start:
@@ -24,7 +24,9 @@ class SlotCreate(BaseModel):
 
         duration_minutes = (end - start).total_seconds() / 60.0
         if duration_minutes < 15.0:
-            raise ValueError(f"Slot duration must be at least 15 minutes (provided {duration_minutes:.1f} minutes).")
+            raise ValueError(
+                f"Slot duration must be at least 15 minutes (provided {duration_minutes:.1f} minutes)."
+            )
 
         return self
 
@@ -35,7 +37,7 @@ class SlotResponse(BaseModel):
     start_time: datetime
     end_time: datetime
     is_booked: bool
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -47,7 +49,9 @@ class AppointmentCreate(BaseModel):
 
 
 class AppointmentCancelRequest(BaseModel):
-    reason: Optional[str] = Field(default=None, max_length=500, description="Optional cancellation reason")
+    reason: str | None = Field(
+        default=None, max_length=500, description="Optional cancellation reason"
+    )
 
     model_config = ConfigDict(extra="forbid")
 
@@ -55,10 +59,10 @@ class AppointmentCancelRequest(BaseModel):
 class AppointmentDoctorInfo(BaseModel):
     id: str
     full_name: str
-    clinic_name: Optional[str] = None
+    clinic_name: str | None = None
     city: str
     consultation_fee: float = 0.0
-    specialties: List[str] = Field(default_factory=list)
+    specialties: list[str] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -66,8 +70,8 @@ class AppointmentDoctorInfo(BaseModel):
 class AppointmentPatientInfo(BaseModel):
     id: str
     full_name: str
-    phone: Optional[str] = None
-    email: Optional[str] = None
+    phone: str | None = None
+    email: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -76,14 +80,13 @@ class AppointmentResponse(BaseModel):
     id: str
     patient_id: str
     doctor_id: str
-    slot_id: Optional[str] = None
+    slot_id: str | None = None
     status: AppointmentStatus
     created_at: datetime
-    updated_at: Optional[datetime] = None
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
-    doctor: Optional[AppointmentDoctorInfo] = None
-    patient: Optional[AppointmentPatientInfo] = None
+    updated_at: datetime | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    doctor: AppointmentDoctorInfo | None = None
+    patient: AppointmentPatientInfo | None = None
 
     model_config = ConfigDict(from_attributes=True)
-

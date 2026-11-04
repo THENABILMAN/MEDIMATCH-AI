@@ -7,7 +7,6 @@ Usage:
     python backend/scripts/chat_cli.py
 """
 
-import os
 import sys
 import uuid
 from pathlib import Path
@@ -21,8 +20,6 @@ backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
-from app.core.config import settings
-from app.core.supabase import get_supabase_admin_client, get_supabase_client
 from app.services.chat_service import (
     DISCLAIMER_MESSAGE,
     create_conversation,
@@ -92,11 +89,15 @@ def run_cli():
 
             if search_criteria:
                 print("\n📋 [Search Criteria Generated]")
-                print(f"  • Candidate Specialties : {', '.join(search_criteria.get('candidate_specialties', []))}")
+                print(
+                    f"  • Candidate Specialties : {', '.join(search_criteria.get('candidate_specialties', []))}"
+                )
                 print(f"  • Target City           : {search_criteria.get('city', 'Dhaka')}")
-                if search_criteria.get('max_fee'):
+                if search_criteria.get("max_fee"):
                     print(f"  • Max Fee Filter        : {search_criteria.get('max_fee')} BDT")
-                print(f"  • Extracted Keywords    : {', '.join(search_criteria.get('keywords', []))}")
+                print(
+                    f"  • Extracted Keywords    : {', '.join(search_criteria.get('keywords', []))}"
+                )
                 print("-" * 50)
 
             print(f"Status: {current_step}\n")
@@ -107,4 +108,3 @@ def run_cli():
 
 if __name__ == "__main__":
     run_cli()
-

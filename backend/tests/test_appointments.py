@@ -1,13 +1,14 @@
 import concurrent.futures
-from datetime import datetime, timedelta, timezone
-import uuid
+from datetime import UTC, datetime, timedelta
+
 import pytest
+from conftest import create_mock_jwt
 from fastapi import status
 from fastapi.testclient import TestClient
-from conftest import create_mock_jwt
+
 from app.core.supabase import get_supabase_admin_client
 from app.main import app
-from app.models.enums import AppointmentStatus, UserRole, VerificationStatus
+from app.models.enums import AppointmentStatus, UserRole
 
 DEMO_DOCTOR_USER_ID = "a0000000-0000-0000-0000-000000000003"
 DEMO_DOCTOR_PROFILE_ID = "d0000000-0000-0000-0000-000000000000"
@@ -39,7 +40,7 @@ def patient_headers() -> dict:
 @pytest.fixture(autouse=True)
 def cleanup_test_slots():
     admin_client = get_supabase_admin_client()
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
     if admin_client:
         admin_client.table("availability_slots").delete().eq(
             "doctor_id", DEMO_DOCTOR_PROFILE_ID
@@ -51,10 +52,9 @@ def cleanup_test_slots():
         ).gte("start_time", (now_utc + timedelta(days=15)).isoformat()).execute()
 
 
-
 def test_doctor_create_list_and_delete_slot(client: TestClient, doctor_headers: dict):
     """Doctor can create an availability slot, list it, and delete it."""
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
     start_time = now_utc + timedelta(days=20, hours=9)
     end_time = start_time + timedelta(minutes=30)
 
@@ -87,7 +87,7 @@ def test_doctor_create_list_and_delete_slot(client: TestClient, doctor_headers: 
 
 def test_slot_validation_rules(client: TestClient, doctor_headers: dict):
     """Slots in the past, duration < 15 min, or end <= start must be rejected."""
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
 
     # In the past
     past_payload = {
@@ -116,7 +116,7 @@ def test_slot_validation_rules(client: TestClient, doctor_headers: dict):
 
 def test_overlapping_slots_prevented(client: TestClient, doctor_headers: dict):
     """Doctor cannot create overlapping availability slots."""
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
     base_start = now_utc + timedelta(days=22, hours=10)
     base_end = base_start + timedelta(minutes=45)
 
@@ -144,7 +144,7 @@ def test_overlapping_slots_prevented(client: TestClient, doctor_headers: dict):
 
 def test_patient_cannot_create_doctor_slot(client: TestClient, patient_headers: dict):
     """Patients cannot access doctor slot management endpoints."""
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
     payload = {
         "start_time": (now_utc + timedelta(days=5)).isoformat(),
         "end_time": (now_utc + timedelta(days=5, minutes=30)).isoformat(),
@@ -174,7 +174,7 @@ def test_atomic_booking_lifecycle_and_cancellation(
     patient_headers: dict,
 ):
     """Test full booking lifecycle: book -> duplicate reject -> cancel -> slot freed."""
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
     start_time = now_utc + timedelta(days=25, hours=14)
     end_time = start_time + timedelta(minutes=30)
 
@@ -239,9 +239,11 @@ def test_atomic_booking_lifecycle_and_cancellation(
             admin_client.table("availability_slots").delete().eq("id", slot_id).execute()
 
 
-def test_doctor_complete_appointment(client: TestClient, doctor_headers: dict, patient_headers: dict):
+def test_doctor_complete_appointment(
+    client: TestClient, doctor_headers: dict, patient_headers: dict
+):
     """Doctor can complete an appointment; patient cannot."""
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
     start_time = now_utc + timedelta(days=26, hours=11)
     end_time = start_time + timedelta(minutes=30)
 
@@ -266,7 +268,7 @@ def test_doctor_complete_appointment(client: TestClient, doctor_headers: dict, p
 
         # Doctor completes -> 200 OK
         # An appointment can only be completed once it has started
-        past = datetime.now(timezone.utc) - timedelta(hours=1)
+        past = datetime.now(UTC) - timedelta(hours=1)
         get_supabase_admin_client().table("appointments").update(
             {"scheduled_start": past.isoformat()}
         ).eq("id", app_id).execute()
@@ -286,9 +288,11 @@ def test_doctor_complete_appointment(client: TestClient, doctor_headers: dict, p
             admin_client.table("availability_slots").delete().eq("id", slot_id).execute()
 
 
-def test_unauthorized_user_cannot_cancel_appointment(client: TestClient, doctor_headers: dict, patient_headers: dict):
+def test_unauthorized_user_cannot_cancel_appointment(
+    client: TestClient, doctor_headers: dict, patient_headers: dict
+):
     """A user who is neither the patient nor the doctor cannot cancel the appointment."""
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
     start_time = now_utc + timedelta(days=27, hours=10)
     end_time = start_time + timedelta(minutes=30)
 
@@ -325,9 +329,11 @@ def test_unauthorized_user_cannot_cancel_appointment(client: TestClient, doctor_
             admin_client.table("availability_slots").delete().eq("id", slot_id).execute()
 
 
-def test_concurrency_20_simultaneous_bookings(client: TestClient, doctor_headers: dict, patient_headers: dict):
+def test_concurrency_20_simultaneous_bookings(
+    client: TestClient, doctor_headers: dict, patient_headers: dict
+):
     """Concurrency test: fires 20 simultaneous booking requests for 1 slot.
-    
+
     Guarantees:
       - Exactly 1 request succeeds with 201 Created.
       - Exactly 19 requests fail with 409 Conflict.
@@ -337,7 +343,7 @@ def test_concurrency_20_simultaneous_bookings(client: TestClient, doctor_headers
     assert admin_client is not None
 
     # 1. Doctor creates 1 slot
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
     start_time = now_utc + timedelta(days=29, hours=9)
     end_time = start_time + timedelta(minutes=30)
 
@@ -353,7 +359,9 @@ def test_concurrency_20_simultaneous_bookings(client: TestClient, doctor_headers
         # 2. Fire 20 simultaneous booking requests concurrently
         def book_worker(_):
             with TestClient(app) as local_client:
-                return local_client.post("/appointments", headers=patient_headers, json={"slot_id": slot_id})
+                return local_client.post(
+                    "/appointments", headers=patient_headers, json={"slot_id": slot_id}
+                )
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
             futures = [executor.submit(book_worker, i) for i in range(20)]
@@ -365,11 +373,21 @@ def test_concurrency_20_simultaneous_bookings(client: TestClient, doctor_headers
         success_count = status_codes.count(status.HTTP_201_CREATED)
         conflict_count = status_codes.count(status.HTTP_409_CONFLICT)
 
-        assert success_count == 1, f"Expected exactly 1 booking success, got {success_count}. Codes: {status_codes}"
-        assert conflict_count == 19, f"Expected exactly 19 conflicts, got {conflict_count}. Codes: {status_codes}"
+        assert success_count == 1, (
+            f"Expected exactly 1 booking success, got {success_count}. Codes: {status_codes}"
+        )
+        assert conflict_count == 19, (
+            f"Expected exactly 19 conflicts, got {conflict_count}. Codes: {status_codes}"
+        )
 
         # 3. Verify database state
-        db_apps = admin_client.table("appointments").select("*").eq("slot_id", slot_id).eq("status", "booked").execute()
+        db_apps = (
+            admin_client.table("appointments")
+            .select("*")
+            .eq("slot_id", slot_id)
+            .eq("status", "booked")
+            .execute()
+        )
         assert len(db_apps.data) == 1
 
         db_slot = admin_client.table("availability_slots").select("*").eq("id", slot_id).execute()
@@ -379,5 +397,3 @@ def test_concurrency_20_simultaneous_bookings(client: TestClient, doctor_headers
         # Cleanup appointment and slot
         admin_client.table("appointments").delete().eq("slot_id", slot_id).execute()
         admin_client.table("availability_slots").delete().eq("id", slot_id).execute()
-
-

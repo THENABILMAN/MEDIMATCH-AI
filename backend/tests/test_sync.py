@@ -9,7 +9,9 @@ Verifies:
 """
 
 from unittest.mock import MagicMock
+
 import pytest
+
 from app.search.builder import build_doctor_embedding_text
 from app.search.embeddings import FakeEmbeddingProvider, set_embedding_provider
 from app.search.sync import (
@@ -21,7 +23,6 @@ from app.services.doctor_events import (
     on_doctor_approved,
     on_doctor_rejected,
     on_doctor_suspended,
-    on_doctor_updated,
 )
 
 
@@ -163,7 +164,6 @@ def test_doctor_events_lifecycle_triggers_vector_sync(setup_fake_search):
     on_doctor_rejected(doctor_id=suspended_id, admin_id="admin-1", reason="Incomplete docs")
     assert mock_index.delete.called
     mock_index.delete.assert_called_with(ids=[suspended_id])
-
 
 
 def test_failed_vector_delete_is_retried_and_reported(monkeypatch):

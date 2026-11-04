@@ -18,7 +18,9 @@ def schema() -> dict:
 
 def web_paths() -> set:
     source = WEB_CLIENT.read_text(encoding="utf-8")
-    found = set(re.findall(r"""request<[^(]*\(\s*[`'"](/[^`'"?$]*(?:\$\{[^}]+\}[^`'"?$]*)*)""", source))
+    found = set(
+        re.findall(r"""request<[^(]*\(\s*[`'"](/[^`'"?$]*(?:\$\{[^}]+\}[^`'"?$]*)*)""", source)
+    )
     found |= set(re.findall(r"\$\{API_BASE\}(/[a-z/-]+)", source))
     return {re.sub(r"\$\{[^}]+\}", "{id}", path.split("${query")[0]) for path in found}
 
@@ -43,7 +45,11 @@ def test_every_operation_has_a_typed_response(schema):
             success = [code for code in operation["responses"] if code.startswith("2")]
             content = operation["responses"][success[0]].get("content", {})
             body = content.get("application/json", {}).get("schema", {})
-            if (method, path) in UNDOCUMENTED_BODY_OK or path == "/ready" or path.startswith("/test-"):
+            if (
+                (method, path) in UNDOCUMENTED_BODY_OK
+                or path == "/ready"
+                or path.startswith("/test-")
+            ):
                 continue
             if not body or body == {"type": "object"} or body.get("additionalProperties") is True:
                 untyped.append(f"{method.upper()} {path}")

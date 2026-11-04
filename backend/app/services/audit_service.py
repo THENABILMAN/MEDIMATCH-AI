@@ -1,16 +1,17 @@
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
+
 from app.core.supabase import get_supabase_admin_client
 
 logger = logging.getLogger(__name__)
 
 
 def log_audit_event(
-    actor_id: Optional[str],
+    actor_id: str | None,
     action: str,
     target_type: str,
-    target_id: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None,
+    target_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> None:
     """Records an immutable security/system event in the audit_logs table."""
     admin_client = get_supabase_admin_client()
@@ -29,4 +30,3 @@ def log_audit_event(
         admin_client.table("audit_logs").insert(data).execute()
     except Exception as e:
         logger.error(f"Failed to record audit log {action}: {type(e).__name__}")
-

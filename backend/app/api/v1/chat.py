@@ -1,9 +1,8 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query, status
-from pydantic import BaseModel, Field, model_validator
-
 from postgrest import SyncPostgrestClient
+from pydantic import BaseModel, Field, model_validator
 
 from app.api.deps import get_user_db, require_patient
 from app.core.rate_limit import limit_by_user
@@ -22,12 +21,24 @@ router = APIRouter(prefix="/chat", tags=["Symptom Assistant Chat"])
 
 
 class CreateConversationRequest(BaseModel):
-    title: Optional[str] = Field(default=None, max_length=150, description="Optional title for the consultation")
+    title: str | None = Field(
+        default=None, max_length=150, description="Optional title for the consultation"
+    )
 
 
 class SendMessageRequest(BaseModel):
-    content: Optional[str] = Field(default=None, min_length=1, max_length=2000, description="Patient symptom description or answer")
-    message: Optional[str] = Field(default=None, min_length=1, max_length=2000, description="Alternative field name for message content")
+    content: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=2000,
+        description="Patient symptom description or answer",
+    )
+    message: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=2000,
+        description="Alternative field name for message content",
+    )
 
     @model_validator(mode="after")
     def resolve_message_content(self) -> "SendMessageRequest":
@@ -44,14 +55,14 @@ class SendMessageResponse(BaseModel):
     current_step: str
     safety_status: str
     is_emergency: bool
-    search_criteria: Optional[Dict[str, Any]] = None
-    recommendations: Optional[List[DoctorRecommendation]] = None
-    followup_field: Optional[str] = None
+    search_criteria: dict[str, Any] | None = None
+    recommendations: list[DoctorRecommendation] | None = None
+    followup_field: str | None = None
 
 
 @router.get(
     "/conversations",
-    response_model=List[ConversationSummary],
+    response_model=list[ConversationSummary],
     summary="List patient's consultation conversations",
 )
 def api_list_conversations(
@@ -59,7 +70,7 @@ def api_list_conversations(
     offset: int = Query(default=0, ge=0),
     current_user: UserMeResponse = Depends(require_patient),
     db: SyncPostgrestClient = Depends(get_user_db),
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Retrieves all consultation conversations belonging to the authenticated patient."""
     return list_patient_conversations(patient_id=current_user.id, db=db, limit=limit, offset=offset)
 
@@ -71,13 +82,12 @@ def api_list_conversations(
     summary="Create a new symptom consultation conversation",
 )
 def api_create_conversation(
-    payload: Optional[CreateConversationRequest] = None,
+    payload: CreateConversationRequest | None = None,
     current_user: UserMeResponse = Depends(require_patient),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Initializes a new consultation conversation session for the authenticated patient."""
     title = payload.title if payload else None
     return create_conversation(patient_id=current_user.id, title=title)
-
 
 
 @router.post(
@@ -119,6 +129,6 @@ def api_get_conversation(
     id: UuidStr,
     current_user: UserMeResponse = Depends(require_patient),
     db: SyncPostgrestClient = Depends(get_user_db),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Retrieves conversation history. Enforces strict patient ownership."""
     return get_conversation_history(conversation_id=id, patient_id=current_user.id, db=db)

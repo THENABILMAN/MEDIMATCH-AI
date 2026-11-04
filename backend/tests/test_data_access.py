@@ -52,10 +52,18 @@ def test_a_wrong_route_check_still_cannot_expose_appointments(stranger_db, clien
     patient_id, _ = new_user(UserRole.PATIENT)
     doctor_user = "a0000000-0000-0000-0000-000000000003"
     admin = appointment_service._get_client()
-    doctor_id = admin.table("doctor_profiles").select("id").eq("user_id", doctor_user).execute().data[0]["id"]
+    doctor_id = (
+        admin.table("doctor_profiles")
+        .select("id")
+        .eq("user_id", doctor_user)
+        .execute()
+        .data[0]["id"]
+    )
     admin.table("appointments").insert({"patient_id": patient_id, "doctor_id": doctor_id}).execute()
 
-    rows = appointment_service.get_user_appointments(patient_id, UserRole.PATIENT, None, stranger_db)
+    rows = appointment_service.get_user_appointments(
+        patient_id, UserRole.PATIENT, None, stranger_db
+    )
     assert rows == []
     # The row exists, so the empty list above is RLS at work
     assert admin.table("appointments").select("id").eq("patient_id", patient_id).execute().data
@@ -114,7 +122,9 @@ def test_public_doctor_view_cannot_be_written():
 def test_login_does_not_change_the_shared_client(client):
     email = f"{uuid.uuid4().hex}@example.com"
     body = {"email": email, "password": "long-enough-1"}
-    assert client.post("/auth/register-patient", json={**body, "full_name": "New"}).status_code == 201
+    assert (
+        client.post("/auth/register-patient", json={**body, "full_name": "New"}).status_code == 201
+    )
     assert client.post("/auth/login", json=body).status_code == 200
 
     # A session left on the shared client would make this return that user's profile

@@ -1,7 +1,7 @@
 """Attacks proven against the API during the audit. Each must stay closed."""
 
 import uuid
-from typing import Any, Dict
+from typing import Any
 
 import httpx
 import psycopg2
@@ -17,7 +17,7 @@ PDF = b"%PDF-1.4 test document"
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 32
 
 
-def headers(token: str) -> Dict[str, str]:
+def headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
@@ -32,7 +32,7 @@ def sql(query: str, params: tuple = ()) -> Any:
 
 
 @pytest.fixture
-def doctor() -> Dict[str, str]:
+def doctor() -> dict[str, str]:
     """A fresh pending doctor."""
     user_id = str(uuid.uuid4())
     token = create_mock_jwt(user_id, "doc@tests.invalid", UserRole.DOCTOR, "Dr. Original")
@@ -160,7 +160,7 @@ def test_profile_audit_entries_hold_no_personal_details(client, patient_token, p
     assert "01712345678" not in metadata
 
 
-def register_body(**overrides: Any) -> Dict[str, Any]:
+def register_body(**overrides: Any) -> dict[str, Any]:
     body = {
         "email": f"{uuid.uuid4().hex}@example.com",
         "password": "long-enough-1",
@@ -299,3 +299,69 @@ def test_admin_client_cannot_forge_audit_entries():
     action = f"FORGED_{uuid.uuid4().hex}"
     rest("POST", "audit_logs", token, json={"action": action, "target_type": "x"})
     assert sql("SELECT count(*) FROM public.audit_logs WHERE action = %s", (action,))[0] == 0
+
+
+def doctor_body(**overrides: Any) -> dict[str, Any]:
+    return register_body(
+        bio="Consultant neurologist",
+        qualifications=["MBBS"],
+        years_experience=9,
+        consultation_fee=1200,
+        clinic_name="Clinic",
+        city="Dhaka",
+        specialty_ids=["11111111-0000-0000-0000-000000000001"],
+        **overrides,
+    )
+
+
+def test_doctor_registration_starts_pending_and_is_not_public(client):
+    res = client.post("/auth/register-doctor", json=doctor_body())
+    assert res.status_code == 201
+    assert res.json()["verification_status"] == "pending"
+
+    user_id = res.json()["user_id"]
+    role, status = sql(
+        """SELECT p.role::text, d.verification_status::text FROM public.profiles p
+           JOIN public.doctor_profiles d ON d.user_id = p.id WHERE p.id = %s""",
+        (user_id,),
+    )
+    assert (role, status) == ("doctor", "pending")
+    doctor_id = sql("SELECT id FROM public.doctor_profiles WHERE user_id = %s", (user_id,))[0]
+    assert client.get(f"/doctors/{doctor_id}").status_code == 404
+
+
+def test_doctor_cannot_register_as_approved(client):
+    res = client.post("/auth/register-doctor", json=doctor_body(verification_status="approved"))
+    assert res.status_code == 422
+
+
+def test_failed_doctor_setup_leaves_no_account_behind(client):
+    body = doctor_body()
+    body["specialty_ids"] = ["00000000-0000-0000-0000-00000000dead"]
+    assert client.post("/auth/register-doctor", json=body).status_code == 400
+    assert sql("SELECT count(*) FROM auth.users WHERE email = %s", (body["email"],))[0] == 0
+
+
+def test_real_login_returns_a_session_and_role(client):
+    body = register_body()
+    client.post("/auth/register-patient", json=body)
+    res = client.post("/auth/login", json={"email": body["email"], "password": body["password"]})
+    assert res.status_code == 200
+    assert res.json()["role"] == "patient" and res.json()["access_token"]
+
+
+def test_a_real_token_works_end_to_end_without_the_test_shortcut(client, monkeypatch):
+    from app.api import deps
+    from app.core.security import verify_supabase_token
+
+    monkeypatch.setattr(deps, "verify_supabase_token", verify_supabase_token)
+    body = register_body()
+    client.post("/auth/register-patient", json=body)
+    token = client.post(
+        "/auth/login", json={"email": body["email"], "password": body["password"]}
+    ).json()["access_token"]
+
+    assert client.get("/me", headers=headers(token)).json()["email"] == body["email"]
+    assert client.get("/me", headers=headers(token + "x")).status_code == 401
+    forged = create_mock_jwt(str(uuid.uuid4()), "x@tests.invalid", UserRole.ADMIN, "Forged")
+    assert client.get("/admin/doctors", headers=headers(forged)).status_code == 401

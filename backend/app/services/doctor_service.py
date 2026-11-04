@@ -1,10 +1,12 @@
 import logging
 from math import ceil
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
 from fastapi import HTTPException, status
 from postgrest import SyncPostgrestClient
+
 from app.core.supabase import contains_pattern, get_supabase_admin_client, get_supabase_client
-from app.models.enums import UserRole, VerificationStatus
+from app.models.enums import VerificationStatus
 from app.schemas.doctor import (
     DoctorCredentialRead,
     DoctorProfileCreateOrUpdate,
@@ -28,7 +30,7 @@ VERIFICATION_ACTIONS = [
 ]
 
 
-def detect_document_type(content: bytes) -> Optional[Tuple[str, str]]:
+def detect_document_type(content: bytes) -> tuple[str, str] | None:
     """Identifies a file from its bytes. A client's filename and content type are only claims."""
     if content.startswith(b"%PDF-"):
         return "application/pdf", ".pdf"
@@ -88,7 +90,7 @@ def get_doctor_profile_by_user_id(user_id: str) -> DoctorProfileRead:
 
 def upsert_doctor_profile(user_id: str, payload: DoctorProfileCreateOrUpdate) -> DoctorProfileRead:
     """Create or update a doctor profile.
-    
+
     A new or edited profile transitions to 'pending'; saving without changes keeps its status.
     A suspended doctor cannot edit, since that would clear the suspension.
     Material edits to an approved profile are tracked in audit_logs and trigger on_doctor_updated.
@@ -126,14 +128,25 @@ def upsert_doctor_profile(user_id: str, payload: DoctorProfileCreateOrUpdate) ->
 
         # Identify changed fields
         changed_fields = [
-            k for k in ["bio", "qualifications", "years_experience", "consultation_fee", "clinic_name", "city"]
+            k
+            for k in [
+                "bio",
+                "qualifications",
+                "years_experience",
+                "consultation_fee",
+                "clinic_name",
+                "city",
+            ]
             if old_doc.get(k) != doc_data[k]
         ]
 
         # Only a request that sends specialty_ids may change them
         specialties_sent = "specialty_ids" in payload.model_fields_set
         old_specialties = (
-            client.table("doctor_specialties").select("specialty_id").eq("doctor_id", doctor_id).execute()
+            client.table("doctor_specialties")
+            .select("specialty_id")
+            .eq("doctor_id", doctor_id)
+            .execute()
         )
         old_specialty_ids = {str(row["specialty_id"]) for row in old_specialties.data or []}
         if specialties_sent and set(payload.specialty_ids) != old_specialty_ids:
@@ -148,7 +161,9 @@ def upsert_doctor_profile(user_id: str, payload: DoctorProfileCreateOrUpdate) ->
         if "specialties" in changed_fields:
             client.table("doctor_specialties").delete().eq("doctor_id", doctor_id).execute()
             if payload.specialty_ids:
-                entries = [{"doctor_id": doctor_id, "specialty_id": sid} for sid in payload.specialty_ids]
+                entries = [
+                    {"doctor_id": doctor_id, "specialty_id": sid} for sid in payload.specialty_ids
+                ]
                 client.table("doctor_specialties").insert(entries).execute()
 
         # Material edit audit log
@@ -170,7 +185,9 @@ def upsert_doctor_profile(user_id: str, payload: DoctorProfileCreateOrUpdate) ->
         res = client.table("doctor_profiles").insert(doc_data).execute()
         doctor_id = str(res.data[0]["id"])
         if payload.specialty_ids:
-            entries = [{"doctor_id": doctor_id, "specialty_id": sid} for sid in payload.specialty_ids]
+            entries = [
+                {"doctor_id": doctor_id, "specialty_id": sid} for sid in payload.specialty_ids
+            ]
             client.table("doctor_specialties").insert(entries).execute()
 
         log_audit_event(
@@ -227,7 +244,7 @@ def add_doctor_credential(user_id: str, file_path: str, document_type: str) -> D
     )
 
 
-def list_my_credentials(user_id: str, db: SyncPostgrestClient) -> List[DoctorCredentialRead]:
+def list_my_credentials(user_id: str, db: SyncPostgrestClient) -> list[DoctorCredentialRead]:
     """Lists the doctor's own uploaded credential records, newest first, as the caller."""
     doctor = get_doctor_profile_by_user_id(user_id)
     res = (
@@ -240,7 +257,7 @@ def list_my_credentials(user_id: str, db: SyncPostgrestClient) -> List[DoctorCre
     return [DoctorCredentialRead.model_validate(row) for row in res.data or []]
 
 
-def get_credential_url(credential_id: str, user_id: str, is_admin: bool) -> Dict[str, str]:
+def get_credential_url(credential_id: str, user_id: str, is_admin: bool) -> dict[str, str]:
     """Creates a short-lived link to a credential file for its owner or an admin."""
     client = get_supabase_admin_client()
     if not client:
@@ -291,7 +308,7 @@ def get_credential_url(credential_id: str, user_id: str, is_admin: bool) -> Dict
     return {"url": url}
 
 
-def get_verification_history(user_id: str) -> List[Dict[str, Any]]:
+def get_verification_history(user_id: str) -> list[dict[str, Any]]:
     """Returns status events for the doctor's timeline, without exposing which admin acted."""
     doctor = get_doctor_profile_by_user_id(user_id)
     client = get_supabase_admin_client()
@@ -314,31 +331,38 @@ def get_verification_history(user_id: str) -> List[Dict[str, Any]]:
     ]
 
 
-def _doctor_ids_with_specialty(client: Any, specialty: str) -> List[str]:
+def _doctor_ids_with_specialty(client: Any, specialty: str) -> list[str]:
     """Resolves a specialty name fragment or id to the doctors who practise it."""
     s_filter = specialty.lower().strip()
     specialties = client.table("specialties").select("id, name").execute().data or []
     specialty_ids = [
-        str(s["id"]) for s in specialties if s_filter in s["name"].lower() or s_filter == str(s["id"])
+        str(s["id"])
+        for s in specialties
+        if s_filter in s["name"].lower() or s_filter == str(s["id"])
     ]
     if not specialty_ids:
         return []
 
-    rows = client.table("doctor_specialties").select("doctor_id").in_("specialty_id", specialty_ids).execute()
+    rows = (
+        client.table("doctor_specialties")
+        .select("doctor_id")
+        .in_("specialty_id", specialty_ids)
+        .execute()
+    )
     return sorted({str(row["doctor_id"]) for row in rows.data or []})
 
 
 def search_public_doctors(
-    specialty: Optional[str] = None,
-    city: Optional[str] = None,
-    max_fee: Optional[float] = None,
-    min_experience: Optional[int] = None,
-    sort_by: Optional[str] = None,
+    specialty: str | None = None,
+    city: str | None = None,
+    max_fee: float | None = None,
+    min_experience: int | None = None,
+    sort_by: str | None = None,
     page: int = 1,
     page_size: int = 10,
 ) -> DoctorSearchResult:
     """Search doctors available to the public.
-    
+
     CRITICAL NON-NEGOTIABLE RULE:
     Strictly returns ONLY doctors where verification_status = 'approved'.
     Never returns credential files, private phone numbers, or unapproved records.
@@ -351,11 +375,13 @@ def search_public_doctors(
         )
 
     # Filter by specialty inside the query, so pages and totals stay correct
-    doctor_ids: Optional[List[str]] = None
+    doctor_ids: list[str] | None = None
     if specialty:
         doctor_ids = _doctor_ids_with_specialty(client, specialty)
         if not doctor_ids:
-            return DoctorSearchResult(items=[], total=0, page=page, page_size=page_size, total_pages=1)
+            return DoctorSearchResult(
+                items=[], total=0, page=page, page_size=page_size, total_pages=1
+            )
 
     # Always enforce verification_status = 'approved'
     query = (
@@ -392,13 +418,15 @@ def search_public_doctors(
     raw_doctors = result.data or []
 
     # Map to PublicDoctorRead
-    items: List[PublicDoctorRead] = []
+    items: list[PublicDoctorRead] = []
     for doc in raw_doctors:
-        specs: List[SpecialtyRead] = []
+        specs: list[SpecialtyRead] = []
         for ds in doc.get("doctor_specialties", []):
             s = ds.get("specialties")
             if s:
-                specs.append(SpecialtyRead(id=str(s["id"]), name=s["name"], description=s.get("description")))
+                specs.append(
+                    SpecialtyRead(id=str(s["id"]), name=s["name"], description=s.get("description"))
+                )
 
         items.append(
             PublicDoctorRead(
@@ -427,7 +455,7 @@ def search_public_doctors(
 
 def get_public_doctor_by_id(doctor_id: str) -> PublicDoctorRead:
     """Fetch public profile for a single doctor.
-    
+
     Returns 404 if doctor is not found OR verification_status != 'approved'.
     """
     client = get_supabase_client()
@@ -452,11 +480,13 @@ def get_public_doctor_by_id(doctor_id: str) -> PublicDoctorRead:
         )
 
     raw_doc = res.data[0]
-    specs: List[SpecialtyRead] = []
+    specs: list[SpecialtyRead] = []
     for ds in raw_doc.get("doctor_specialties", []):
         s = ds.get("specialties")
         if s:
-            specs.append(SpecialtyRead(id=str(s["id"]), name=s["name"], description=s.get("description")))
+            specs.append(
+                SpecialtyRead(id=str(s["id"]), name=s["name"], description=s.get("description"))
+            )
 
     return PublicDoctorRead(
         id=str(raw_doc["id"]),
@@ -470,4 +500,3 @@ def get_public_doctor_by_id(doctor_id: str) -> PublicDoctorRead:
         verification_status=VerificationStatus.APPROVED,
         specialties=specs,
     )
-

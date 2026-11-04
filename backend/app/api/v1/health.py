@@ -1,5 +1,4 @@
 import logging
-from typing import Dict
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
@@ -19,7 +18,7 @@ class HealthResponse(BaseModel):
 
 
 @router.get("/health", response_model=HealthResponse, summary="Liveness: the process is running")
-def health_check() -> Dict[str, str]:
+def health_check() -> dict[str, str]:
     return {"status": "healthy", "service": "MediMatch AI"}
 
 

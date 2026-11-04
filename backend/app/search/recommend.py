@@ -11,11 +11,13 @@ Guarantees:
 4. Generates transparent, non-diagnostic match explanations.
 """
 
-import uuid
-from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, Dict, List, Optional
+import uuid
+from datetime import UTC, datetime, timedelta, timezone
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
+
 from app.ai.privacy import redact_pii
 from app.core.config import settings
 from app.core.supabase import contains_pattern, get_supabase_admin_client
@@ -47,16 +49,16 @@ class DoctorRecommendation(BaseModel):
     id: str
     user_id: str
     full_name: str
-    specialties: List[Dict[str, Any]]
-    bio: Optional[str] = None
-    qualifications: List[str] = Field(default_factory=list)
+    specialties: list[dict[str, Any]]
+    bio: str | None = None
+    qualifications: list[str] = Field(default_factory=list)
     years_experience: int = 0
     consultation_fee: float = 0.0
-    clinic_name: Optional[str] = None
+    clinic_name: str | None = None
     city: str
     match_score: float = Field(description="Normalized match score (0-100%)")
     available_slots_count: int = 0
-    soonest_slot: Optional[str] = None
+    soonest_slot: str | None = None
     match_explanation: str
 
     model_config = ConfigDict(extra="ignore")
@@ -65,19 +67,19 @@ class DoctorRecommendation(BaseModel):
 class RecommendationResponse(BaseModel):
     """API and chat recommendation response model."""
 
-    recommendations: List[DoctorRecommendation]
+    recommendations: list[DoctorRecommendation]
     total_found: int
-    query_specialties: List[str]
+    query_specialties: list[str]
     query_city: str
     retrieval_mode: str  # "hybrid" | "sql_fallback" | "emergency_blocked"
 
 
 def _generate_safe_explanation(
-    specialty_names: List[str],
+    specialty_names: list[str],
     city: str,
     years_experience: int,
     fee: float,
-    soonest_slot: Optional[str],
+    soonest_slot: str | None,
 ) -> str:
     """Generates a template-based explanation for why this doctor matches.
 
@@ -100,9 +102,9 @@ def _generate_safe_explanation(
 
 
 def _fits_request(
-    doctor_specialties: List[str],
-    candidate_specialties: List[str],
-    doctor_city: Optional[str],
+    doctor_specialties: list[str],
+    candidate_specialties: list[str],
+    doctor_city: str | None,
     city: str,
 ) -> bool:
     """Hard filter shared by both search paths. Scoring alone can rank a wrong match first.
@@ -121,11 +123,11 @@ def _fits_request(
 
 def _calculate_score(
     vector_sim: float,
-    doctor_specialties: List[str],
-    candidate_specialties: List[str],
+    doctor_specialties: list[str],
+    candidate_specialties: list[str],
     years_experience: int,
     fee: float,
-    max_fee: Optional[float],
+    max_fee: float | None,
     available_slots_count: int,
 ) -> float:
     """Calculates transparent multi-factor weighted score (0.0 to 1.0).
@@ -192,13 +194,13 @@ def _doctor_query(client: Any, now_iso: str) -> Any:
 
 
 def _to_recommendation(
-    doc: Dict[str, Any],
+    doc: dict[str, Any],
     vector_sim: float,
-    candidate_specialties: List[str],
+    candidate_specialties: list[str],
     city: str,
-    max_fee: Optional[float],
+    max_fee: float | None,
     now_iso: str,
-) -> Optional[DoctorRecommendation]:
+) -> DoctorRecommendation | None:
     """Applies every hard rule to a database row, or returns None if the doctor does not qualify."""
     doc_id = str(doc["id"])
 
@@ -213,14 +215,20 @@ def _to_recommendation(
         return None
 
     # Rule 3: Must match the requested city and a suitable specialty
-    specs = [item["specialties"] for item in doc.get("doctor_specialties", []) if item.get("specialties")]
+    specs = [
+        item["specialties"] for item in doc.get("doctor_specialties", []) if item.get("specialties")
+    ]
     spec_names = [s["name"] for s in specs]
     if not _fits_request(spec_names, candidate_specialties, doc.get("city"), city):
         return None
 
     # Rule 4: Must have active upcoming slots
     future_slots = sorted(
-        (s for s in doc.get("availability_slots") or [] if not s.get("is_booked") and s.get("start_time", "") > now_iso),
+        (
+            s
+            for s in doc.get("availability_slots") or []
+            if not s.get("is_booked") and s.get("start_time", "") > now_iso
+        ),
         key=lambda s: s["start_time"],
     )
     if not future_slots:
@@ -263,19 +271,23 @@ def _to_recommendation(
 
 
 def _sql_fallback_search(
-    candidate_specialties: List[str],
+    candidate_specialties: list[str],
     city: str,
-    max_fee: Optional[float] = None,
+    max_fee: float | None = None,
     limit: int = 5,
-) -> List[DoctorRecommendation]:
+) -> list[DoctorRecommendation]:
     """Graceful fallback query when Pinecone is down or yields insufficient results."""
     logger.info("[RECOMMENDATION] Executing SQL fallback search")
     client = get_supabase_admin_client()
     if not client:
         return []
 
-    now_iso = datetime.now(timezone.utc).isoformat()
-    query = _doctor_query(client, now_iso).order("years_experience", desc=True).limit(MAX_SQL_CANDIDATES)
+    now_iso = datetime.now(UTC).isoformat()
+    query = (
+        _doctor_query(client, now_iso)
+        .order("years_experience", desc=True)
+        .limit(MAX_SQL_CANDIDATES)
+    )
 
     if city and city.lower() != "bangladesh":
         query = query.ilike("city", contains_pattern(city))
@@ -285,14 +297,18 @@ def _sql_fallback_search(
     recommendations = [
         rec
         for doc in query.execute().data or []
-        if (rec := _to_recommendation(doc, NEUTRAL_VECTOR_SCORE, candidate_specialties, city, max_fee, now_iso))
+        if (
+            rec := _to_recommendation(
+                doc, NEUTRAL_VECTOR_SCORE, candidate_specialties, city, max_fee, now_iso
+            )
+        )
     ]
     recommendations.sort(key=lambda r: r.match_score, reverse=True)
     return recommendations[:limit]
 
 
 def recommend_doctors(
-    search_criteria: Dict[str, Any],
+    search_criteria: dict[str, Any],
     top_k: int = 5,
 ) -> RecommendationResponse:
     """Performs hybrid vector retrieval + PostgreSQL filtering and ranking.
@@ -301,18 +317,22 @@ def recommend_doctors(
         search_criteria: {candidate_specialties: [...], city: "...", max_fee: ..., keywords: [...]}
         top_k: Number of ranked recommendations to return (default: 5)
     """
-    candidate_specialties: List[str] = search_criteria.get("candidate_specialties") or ["General Medicine"]
+    candidate_specialties: list[str] = search_criteria.get("candidate_specialties") or [
+        "General Medicine"
+    ]
     city: str = search_criteria.get("city") or "Dhaka"
-    max_fee: Optional[float] = search_criteria.get("max_fee")
-    raw_keywords: List[str] = search_criteria.get("keywords") or []
+    max_fee: float | None = search_criteria.get("max_fee")
+    raw_keywords: list[str] = search_criteria.get("keywords") or []
 
     # 1. Redact keywords before submitting to vector query
     redacted_keywords = [redact_pii(k) for k in raw_keywords if k]
-    query_text = " ".join(redacted_keywords) if redacted_keywords else ", ".join(candidate_specialties)
+    query_text = (
+        " ".join(redacted_keywords) if redacted_keywords else ", ".join(candidate_specialties)
+    )
 
     client = get_supabase_admin_client()
-    now_iso = datetime.now(timezone.utc).isoformat()
-    vector_matches: Dict[str, float] = {}
+    now_iso = datetime.now(UTC).isoformat()
+    vector_matches: dict[str, float] = {}
 
     # 2. Query Pinecone vector index
     try:
@@ -327,10 +347,12 @@ def recommend_doctors(
             if m_id:
                 vector_matches[str(m_id)] = float(getattr(match, "score", 0.0) or 0.0)
     except Exception as e:
-        logger.warning(f"[RECOMMENDATION] Pinecone query failed ({type(e).__name__}); using SQL search.")
+        logger.warning(
+            f"[RECOMMENDATION] Pinecone query failed ({type(e).__name__}); using SQL search."
+        )
 
     # 3. Re-fetch every candidate from Supabase, the source of truth
-    recommendations: List[DoctorRecommendation] = []
+    recommendations: list[DoctorRecommendation] = []
     matched_ids = [doc_id for doc_id in vector_matches if _is_uuid(doc_id)]
     if matched_ids and client:
         rows = _doctor_query(client, now_iso).in_("id", matched_ids).execute().data or []
@@ -339,7 +361,12 @@ def recommend_doctors(
             for doc in rows
             if (
                 rec := _to_recommendation(
-                    doc, vector_matches[str(doc["id"])], candidate_specialties, city, max_fee, now_iso
+                    doc,
+                    vector_matches[str(doc["id"])],
+                    candidate_specialties,
+                    city,
+                    max_fee,
+                    now_iso,
                 )
             )
         ]

@@ -7,20 +7,17 @@ name = "medimatch-backend"
 version = "0.1.0"
 description = "AI-Powered Doctor Recommendation & Appointment Booking Backend API"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
-    "pydantic>=2.8.0",
+    "pydantic[email]>=2.8.0",
     "pydantic-settings>=2.4.0",
     "python-multipart>=0.0.9",
     "supabase>=2.8.0",
-    "gotrue>=2.8.0",
     "pyjwt[crypto]>=2.9.0",
     "httpx>=0.27.0",
-    "python-dotenv>=1.0.0",
     "psycopg2-binary>=2.9.9",
-    "asyncpg>=0.29.0",
     "pinecone>=5.0.0",
     "langgraph>=0.2.0",
     "tenacity>=8.2.0",
@@ -29,8 +26,12 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "mypy>=1.10.0",
+    "pip-audit>=2.7.0",
+    "pre-commit>=3.7.0",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
     "ruff>=0.5.0",
 ]
 
@@ -47,5 +48,32 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "A", "C4"]
-ignore = ["B008"]
+# B008: FastAPI's Depends and Query defaults. E501: the formatter owns line length, and long strings
+# in safety rules and copy read better whole. UP042: StrEnum changes how these values compare.
+ignore = ["B008", "E501", "UP042"]
 
+[tool.ruff.lint.per-file-ignores]
+# These set up sys.path or the environment before importing the app
+"app/main.py" = ["E402"]
+"app/run_migrations.py" = ["E402"]
+"scripts/*" = ["E402"]
+"tests/conftest.py" = ["E402"]
+# FastAPI names path parameters after the route, and {id} is the route
+"app/api/v1/*" = ["A002"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/run_migrations.py"]
+
+[tool.coverage.report]
+show_missing = false
+skip_covered = false

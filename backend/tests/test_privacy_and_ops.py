@@ -3,7 +3,7 @@
 import json
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import psycopg2
 import pytest
@@ -39,7 +39,10 @@ def conversation(client, patient) -> str:
 
 
 def withdraw_consent(client, patient) -> None:
-    assert client.patch("/me", headers=patient["headers"], json={"ai_consent": False}).status_code == 200
+    assert (
+        client.patch("/me", headers=patient["headers"], json={"ai_consent": False}).status_code
+        == 200
+    )
 
 
 def test_no_consent_means_no_symptoms_are_stored(client, patient):
@@ -52,7 +55,13 @@ def test_no_consent_means_no_symptoms_are_stored(client, patient):
         json={"content": "itchy rash for a week"},
     )
     assert res.status_code == 403
-    assert sql("SELECT count(*) FROM messages WHERE conversation_id = %s AND sender = 'patient'", (chat,))[0][0] == 0
+    assert (
+        sql(
+            "SELECT count(*) FROM messages WHERE conversation_id = %s AND sender = 'patient'",
+            (chat,),
+        )[0][0]
+        == 0
+    )
 
 
 def test_an_emergency_still_gets_the_alert_without_consent_and_stores_nothing(client, patient):
@@ -66,14 +75,25 @@ def test_an_emergency_still_gets_the_alert_without_consent_and_stores_nothing(cl
     )
     assert res.status_code == 200
     assert res.json()["is_emergency"] is True
-    assert sql("SELECT count(*) FROM messages WHERE conversation_id = %s AND sender = 'patient'", (chat,))[0][0] == 0
-    assert sql("SELECT count(*) FROM patient_symptom_sessions WHERE patient_id = %s", (patient["id"],))[0][0] == 0
+    assert (
+        sql(
+            "SELECT count(*) FROM messages WHERE conversation_id = %s AND sender = 'patient'",
+            (chat,),
+        )[0][0]
+        == 0
+    )
+    assert (
+        sql(
+            "SELECT count(*) FROM patient_symptom_sessions WHERE patient_id = %s", (patient["id"],)
+        )[0][0]
+        == 0
+    )
 
 
 def test_old_chats_are_purged_and_recent_ones_stay(client, patient):
     old_chat = conversation(client, patient)
     new_chat = conversation(client, patient)
-    past = datetime.now(timezone.utc) - timedelta(days=settings.CHAT_RETENTION_DAYS + 1)
+    past = datetime.now(UTC) - timedelta(days=settings.CHAT_RETENTION_DAYS + 1)
     # The trigger keeps updated_at honest, so backdating needs it out of the way
     sql(
         """ALTER TABLE conversations DISABLE TRIGGER tr_conversations_updated_at;
@@ -89,14 +109,29 @@ def test_old_chats_are_purged_and_recent_ones_stay(client, patient):
     assert purge_expired_chats() >= 1
     assert sql("SELECT count(*) FROM conversations WHERE id = %s", (old_chat,))[0][0] == 0
     assert sql("SELECT count(*) FROM conversations WHERE id = %s", (new_chat,))[0][0] == 1
-    assert sql("SELECT count(*) FROM patient_symptom_sessions WHERE patient_id = %s", (patient["id"],))[0][0] == 0
+    assert (
+        sql(
+            "SELECT count(*) FROM patient_symptom_sessions WHERE patient_id = %s", (patient["id"],)
+        )[0][0]
+        == 0
+    )
 
 
 def test_closing_an_account_removes_chat_and_identity(client):
     email = f"{uuid.uuid4().hex}@example.com"
-    body = {"email": email, "password": "long-enough-1", "full_name": "Real Person", "phone": "01712345678"}
+    body = {
+        "email": email,
+        "password": "long-enough-1",
+        "full_name": "Real Person",
+        "phone": "01712345678",
+    }
     user_id = client.post("/auth/register-patient", json=body).json()["user_id"]
-    patient = {"id": user_id, "headers": {"Authorization": f"Bearer {create_mock_jwt(user_id, email, UserRole.PATIENT, 'Real Person')}"}}
+    patient = {
+        "id": user_id,
+        "headers": {
+            "Authorization": f"Bearer {create_mock_jwt(user_id, email, UserRole.PATIENT, 'Real Person')}"
+        },
+    }
 
     chat = conversation(client, patient)
     assert client.delete("/me", headers=patient["headers"]).status_code == 200
@@ -108,7 +143,10 @@ def test_closing_an_account_removes_chat_and_identity(client):
 
     # The sign-in identity is gone too, so the old password no longer works
     assert email not in sql("SELECT email FROM auth.users WHERE id = %s", (user_id,))[0][0]
-    assert client.post("/auth/login", json={"email": email, "password": body["password"]}).status_code == 401
+    assert (
+        client.post("/auth/login", json={"email": email, "password": body["password"]}).status_code
+        == 401
+    )
 
 
 def test_every_response_has_a_request_id(client):
@@ -204,7 +242,10 @@ def test_oversized_request_is_refused_before_it_is_read(client):
     res = client.post(
         "/auth/login",
         content=b"{}",
-        headers={"content-length": str(settings.MAX_UPLOAD_BYTES * 2), "content-type": "application/json"},
+        headers={
+            "content-length": str(settings.MAX_UPLOAD_BYTES * 2),
+            "content-type": "application/json",
+        },
     )
     assert res.status_code == 413
 

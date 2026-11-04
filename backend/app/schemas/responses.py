@@ -1,7 +1,7 @@
 """Response models. Each one is a whitelist: a field not listed here cannot reach a client."""
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -24,7 +24,7 @@ class RegisterResponse(BaseModel):
     message: str
     user_id: str
     role: UserRole
-    verification_status: Optional[VerificationStatus] = None
+    verification_status: VerificationStatus | None = None
 
 
 class ChatHistoryDeleted(BaseModel):
@@ -34,7 +34,7 @@ class ChatHistoryDeleted(BaseModel):
 class VerificationEvent(BaseModel):
     action: str
     created_at: datetime
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 class CredentialLink(BaseModel):
@@ -44,17 +44,17 @@ class CredentialLink(BaseModel):
 class ConversationSummary(BaseModel):
     id: str
     patient_id: str
-    title: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    title: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class ConversationCreated(BaseModel):
     id: str
     patient_id: str
-    title: Optional[str] = None
+    title: str | None = None
     initial_message: str
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
 
 
 class ChatMessage(BaseModel):
@@ -62,28 +62,28 @@ class ChatMessage(BaseModel):
     conversation_id: str
     sender: str
     content: str
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
 
 
 class ConversationDetail(BaseModel):
     id: str
     patient_id: str
-    title: Optional[str] = None
-    created_at: Optional[datetime] = None
-    messages: List[ChatMessage]
+    title: str | None = None
+    created_at: datetime | None = None
+    messages: list[ChatMessage]
 
 
 class AdminPatient(BaseModel):
     id: str
     full_name: str
-    phone: Optional[str] = None
-    created_at: Optional[datetime] = None
+    phone: str | None = None
+    created_at: datetime | None = None
     appointment_count: int = 0
 
 
 class AdminPatientPage(BaseModel):
-    items: List[AdminPatient]
+    items: list[AdminPatient]
     total: int
     limit: int
     offset: int
@@ -92,23 +92,23 @@ class AdminPatientPage(BaseModel):
 class AdminDoctor(BaseModel):
     id: str
     user_id: str
-    full_name: Optional[str] = None
-    phone: Optional[str] = None
-    bio: Optional[str] = None
-    qualifications: List[str] = Field(default_factory=list)
+    full_name: str | None = None
+    phone: str | None = None
+    bio: str | None = None
+    qualifications: list[str] = Field(default_factory=list)
     years_experience: int = 0
     consultation_fee: float = 0.0
-    clinic_name: Optional[str] = None
+    clinic_name: str | None = None
     city: str
     verification_status: VerificationStatus
-    specialties: List[SpecialtyRead] = Field(default_factory=list)
-    credentials: List[DoctorCredentialRead] = Field(default_factory=list)
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    specialties: list[SpecialtyRead] = Field(default_factory=list)
+    credentials: list[DoctorCredentialRead] = Field(default_factory=list)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class AdminDoctorPage(BaseModel):
-    items: List[AdminDoctor]
+    items: list[AdminDoctor]
     total: int
     limit: int
     offset: int
@@ -118,4 +118,4 @@ class DoctorActionResponse(BaseModel):
     message: str
     doctor_id: str
     verification_status: VerificationStatus
-    reason: Optional[str] = None
+    reason: str | None = None

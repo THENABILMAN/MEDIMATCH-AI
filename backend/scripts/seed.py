@@ -14,7 +14,6 @@ Usage:
     python backend/scripts/seed.py
 """
 
-import os
 import sys
 import uuid
 from pathlib import Path
@@ -24,11 +23,13 @@ backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
+from datetime import UTC
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
 from app.core.config import settings
 from app.models.enums import UserRole, VerificationStatus
-
 
 SPECIALTIES = [
     {
@@ -387,16 +388,22 @@ def run_seed():
         # 4. Seed Upcoming Availability Slots for Approved Doctors
         print("[INFO] Seeding upcoming availability slots for approved doctors...")
         approved_doc_ids = ["d0000000-0000-0000-0000-000000000000"] + [
-            d["doc_id"] for d in DEMO_DOCTORS if d["verification_status"] == VerificationStatus.APPROVED.value
+            d["doc_id"]
+            for d in DEMO_DOCTORS
+            if d["verification_status"] == VerificationStatus.APPROVED.value
         ]
 
-        from datetime import datetime, timedelta, timezone
-        now_dt = datetime.now(timezone.utc)
+        from datetime import datetime, timedelta
+
+        now_dt = datetime.now(UTC)
 
         total_slots_seeded = 0
         for doc_id in approved_doc_ids:
             # Clear old unbooked slots for clean idempotency
-            cur.execute("DELETE FROM public.availability_slots WHERE doctor_id = %s AND is_booked = false;", (doc_id,))
+            cur.execute(
+                "DELETE FROM public.availability_slots WHERE doctor_id = %s AND is_booked = false;",
+                (doc_id,),
+            )
 
             # Generate slots across the next 10 days
             for day_offset in range(1, 11):
@@ -418,7 +425,9 @@ def run_seed():
                     )
                     total_slots_seeded += 1
 
-        print(f"[SUCCESS] Seeded {total_slots_seeded} future availability slots for {len(approved_doc_ids)} approved doctors.")
+        print(
+            f"[SUCCESS] Seeded {total_slots_seeded} future availability slots for {len(approved_doc_ids)} approved doctors."
+        )
 
         conn.commit()
         print("[SUCCESS] All demo doctors and schedules seeded successfully!")

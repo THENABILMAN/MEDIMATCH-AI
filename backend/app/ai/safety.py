@@ -14,7 +14,7 @@ import logging
 import re
 import unicodedata
 from pathlib import Path
-from typing import List, NamedTuple, Optional, Tuple
+from typing import NamedTuple
 
 from app.core.config import settings
 
@@ -24,7 +24,9 @@ PATTERNS_FILE = Path(__file__).resolve().parent / "data" / "emergency_patterns.j
 
 _ZERO_WIDTH = re.compile("[​‌‍⁠﻿]")
 _WHITESPACE = re.compile(r"\s+")
-_CLAUSE_BREAK = re.compile(r"[.,;:!?\n]|\bbut\b|\band\b|\bthough\b|\bকিন্তু\b|\bkintu\b", re.IGNORECASE)
+_CLAUSE_BREAK = re.compile(
+    r"[.,;:!?\n]|\bbut\b|\band\b|\bthough\b|\bকিন্তু\b|\bkintu\b", re.IGNORECASE
+)
 
 
 def _normalize(text: str) -> str:
@@ -47,13 +49,13 @@ class CombinationRule(NamedTuple):
     """Every group must match somewhere in the message, in any order."""
 
     category: str
-    groups: List[re.Pattern]
+    groups: list[re.Pattern]
     negatable: bool
 
 
 class Triage(NamedTuple):
-    rules: List[EmergencyRule]
-    combinations: List[CombinationRule]
+    rules: list[EmergencyRule]
+    combinations: list[CombinationRule]
     negated_before: re.Pattern
     negated_after: re.Pattern
 
@@ -64,11 +66,11 @@ def _compile(pattern: str) -> re.Pattern:
 
 def _load_patterns(path: Path = PATTERNS_FILE) -> Triage:
     """Compiles emergency patterns, failing loudly so triage can never start switched off."""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
-    rules: List[EmergencyRule] = []
-    combinations: List[CombinationRule] = []
+    rules: list[EmergencyRule] = []
+    combinations: list[CombinationRule] = []
     for cat in data.get("categories", []):
         cat_name = cat.get("name", "general_emergency")
         negatable = bool(cat.get("negatable", False))
@@ -96,23 +98,23 @@ _TRIAGE = _load_patterns()
 def _is_negated(text: str, match: re.Match) -> bool:
     """True for a plain negation in the same clause, such as "no chest pain"."""
     clause = _CLAUSE_BREAK.split(text[: match.start()])[-1]
-    return bool(_TRIAGE.negated_before.search(clause) or _TRIAGE.negated_after.match(text[match.end() :]))
+    return bool(
+        _TRIAGE.negated_before.search(clause) or _TRIAGE.negated_after.match(text[match.end() :])
+    )
 
 
-def _combination_matches(rule: CombinationRule, text: str) -> Optional[str]:
+def _combination_matches(rule: CombinationRule, text: str) -> str | None:
     """Returns the first group's matched text if every group has a match that is not negated."""
-    found: Optional[str] = None
+    found: str | None = None
     for group in rule.groups:
-        matches = [
-            m for m in group.finditer(text) if not (rule.negatable and _is_negated(text, m))
-        ]
+        matches = [m for m in group.finditer(text) if not (rule.negatable and _is_negated(text, m))]
         if not matches:
             return None
         found = found or matches[0].group(0)
     return found
 
 
-def check_emergency(text: str) -> Tuple[bool, Optional[str], Optional[str]]:
+def check_emergency(text: str) -> tuple[bool, str | None, str | None]:
     """Inspects patient input against rule-based emergency patterns.
 
     Every match is checked, so "no chest pain but I can't breathe" still escalates.
@@ -135,7 +137,9 @@ def check_emergency(text: str) -> Tuple[bool, Optional[str], Optional[str]]:
     for combination in _TRIAGE.combinations:
         found = _combination_matches(combination, normalized)
         if found:
-            logger.warning(f"[SAFETY ESCALATION] Emergency detected in category '{combination.category}'")
+            logger.warning(
+                f"[SAFETY ESCALATION] Emergency detected in category '{combination.category}'"
+            )
             return True, combination.category, found
 
     return False, None, None
@@ -188,7 +192,10 @@ DIAGNOSIS_PATTERNS = [
         rf"\b(probably|likely|possibly|maybe|perhaps)\b.{{0,25}}\b({_CONDITIONS})\b", re.IGNORECASE
     ),
     re.compile(r"\bi\s+think\s+(it'?s|you|this)\b", re.IGNORECASE),
-    re.compile(r"\b(i\s+diagnose\s+you|diagnosis\s*:|this\s+is\s+(definitely\s+)?a\s+case\s+of)\b", re.IGNORECASE),
+    re.compile(
+        r"\b(i\s+diagnose\s+you|diagnosis\s*:|this\s+is\s+(definitely\s+)?a\s+case\s+of)\b",
+        re.IGNORECASE,
+    ),
     re.compile(rf"আপনার.*({_BN_CONDITIONS}).*(আছে|হয়েছে|হতে\s*পারে)"),
     re.compile(r"\bapnar\s+\w+\s+(hoyeche|hoise|ache|hote\s+pare)\b", re.IGNORECASE),
 ]
@@ -218,7 +225,10 @@ PRESCRIPTION_PATTERNS = [
     # A capitalized word straight after "Take" or "Try" is how an unlisted brand name appears
     re.compile(r"\b[Tt](ake|ry)\s+[A-Z][a-z]{3,}\b"),
     re.compile(rf"\bcourse\s+of\s+({_DRUGS})\b", re.IGNORECASE),
-    re.compile(r"\b(dosage\s*:|every\s+\d+\s+hours|twice\s+(a\s+)?(day|daily)|\d+\s+times\s+a\s+day)\b", re.IGNORECASE),
+    re.compile(
+        r"\b(dosage\s*:|every\s+\d+\s+hours|twice\s+(a\s+)?(day|daily)|\d+\s+times\s+a\s+day)\b",
+        re.IGNORECASE,
+    ),
     re.compile(rf"({_BN_DRUGS})\s*(টি\s*)?(খান|খাবেন|নিন|সেবন)"),
     re.compile(r"\d+\s*(মিগ্রা|ট্যাবলেট|ক্যাপসুল)"),
     re.compile(rf"\b({_DRUGS}|oshudh?|tablet|capsule)\s+(khan|khaben|nin)\b", re.IGNORECASE),

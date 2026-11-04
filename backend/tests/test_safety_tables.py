@@ -567,14 +567,20 @@ class EvilLLM(LLMClient):
 
 @pytest.fixture
 def run_turn(monkeypatch):
-    monkeypatch.setattr("app.ai.graph._get_verified_specialty_names", lambda: ["Neurology", "General Medicine"])
+    monkeypatch.setattr(
+        "app.ai.graph._get_verified_specialty_names", lambda: ["Neurology", "General Medicine"]
+    )
     monkeypatch.setattr("app.ai.graph._known_cities", lambda: ["Dhaka", "Sylhet"])
 
     def run(llm: EvilLLM, text: str) -> dict:
         set_llm_client(llm)
         graph = build_symptom_graph()
         config = {"configurable": {"thread_id": text}}
-        state = {"conversation_id": "c", "patient_id": "p", "messages": [{"role": "user", "content": text}]}
+        state = {
+            "conversation_id": "c",
+            "patient_id": "p",
+            "messages": [{"role": "user", "content": text}],
+        }
         return graph.invoke(state, config=config)
 
     yield run
@@ -686,3 +692,11 @@ def test_llm_outage_still_answers_safely(run_turn):
     result = run_turn(Down(), "itchy rash on my arm for a week in Dhaka")
     assert result["safety_status"] == "safe"
     assert result["assistant_reply"]
+
+
+def test_empty_messages_are_not_emergencies():
+    assert check_emergency("") == (False, None, None)
+
+
+def test_empty_replies_pass_the_guard_unchanged():
+    assert output_guard("") == ""

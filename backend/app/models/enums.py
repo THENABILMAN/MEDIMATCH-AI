@@ -18,4 +18,3 @@ class AppointmentStatus(str, Enum):
     BOOKED = "booked"
     CANCELLED = "cancelled"
     COMPLETED = "completed"
-

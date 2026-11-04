@@ -8,9 +8,9 @@ Verifies:
 """
 
 import pytest
+
 from app.ai.privacy import redact_pii
 from app.ai.safety import _load_patterns, check_emergency, output_guard
-
 
 # ------------------------------------------------------------------------------
 # 1. Emergency Phrases Test Table (32 distinct test cases)
@@ -100,12 +100,15 @@ NON_EMERGENCY_PHRASES = [
 def test_non_emergency_phrases_do_not_trigger_escalation(phrase: str):
     """Non-emergency phrases must pass through safely without triggering emergency escalation."""
     is_emergency, category, _ = check_emergency(phrase)
-    assert is_emergency is False, f"False positive emergency triggered on: '{phrase}' (category: {category})"
+    assert is_emergency is False, (
+        f"False positive emergency triggered on: '{phrase}' (category: {category})"
+    )
 
 
 # ------------------------------------------------------------------------------
 # 3. Output Guard Tests (Diagnosis & Prescription Blocking)
 # ------------------------------------------------------------------------------
+
 
 def test_output_guard_blocks_diagnosis_claims():
     """Output guard must intercept and sanitize diagnostic claims."""
@@ -132,6 +135,7 @@ def test_output_guard_allows_safe_advisory_text():
 # ------------------------------------------------------------------------------
 # 4. Privacy & PII Redaction Tests
 # ------------------------------------------------------------------------------
+
 
 def test_privacy_redacts_bangladeshi_and_international_phones():
     """Redaction must mask phone numbers."""
@@ -166,7 +170,6 @@ def test_privacy_redacts_self_identifying_names():
     redacted2 = redact_pii(text2)
     assert "রহিম আহমেদ" not in redacted2
     assert "[NAME REDACTED]" in redacted2
-
 
 
 # ------------------------------------------------------------------------------

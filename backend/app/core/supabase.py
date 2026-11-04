@@ -1,7 +1,9 @@
 from functools import lru_cache
-from typing import Optional
+from typing import Any
+
 from postgrest import SyncPostgrestClient
-from supabase import Client, ClientOptions, create_client
+from supabase import ClientOptions, create_client
+
 from app.core.config import settings
 
 
@@ -23,22 +25,22 @@ def contains_pattern(text: str) -> str:
     return f"%{escaped}%"
 
 
-@lru_cache()
-def get_supabase_client() -> Optional[Client]:
+@lru_cache
+def get_supabase_client() -> Any:
     """Returns a Supabase client configured with the public anon key (respects RLS)."""
     if not settings.SUPABASE_URL or not settings.SUPABASE_ANON_KEY:
         return None
     return create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY, _options())
 
 
-def create_auth_client() -> Optional[Client]:
+def create_auth_client() -> Any:
     """A throwaway client for signing in. A shared one would keep that user's session."""
     if not settings.SUPABASE_URL or not settings.SUPABASE_ANON_KEY:
         return None
     return create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY)
 
 
-def create_user_client(token: str) -> SyncPostgrestClient:
+def create_user_client(token: str) -> Any:
     """A database client acting as the caller, so their RLS policies apply. Close after use."""
     return SyncPostgrestClient(
         f"{settings.SUPABASE_URL}/rest/v1",
@@ -47,14 +49,13 @@ def create_user_client(token: str) -> SyncPostgrestClient:
     )
 
 
-@lru_cache()
-def get_supabase_admin_client() -> Optional[Client]:
+@lru_cache
+def get_supabase_admin_client() -> Any:
     """Returns a Supabase client configured with the service role key (bypasses RLS).
-    
+
     WARNING: Only use this on the backend for administrative operations,
     user creation, and trusted audit logging. Never expose service role key to clients.
     """
     if not settings.SUPABASE_URL or not settings.SUPABASE_SERVICE_ROLE_KEY:
         return None
     return create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY, _options())
-

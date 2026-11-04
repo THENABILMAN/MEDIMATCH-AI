@@ -1,13 +1,13 @@
 """LLM client behaviour and exactly what leaves the server. Offline: transport is mocked."""
 
 import json
-from typing import Callable, List
+from collections.abc import Callable
 
 import httpx
 import pytest
 
 from app.ai.graph import _recent_messages, build_symptom_graph
-from app.ai.llm import LLMClient, LLMUnavailable, set_llm_client
+from app.ai.llm import LLMClient, LLMUnavailableError, set_llm_client
 from app.ai.privacy import redact_pii
 from app.ai.state import ConversationIntent, ExtractedSymptoms
 from app.core.config import settings
@@ -35,7 +35,7 @@ def test_timeout_is_short_enough_for_a_chat_turn():
 
 @pytest.mark.parametrize("status", [429, 500, 502, 503])
 def test_temporary_failures_are_retried(status):
-    calls: List[int] = []
+    calls: list[int] = []
 
     def handler(_request):
         calls.append(1)
@@ -46,7 +46,7 @@ def test_temporary_failures_are_retried(status):
 
 
 def test_timeouts_are_retried():
-    calls: List[int] = []
+    calls: list[int] = []
 
     def handler(request):
         calls.append(1)
@@ -59,25 +59,25 @@ def test_timeouts_are_retried():
 
 @pytest.mark.parametrize("status", [400, 401, 403])
 def test_permanent_failures_are_not_retried(status):
-    calls: List[int] = []
+    calls: list[int] = []
 
     def handler(_request):
         calls.append(1)
         return httpx.Response(status)
 
-    with pytest.raises(LLMUnavailable):
+    with pytest.raises(LLMUnavailableError):
         client_with(handler).generate(MESSAGES)
     assert len(calls) == 1
 
 
 def test_gives_up_after_the_configured_attempts():
-    calls: List[int] = []
+    calls: list[int] = []
 
     def handler(_request):
         calls.append(1)
         return httpx.Response(503)
 
-    with pytest.raises(LLMUnavailable):
+    with pytest.raises(LLMUnavailableError):
         client_with(handler).generate(MESSAGES)
     assert len(calls) == settings.LLM_MAX_ATTEMPTS
 
@@ -86,7 +86,7 @@ def test_empty_model_reply_is_a_failure():
     def handler(_request):
         return httpx.Response(200, json={"choices": [{"message": {"content": None}}]})
 
-    with pytest.raises(LLMUnavailable):
+    with pytest.raises(LLMUnavailableError):
         client_with(handler).generate(MESSAGES)
 
 
@@ -94,7 +94,7 @@ def test_missing_key_never_calls_the_provider():
     def handler(_request):
         raise AssertionError("must not be called")
 
-    with pytest.raises(LLMUnavailable):
+    with pytest.raises(LLMUnavailableError):
         LLMClient(api_key="", model="m", transport=httpx.MockTransport(handler)).generate(MESSAGES)
 
 
@@ -102,19 +102,23 @@ def test_bad_json_is_a_failure_and_stays_out_of_the_error(caplog):
     secret_output = "private patient words"
 
     with caplog.at_level("DEBUG"), pytest.raises(ValueError) as exc:
-        client_with(lambda _r: reply(secret_output)).generate_structured(MESSAGES, ConversationIntent)
+        client_with(lambda _r: reply(secret_output)).generate_structured(
+            MESSAGES, ConversationIntent
+        )
     assert secret_output not in str(exc.value)
     assert secret_output not in caplog.text
 
 
 def test_message_contents_are_never_logged(caplog):
     with caplog.at_level("DEBUG"):
-        client_with(lambda _r: reply("ok")).generate([{"role": "user", "content": "my secret symptom"}])
+        client_with(lambda _r: reply("ok")).generate(
+            [{"role": "user", "content": "my secret symptom"}]
+        )
     assert "my secret symptom" not in caplog.text
 
 
 def test_production_asks_providers_not_to_keep_data(monkeypatch):
-    bodies: List[dict] = []
+    bodies: list[dict] = []
 
     def handler(request):
         bodies.append(json.loads(request.content))
@@ -174,7 +178,7 @@ def test_clinical_detail_survives_redaction(text, kept):
 def test_exact_text_sent_to_the_provider_holds_no_identifiers(monkeypatch):
     monkeypatch.setattr("app.ai.graph._get_verified_specialty_names", lambda: ["General Medicine"])
     monkeypatch.setattr("app.ai.graph._known_cities", lambda: ["Dhaka"])
-    sent: List[str] = []
+    sent: list[str] = []
 
     def handler(request):
         sent.append(request.content.decode())
