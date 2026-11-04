@@ -45,7 +45,8 @@ class RegisterDoctorRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    # Sign-in only checks credentials, so seeded .test addresses work too
+    email: str = Field(max_length=254)
     password: str = Field(max_length=MAX_PASSWORD_LENGTH)
 
 

@@ -1,6 +1,7 @@
 """LLM client behaviour and exactly what leaves the server. Offline: transport is mocked."""
 
 import json
+import time
 from collections.abc import Callable
 
 import httpx
@@ -208,3 +209,35 @@ def test_exact_text_sent_to_the_provider_holds_no_identifiers(monkeypatch):
     for body in sent:
         for identifier in ("Rahim", "01712345678", "rahim@gmail.com", "patient-uuid-123"):
             assert identifier not in body
+
+
+class KeepAliveStream(httpx.SyncByteStream):
+    """Behaves like OpenRouter holding a slow request open with keep-alive bytes."""
+
+    def __iter__(self):
+        for _ in range(50):
+            time.sleep(0.02)
+            yield b" "
+        yield b'{"choices": [{"message": {"content": "too late"}}]}'
+
+
+def test_keep_alive_bytes_cannot_stretch_the_deadline(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_TIMEOUT_SECONDS", 0.1)
+    monkeypatch.setattr(settings, "LLM_MAX_ATTEMPTS", 1)
+
+    def handler(_request):
+        return httpx.Response(200, stream=KeepAliveStream())
+
+    started = time.monotonic()
+    with pytest.raises(LLMUnavailableError):
+        client_with(handler).generate(MESSAGES)
+    assert time.monotonic() - started < 0.5
+
+
+def test_leading_keep_alive_bytes_do_not_break_parsing():
+    def handler(_request):
+        return httpx.Response(
+            200, content=b"   \n" + b'{"choices": [{"message": {"content": "ok"}}]}'
+        )
+
+    assert client_with(handler).generate(MESSAGES) == "ok"

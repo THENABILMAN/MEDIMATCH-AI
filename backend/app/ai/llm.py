@@ -53,21 +53,35 @@ class LLMClient:
             "Authorization": f"Bearer {self.api_key}",
         }
 
-    def _post(self, body: dict[str, Any]) -> httpx.Response:
+    def _read_within_deadline(self, body: dict[str, Any]) -> tuple[int, bytes]:
+        """Sends a request and enforces a limit on the whole call.
+
+        httpx's read timeout restarts with every chunk, and OpenRouter sends keep-alive bytes while
+        a model is busy, so one call once ran for two minutes under a 12 second read timeout.
+        """
+        deadline = time.monotonic() + settings.LLM_TIMEOUT_SECONDS
+        url = f"{self.base_url}/chat/completions"
+        with self._http.stream("POST", url, headers=self._get_headers(), json=body) as resp:
+            chunks: list[bytes] = []
+            for chunk in resp.iter_bytes():
+                chunks.append(chunk)
+                if time.monotonic() > deadline:
+                    raise httpx.ReadTimeout("LLM call exceeded its deadline")
+            return resp.status_code, b"".join(chunks)
+
+    def _post(self, body: dict[str, Any]) -> bytes:
         """Sends one request, retrying only failures that can succeed on another attempt."""
         last_error = "no attempt made"
         for attempt in range(1, settings.LLM_MAX_ATTEMPTS + 1):
             try:
-                resp = self._http.post(
-                    f"{self.base_url}/chat/completions", headers=self._get_headers(), json=body
-                )
+                status_code, content = self._read_within_deadline(body)
             except (httpx.TimeoutException, httpx.TransportError) as e:
                 last_error = type(e).__name__
             else:
-                if resp.status_code < 400:
-                    return resp
-                last_error = f"HTTP {resp.status_code}"
-                if resp.status_code not in RETRYABLE_STATUS:
+                if status_code < 400:
+                    return content
+                last_error = f"HTTP {status_code}"
+                if status_code not in RETRYABLE_STATUS:
                     break
 
             logger.warning(f"LLM attempt {attempt} failed: {last_error}")
@@ -103,9 +117,9 @@ class LLMClient:
         if settings.ENVIRONMENT == "production":
             body["provider"] = {"data_collection": "deny"}
 
-        resp = self._post(body)
+        raw = self._post(body)
         try:
-            content = resp.json()["choices"][0]["message"]["content"]
+            content = json.loads(raw)["choices"][0]["message"]["content"]
         except (ValueError, KeyError, IndexError, TypeError) as e:
             raise LLMUnavailableError("Unexpected response shape") from e
 

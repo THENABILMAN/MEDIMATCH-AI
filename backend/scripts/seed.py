@@ -8,15 +8,20 @@ Seeds:
     - Doctor:  doctor@medimatch.test
     - Patient: patient@medimatch.test
 
-This script does not set passwords. Set them in the Supabase dashboard before signing in.
+By default this script sets no passwords. On a local database, --with-logins gives the three core
+accounts the passwords behind the demo buttons on the development sign-in page. It refuses to do
+that anywhere else, because those passwords are in the repository.
 
 Usage:
     python backend/scripts/seed.py
+    python backend/scripts/seed.py --with-logins
 """
 
+import argparse
 import sys
 import uuid
 from pathlib import Path
+from urllib.parse import urlsplit
 
 # Ensure backend root is on sys.path
 backend_dir = Path(__file__).resolve().parent.parent
@@ -30,6 +35,8 @@ from psycopg2.extras import RealDictCursor
 
 from app.core.config import settings
 from app.models.enums import UserRole, VerificationStatus
+
+LOCAL_HOSTS = {"127.0.0.1", "localhost"}
 
 SPECIALTIES = [
     {
@@ -228,10 +235,48 @@ DEMO_DOCTORS = [
 ]
 
 
-def run_seed():
+DEMO_PASSWORDS = {
+    UserRole.ADMIN.value: "Admin123!Safe",
+    UserRole.DOCTOR.value: "Doctor123!Safe",
+    UserRole.PATIENT.value: "Patient123!Safe",
+}
+
+
+def _enable_demo_logins(cur) -> None:
+    """Fills in what Supabase Auth needs to accept a password for a seeded account."""
+    for user in DEMO_USERS:
+        cur.execute(
+            """
+            UPDATE auth.users SET
+                encrypted_password = extensions.crypt(%s, extensions.gen_salt('bf')),
+                email_confirmed_at = now(),
+                created_at = coalesce(created_at, now()),
+                updated_at = now(),
+                instance_id = '00000000-0000-0000-0000-000000000000',
+                raw_app_meta_data = '{"provider":"email","providers":["email"]}',
+                raw_user_meta_data = '{}',
+                confirmation_token = '',
+                recovery_token = '',
+                email_change_token_new = '',
+                email_change = '',
+                email_change_token_current = '',
+                phone_change = '',
+                phone_change_token = '',
+                reauthentication_token = ''
+            WHERE id = %s
+            """,
+            (DEMO_PASSWORDS[user["role"]], user["id"]),
+        )
+
+
+def run_seed(with_logins: bool = False):
     db_url = settings.DATABASE_URL
     if not db_url:
         print("[ERROR] DATABASE_URL is not set.")
+        sys.exit(1)
+
+    if with_logins and urlsplit(db_url).hostname not in LOCAL_HOSTS:
+        print("[ERROR] --with-logins only works on a local database.")
         sys.exit(1)
 
     print("[INFO] Connecting to PostgreSQL database for seeding...")
@@ -429,6 +474,9 @@ def run_seed():
             f"[SUCCESS] Seeded {total_slots_seeded} future availability slots for {len(approved_doc_ids)} approved doctors."
         )
 
+        if with_logins:
+            _enable_demo_logins(cur)
+
         conn.commit()
         print("[SUCCESS] All demo doctors and schedules seeded successfully!")
         print("  - 6 Approved (searchable by patients)")
@@ -448,4 +496,8 @@ def run_seed():
 
 
 if __name__ == "__main__":
-    run_seed()
+    parser = argparse.ArgumentParser(description="Load demo data")
+    parser.add_argument(
+        "--with-logins", action="store_true", help="Set demo passwords (local only)"
+    )
+    run_seed(with_logins=parser.parse_args().with_logins)

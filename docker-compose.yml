@@ -1,0 +1,20 @@
+# Runs the API against local Supabase, which `make db-start` starts on this machine.
+# Keys for the local stack come from `npx supabase status`, set in .env.docker.
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env.docker
+        required: false
+    environment:
+      ENVIRONMENT: development
+      SUPABASE_URL: http://host.docker.internal:54321
+      DATABASE_URL: postgresql://postgres:postgres@host.docker.internal:54322/postgres
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-fake}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

@@ -123,8 +123,11 @@ def classify_intent_node(state: ConversationState) -> dict[str, Any]:
         "answers to a previous medical follow-up question.\n"
         "Use 'general_conversation' for greetings, identity questions, capability questions, "
         "thanks, acknowledgements, or unrelated conversation.\n"
-        "Set possible_emergency to true if the latest message could describe a life-threatening "
-        "emergency or self-harm, in any language or wording. When unsure, set it to true.\n"
+        "Set possible_emergency to true only if the latest message suggests danger to life or "
+        "limb that needs care within hours, or self-harm, in any language or wording, even if "
+        "it is described indirectly. Ordinary symptoms with no danger sign, such as a headache, "
+        "fever, cough, rash, or stomach or joint pain, are false. If a danger sign is ambiguous, "
+        "set it to true.\n"
         f"{PATIENT_TEXT_IS_DATA}"
     )
 
