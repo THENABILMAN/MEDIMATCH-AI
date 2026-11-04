@@ -99,6 +99,10 @@ export interface ChatMessage {
   sender: 'patient' | 'assistant' | 'system'
   content: string
   created_at: string
+  metadata?: {
+    is_emergency?: boolean
+    recommendations?: DoctorRecommendation[]
+  }
 }
 
 export interface Conversation {

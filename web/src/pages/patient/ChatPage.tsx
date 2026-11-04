@@ -61,7 +61,13 @@ export const ChatPage: React.FC = () => {
       setActiveConversationId(id)
       setError(null)
       const fullConv = await api.chat.getConversation(id)
-      setMessages(fullConv.messages)
+      setMessages(
+        fullConv.messages.map((msg) => ({
+          ...msg,
+          is_emergency: msg.metadata?.is_emergency,
+          recommendations: msg.metadata?.recommendations,
+        }))
+      )
     } catch (err: any) {
       setError(err.message || 'Failed to load conversation')
     }
