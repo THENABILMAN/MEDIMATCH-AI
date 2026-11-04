@@ -23,6 +23,8 @@ dependencies = [
     "asyncpg>=0.29.0",
     "pinecone>=5.0.0",
     "langgraph>=0.2.0",
+    "tenacity>=8.2.0",
+    "json-repair>=0.25.0",
 ]
 
 [project.optional-dependencies]
