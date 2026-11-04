@@ -1,84 +1,100 @@
-import React from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
-import { DisclaimerBanner } from '../src/components/chat/DisclaimerBanner'
 import { ErrorBoundary } from '../src/components/common/ErrorBoundary'
-import { DoctorRecommendationCard } from '../src/components/chat/DoctorRecommendationCard'
-import { EmergencyAlert } from '../src/components/chat/EmergencyAlert'
-import type { DoctorRecommendation } from '../src/types'
+import { AIDisclaimer } from '../src/components/domain/ai-disclaimer'
+import { ChatMessage } from '../src/components/domain/chat-message'
+import { EmergencyNotice } from '../src/components/domain/emergency-notice'
+import type { ChatMessage as ChatMessageType, DoctorRecommendation } from '../src/types'
 
-describe('Chat Components', () => {
-  it('renders DisclaimerBanner with prominent medical safety notice and 999 link', () => {
-    render(<DisclaimerBanner />)
+// Same shape as DoctorRecommendation in backend/app/search/recommend.py
+const doctor: DoctorRecommendation = {
+  id: 'd1',
+  user_id: 'u1',
+  full_name: 'Dr. Sarah Khan',
+  specialties: [{ id: 's1', name: 'Neurology', description: 'Brain and nerves' }],
+  bio: null,
+  qualifications: ['MBBS'],
+  city: 'Dhaka',
+  clinic_name: 'Square Hospital',
+  consultation_fee: 1500,
+  years_experience: 12,
+  match_score: 94.4,
+  available_slots_count: 3,
+  soonest_slot: '2026-11-05T04:00:00Z',
+  match_explanation: 'Specializes in Neurology in Dhaka.',
+}
 
-    expect(screen.getByTestId('disclaimer-banner')).toBeInTheDocument()
-    expect(screen.getByText(/Medical Safety Notice:/i)).toBeInTheDocument()
-    expect(screen.getByText(/999 \(National Emergency\)/i)).toBeInTheDocument()
+function message(overrides: Partial<ChatMessageType>): ChatMessageType {
+  return {
+    id: 'm1',
+    conversation_id: 'c1',
+    sender: 'assistant',
+    content: 'Hello',
+    created_at: '2026-11-05T04:00:00Z',
+    ...overrides,
+  }
+}
+
+function renderMessage(overrides: Partial<ChatMessageType>) {
+  render(
+    <MemoryRouter>
+      <ChatMessage message={message(overrides)} />
+    </MemoryRouter>
+  )
+}
+
+describe('emergency messages', () => {
+  const text = 'Please call 999 immediately.\nDo not wait.'
+
+  it('shows the text exactly as received, with a tel link and no way to dismiss', () => {
+    render(<EmergencyNotice message={text} />)
+    const notice = within(screen.getByRole('alert'))
+    expect(notice.getByText(/Please call 999/).textContent).toBe(text)
+    expect(notice.getByRole('link', { name: /Call 999/ })).toHaveAttribute('href', 'tel:999')
+    expect(notice.queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('renders EmergencyAlert with prominent emergency advice and CTA button', () => {
-    render(
-      <EmergencyAlert message="Severe chest pain detected. Seek immediate hospital care." />
-    )
+  it('shows no doctors, even if the data contains some', () => {
+    renderMessage({ content: text, metadata: { is_emergency: true, recommendations: [doctor] } })
+    expect(screen.getByTestId('emergency-notice')).toBeInTheDocument()
+    expect(screen.queryByText('Dr. Sarah Khan')).not.toBeInTheDocument()
+  })
+})
 
-    expect(screen.getByTestId('emergency-alert')).toBeInTheDocument()
-    expect(screen.getByText(/Immediate Medical Attention Required/i)).toBeInTheDocument()
-    expect(screen.getByText(/Severe chest pain detected/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Call 999 Emergency Services/i })).toHaveAttribute(
-      'href',
-      'tel:999'
-    )
+describe('chat messages', () => {
+  it('labels assistant replies as AI-generated', () => {
+    renderMessage({ content: 'How long have you had this?' })
+    expect(screen.getByText('AI-generated')).toBeInTheDocument()
   })
 
-  it('renders DoctorRecommendationCard with score, specialties, clinic, fee, and booking link', () => {
-    const mockDoctor: DoctorRecommendation = {
-      // Same shape as DoctorRecommendation in backend/app/search/recommend.py
-      id: 'd0000000-0000-0000-0000-000000000001',
-      user_id: 'u0000000-0000-0000-0000-000000000001',
-      full_name: 'Dr. Sarah Khan',
-      specialties: [
-        { id: 's1', name: 'Neurology', description: 'Brain and nerves' },
-        { id: 's2', name: 'General Medicine', description: null },
-      ],
-      bio: null,
-      qualifications: ['MBBS'],
-      city: 'Dhaka',
-      clinic_name: 'Square Hospital',
-      consultation_fee: 1500,
-      years_experience: 12,
-      match_score: 94.4,
-      available_slots_count: 3,
-      soonest_slot: '2026-11-05T10:00:00Z',
-      match_explanation: 'Strong specialist match for persistent neurological migraines.',
-    }
-
-    render(
-      <MemoryRouter>
-        <DoctorRecommendationCard doctor={mockDoctor} />
-      </MemoryRouter>
-    )
-
-    expect(screen.getByTestId('recommendation-card')).toBeInTheDocument()
-    expect(screen.getByText(/94% Clinical Match/i)).toBeInTheDocument()
-    expect(screen.getByText('Dr. Sarah Khan')).toBeInTheDocument()
-    expect(screen.getByText('Neurology')).toBeInTheDocument()
-    expect(screen.getByText('৳1500 BDT')).toBeInTheDocument()
-    expect(screen.getByText(/Square Hospital, Dhaka/i)).toBeInTheDocument()
-    expect(
-      screen.getByText(/"Strong specialist match for persistent neurological migraines."/i)
-    ).toBeInTheDocument()
-
-    const bookLink = screen.getByRole('link', { name: /View & Book Slot/i })
-    expect(bookLink).toHaveAttribute('href', '/doctors/d0000000-0000-0000-0000-000000000001')
-    expect(screen.getByText(/Slots Available/i)).toBeInTheDocument()
+  it('does not label patient messages as AI', () => {
+    renderMessage({ sender: 'patient', content: 'Headache' })
+    expect(screen.queryByText('AI-generated')).not.toBeInTheDocument()
   })
 
-  it('shows a recoverable error with the emergency number when a page fails to render', () => {
+  it('ranks recommendations with the reason, availability, fee and booking link', () => {
+    renderMessage({ content: 'Your shortlist', metadata: { recommendations: [doctor] } })
+    const item = within(screen.getByTestId('recommendation'))
+    expect(item.getByText('Dr. Sarah Khan')).toBeInTheDocument()
+    expect(item.getByText(/Specializes in Neurology/)).toBeInTheDocument()
+    expect(item.getByText(/Soonest:.*৳1,500/)).toBeInTheDocument()
+    expect(item.getByRole('link', { name: 'View and Book' })).toHaveAttribute('href', '/doctors/d1')
+  })
+})
+
+describe('safety notices', () => {
+  it('states that the assistant is not medical advice', () => {
+    render(<AIDisclaimer />)
+    expect(screen.getByTestId('ai-disclaimer')).toHaveTextContent(/Not medical advice/)
+  })
+
+  it('keeps the emergency number visible when a page crashes', () => {
     const Broken = (): React.ReactNode => {
       throw new Error('render failure')
     }
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const silence = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
     render(
       <ErrorBoundary>
@@ -87,8 +103,8 @@ describe('Chat Components', () => {
     )
 
     expect(screen.getByText(/call 999 now/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Reload page/i })).toBeInTheDocument()
-    consoleError.mockRestore()
+    expect(screen.getByRole('button', { name: 'Reload Page' })).toBeInTheDocument()
+    silence.mockRestore()
+    warn.mockRestore()
   })
 })
-

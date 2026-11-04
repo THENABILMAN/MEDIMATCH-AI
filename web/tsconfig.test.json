@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+    "types": ["vite/client", "vitest/globals", "node"],
+    "resolveJsonModule": true,
+    "erasableSyntaxOnly": false
+  },
+  "include": ["src", "tests", "e2e", "playwright.config.ts"]
+}
