@@ -28,7 +28,7 @@ Results from 2026-11-04. Attacks ran against a local Supabase stack with real to
 | Reading or changing another user's data | 16 | 403 on each, and lists show only your own rows |
 | Privilege escalation | 5 | 422 or 403. Setting `role` in your own user metadata has no effect |
 | Tokens: expired, wrong key, admin claim, `alg=none`, none | 5 | 401 on each |
-| SQL and JSON injection in text fields | 12 | Treated as text. No rows changed, no unapproved doctors exposed |
+| SQL and JSON injection in text fields | 13 | Treated as text. No rows changed, no unapproved doctors exposed |
 | Disguised or oversized uploads, and path traversal | 6 | 415, 413 or 422 |
 | Flooding chat, login and signup | 3 | 429 after 20, 10 and 5 requests a minute |
 

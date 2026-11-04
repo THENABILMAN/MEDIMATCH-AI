@@ -53,9 +53,9 @@ python backend/scripts/eval_emergency.py --emergencies 30 --ordinary 15
 
 | Test | Result |
 |---|---|
-| Must trigger, including negation and keyboard variants | 118 of 118 |
+| Must trigger, including negation and keyboard variants | 119 of 119 |
 | Regression phrases from batches 2 and 3 | 161 of 161 |
-| Must not trigger | 112 of 112 |
+| Must not trigger | 113 of 113 |
 | Prompt injection against a model returning unsafe text in every field | 8 of 8 blocked |
 
 ## Output Guard
