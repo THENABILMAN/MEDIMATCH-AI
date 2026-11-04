@@ -1,0 +1,62 @@
+# Render blueprint: the API and web app, both deployed from this repository.
+# Values marked sync: false are entered in the Render dashboard, never committed.
+services:
+  - type: web
+    name: medimatch-api
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .
+    plan: free
+    region: singapore
+    healthCheckPath: /ready
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: EMBEDDING_PROVIDER
+        value: pinecone
+      - key: EMBEDDING_MODEL
+        value: llama-text-embed-v2
+      - key: EMBEDDING_DIMENSION
+        value: "1024"
+      - key: PINECONE_INDEX
+        value: medimatch-doctors
+      - key: BACKEND_CORS_ORIGINS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      # Production refuses a :free model, because free endpoints may keep patient text
+      - key: OPENROUTER_MODEL
+        sync: false
+
+  - type: web
+    name: medimatch-web
+    runtime: static
+    rootDir: web
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
