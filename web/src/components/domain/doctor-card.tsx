@@ -10,31 +10,43 @@ function specialtyNames(doctor: DoctorProfile): string {
   return doctor.specialties.map((specialty) => specialty.name).join(', ')
 }
 
-/** A row in the search results. The whole row is the doctor's link. */
-export function DoctorCardCompact({ doctor, searchSuffix = '' }: { doctor: DoctorProfile; searchSuffix?: string }) {
+/** A doctor's serial slip: the fee on the stub, the rest on the slip. The whole slip is the link. */
+export function DoctorSlip({
+  doctor,
+  searchSuffix = '',
+  headingLevel: Heading = 'h3',
+}: {
+  doctor: DoctorProfile
+  searchSuffix?: string
+  headingLevel?: 'h2' | 'h3'
+}) {
   const { t, i18n } = useTranslation()
   return (
     <Link
       to={`/doctors/${doctor.id}${searchSuffix}`}
-      className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-sm p-4 transition-colors hover:bg-canvas md:grid-cols-[auto_1fr_auto] md:p-5"
+      className="slip-stub group grid grid-cols-[var(--tear)_minmax(0,1fr)] bg-surface transition-transform hover:-translate-y-0.5"
     >
-      <Avatar name={doctor.full_name ?? ''} />
-      <div className="min-w-0">
-        <h2 className="text-md font-semibold">{doctor.full_name}</h2>
-        <p className="text-muted">{specialtyNames(doctor)}</p>
-        <p className="text-sm text-muted">
-          {[doctor.clinic_name, doctor.city].filter(Boolean).join(', ')}
-          {' · '}
-          {t('doctor.yearsExperience', {
-            count: doctor.years_experience,
-            years: formatNumber(doctor.years_experience, i18n.language),
-          })}
+      <div className="on-navy flex flex-col justify-center bg-navy p-3 md:p-5">
+        <p className="text-lg font-semibold tabular md:text-xl">
+          {formatCurrency(doctor.consultation_fee, i18n.language)}
         </p>
+        <p className="text-sm text-muted">{t('doctor.perVisit')}</p>
       </div>
-      <p className="col-start-2 flex items-baseline gap-1 md:col-start-3 md:row-start-1 md:flex-col md:items-end">
-        <span className="font-semibold tabular">{formatCurrency(doctor.consultation_fee, i18n.language)}</span>
-        <span className="text-sm text-muted">{t('doctor.perVisit')}</span>
-      </p>
+      <div className="flex min-w-0 items-center gap-3 p-4 md:p-5">
+        <Avatar name={doctor.full_name ?? ''} className="hidden sm:flex" />
+        <div className="min-w-0">
+          <Heading className="text-lg font-semibold">{doctor.full_name}</Heading>
+          <p>{specialtyNames(doctor)}</p>
+          <p className="text-sm text-muted">
+            {[doctor.clinic_name, doctor.city].filter(Boolean).join(', ')}
+            {' · '}
+            {t('doctor.yearsExperience', {
+              count: doctor.years_experience,
+              years: formatNumber(doctor.years_experience, i18n.language),
+            })}
+          </p>
+        </div>
+      </div>
     </Link>
   )
 }
@@ -62,7 +74,7 @@ export function DoctorCardDetailed({ doctor, className }: { doctor: DoctorProfil
       <div className="flex items-start gap-4">
         <Avatar name={doctor.full_name ?? ''} className="size-14 text-lg" />
         <div className="min-w-0">
-          <h1 className="font-serif text-2xl">{doctor.full_name}</h1>
+          <h1 className="display-2">{doctor.full_name}</h1>
           <p className="text-lg text-muted">{specialtyNames(doctor)}</p>
           <div className="mt-2">
             <VerificationBadge status={doctor.verification_status} />

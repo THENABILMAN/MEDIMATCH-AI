@@ -3,7 +3,7 @@ import { cn } from '../../lib/cn'
 const HONORIFIC = /^(dr|prof|mr|mrs|ms)\.?\s+/i
 
 function initials(name: string): string {
-  const parts = name.replace(HONORIFIC, '').trim().split(/\s+/)
+  const parts = name.replace(/\[[^\]]*\]/g, '').trim().replace(HONORIFIC, '').trim().split(/\s+/)
   return parts
     .slice(0, 2)
     .map((part) => Array.from(part)[0] ?? '')

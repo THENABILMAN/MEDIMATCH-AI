@@ -27,5 +27,5 @@ export function AppointmentsSkeleton() {
 }
 
 export function AppointmentPanel({ children }: { children: ReactNode }) {
-  return <ul className="rounded-md border border-border bg-surface">{children}</ul>
+  return <ul className="flex flex-col gap-3">{children}</ul>
 }

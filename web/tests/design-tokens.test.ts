@@ -49,6 +49,14 @@ describe('design tokens meet WCAG AA', () => {
     expect(contrast(token(foreground), token(background))).toBeGreaterThanOrEqual(4.5)
   })
 
+  it.each(['on-navy', 'on-navy-muted'])('%s text on navy', (foreground) => {
+    expect(contrast(token(foreground), token('navy'))).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it.each(['on-navy', 'on-navy-muted'])('%s text on raised navy', (foreground) => {
+    expect(contrast(token(foreground), token('navy-raised'))).toBeGreaterThanOrEqual(4.5)
+  })
+
   it.each(['primary', 'primary-hover', 'primary-pressed', 'danger', 'danger-pressed'])('white text on %s', (background) => {
     expect(contrast(WHITE, token(background))).toBeGreaterThanOrEqual(4.5)
   })

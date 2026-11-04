@@ -23,7 +23,7 @@ const heading = (text: string | RegExp) => (page: Page) =>
   expect(page.getByRole('heading', { name: text, exact: false }).first()).toBeVisible()
 
 const SCREENS: Screen[] = [
-  { name: 'home', path: '/', options: { signedIn: false }, ready: heading(/Describe your symptoms/) },
+  { name: 'home', path: '/', options: { signedIn: false }, ready: heading(/The Right Doctor/) },
   { name: 'not-found', path: '/nope', options: { signedIn: false }, ready: heading(/couldn’t find/i) },
   { name: 'sign-in', path: '/login', options: { signedIn: false }, ready: heading(/Sign In to MediMatch/) },
   { name: 'register', path: '/register?role=doctor', options: { signedIn: false }, ready: heading(/Create Your Account/) },

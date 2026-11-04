@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, useQueries } from '@tanstack/react-query'
 import type { DoctorProfileInput, DoctorSearchParams, TableParams, VerificationStatus } from '../types'
 import { api } from './client'
 
@@ -33,6 +33,16 @@ export function useDoctor(id: string) {
 
 export function useDoctorSlots(id: string) {
   return useQuery({ queryKey: keys.doctorSlots(id), queryFn: () => api.doctors.getPublicSlots(id), staleTime: 0 })
+}
+
+export function useDoctorsSlots(ids: string[]) {
+  return useQueries({
+    queries: ids.map((id) => ({
+      queryKey: keys.doctorSlots(id),
+      queryFn: () => api.doctors.getPublicSlots(id),
+      staleTime: 0,
+    })),
+  })
 }
 
 export function useBookSlot(doctorId: string) {

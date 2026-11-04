@@ -28,6 +28,9 @@
     "main": "Main",
     "menu": "Menu",
     "openMenu": "Open menu",
+    "patientPortal": "Patient portal",
+    "doctorPortal": "Doctor portal",
+    "adminPortal": "Admin console",
     "skipToContent": "Skip to Content",
     "signIn": "Sign In",
     "signOut": "Sign Out",
@@ -53,28 +56,106 @@
     "home": "Go to Home"
   },
   "home": {
-    "title": "Describe your symptoms. Find the right verified doctor.",
-    "lead": "Tell our AI assistant what you are feeling, in your own words. It asks a few questions, then gives you a shortlist of verified doctors in your city with times you can book.",
-    "startChat": "Start With the Assistant",
+    "title": "The Right Doctor. Your Serial.",
+    "lead": "Tell the MediMatch AI assistant what you feel, in your own words. It asks a few questions, then shows verified doctors in your city with times you can book.",
+    "startChat": "Describe Your Symptoms",
     "browse": "Browse Doctors",
     "emergency": "In an emergency, don’t use this service. Call {{number}} or go to the nearest hospital.",
-    "previewCaption": "How a conversation starts",
     "previewPatient": "Headache and dizziness since yesterday morning",
     "previewAssistant": "How long have you been experiencing these symptoms?",
-    "howTitle": "How It Works",
+    "howTitle": "From One Sentence to a Serial",
     "steps": {
-      "describe": { "title": "Describe What You Feel", "body": "Write it the way you would tell a relative. Serious warning signs are checked first, before any AI is involved." },
-      "clarify": { "title": "Answer a Few Questions", "body": "The assistant asks up to three short follow-ups. It helps you find a doctor. It does not diagnose or prescribe." },
-      "choose": { "title": "Choose and Book", "body": "See why each doctor was suggested, compare fees and times, and book a slot directly." }
+      "describe": {
+        "title": "Describe What You Feel",
+        "body": "Write it the way you would tell a relative. Serious warning signs are checked first, before any AI is involved."
+      },
+      "clarify": {
+        "title": "Answer a Few Questions",
+        "body": "The assistant asks up to three short follow-ups. It helps you find a doctor. It does not diagnose or prescribe."
+      },
+      "choose": {
+        "title": "Choose and Book",
+        "body": "See why each doctor was suggested, compare fees and times, and book a slot directly."
+      }
     },
     "checksTitle": "What Verified Means Here",
     "checks": {
-      "license": { "title": "Credentials Are Checked", "body": "Doctors submit their BMDC registration and degree certificates, and our team reviews each document." },
-      "review": { "title": "Approval Comes First", "body": "Only approved doctors appear in search or in the assistant’s shortlist." },
-      "recheck": { "title": "Changes Are Reviewed Again", "body": "When a doctor edits their profile, it goes back for review before patients can see it." }
+      "license": {
+        "title": "Credentials Are Checked",
+        "body": "Doctors submit their BMDC registration and degree certificates, and our team reviews each document."
+      },
+      "review": {
+        "title": "Approval Comes First",
+        "body": "Only approved doctors appear in search or in the assistant’s shortlist."
+      },
+      "recheck": {
+        "title": "Changes Are Reviewed Again",
+        "body": "When a doctor edits their profile, it goes back for review before patients can see it."
+      }
     },
     "footer": "MediMatch helps you find a doctor. It does not provide medical advice, diagnosis or treatment.",
-    "forDoctors": "For Doctors"
+    "forDoctors": "For Doctors",
+    "doctorsTitle": "Doctors You Can Book Now",
+    "doctorsLead": "Every name here has passed our credential review. Fees and open times come straight from the live register.",
+    "doctorsAll": "See All Doctors",
+    "questionsTitle": "Before You Start",
+    "startTitle": "Start With One Sentence",
+    "startLead": "Say what you feel. The assistant does the asking, and you pick the doctor and the time.",
+    "creditsTitle": "Photographs",
+    "finder": {
+      "title": "Who Has a Serial Open?",
+      "specialty": "Specialty",
+      "city": "City",
+      "anySpecialty": "Any specialty",
+      "anyCity": "Any city",
+      "next": "Next open time",
+      "noTime": "No open times yet",
+      "open": "See This Doctor",
+      "none": "No doctor matches both yet.",
+      "unavailable": "We can’t load doctors right now."
+    },
+    "images": {
+      "dmc": "Dhaka Medical College and Hospital in the 1940s",
+      "rickshaws": "Cycle rickshaws lined up on High Court Street in Dhaka",
+      "ahsan": "Ahsan Manzil, the pink palace on the Buriganga in Dhaka",
+      "buriganga": "Boats on the Buriganga River in Dhaka"
+    },
+    "questions": {
+      "diagnose": {
+        "q": "Will the assistant tell me what I have?",
+        "a": "No. It never diagnoses, prescribes or says a symptom is harmless. It asks about what you feel so it can point you to the right kind of doctor."
+      },
+      "emergency": {
+        "q": "What if it is an emergency?",
+        "a": "Don’t use this service. Call {{number}} or go to the nearest hospital. If your message shows a warning sign, the assistant stops and tells you the same."
+      },
+      "language": {
+        "q": "Can I write in Bangla?",
+        "a": "Yes. Write in Bangla, English or Banglish, and the assistant replies in the language you use."
+      },
+      "privacy": {
+        "q": "What happens to what I write?",
+        "a": "You agree before your first message. Names, phone numbers and emails we detect are removed before your words reach the AI provider. Chats are erased after a year without use, and you can erase yours from your account at any time."
+      },
+      "fee": {
+        "q": "What does a visit cost?",
+        "a": "Each doctor sets their own fee, and you see it before you book. You don’t pay inside MediMatch."
+      },
+      "cancel": {
+        "q": "Can I cancel a serial?",
+        "a": "Yes. Cancel it from Appointments and the time opens up for someone else."
+      },
+      "join": {
+        "q": "I’m a doctor. How do I join?",
+        "a": "Create a doctor account and send your BMDC registration and degree certificates. Patients see your profile once it is approved."
+      }
+    },
+    "browseTitle": "Know Who You Need?",
+    "browseLead": "Skip the assistant and go straight to a specialty or a city.",
+    "bySpecialty": "By Specialty",
+    "byCity": "By City",
+    "doctorCount_one": "{{shown}} doctor",
+    "doctorCount_other": "{{shown}} doctors"
   },
   "auth": {
     "signInTitle": "Sign In to MediMatch",
@@ -98,7 +179,14 @@
     "typePatientHint": "Use the assistant and book appointments.",
     "typeDoctor": "I’m a doctor",
     "typeDoctorHint": "Your profile is reviewed before patients can see it.",
-    "demoAccounts": "Demo accounts:"
+    "demoAccounts": "Demo accounts:",
+    "panelTitle": "Your Serial, Without the Queue",
+    "panelBody": "Describe what you feel, compare verified doctors, and book a time that suits you.",
+    "panelPoints": {
+      "verified": "Only approved doctors appear",
+      "fees": "Fees shown before you book",
+      "cancel": "Cancel and the time opens up again"
+    }
   },
   "doctor": {
     "yearsExperience_one": "{{years}} year of experience",
@@ -111,7 +199,12 @@
   },
   "verification": {
     "title": "Verification",
-    "status": { "approved": "Verified", "pending": "In Review", "rejected": "Not Approved", "suspended": "Suspended" },
+    "status": {
+      "approved": "Verified",
+      "pending": "In Review",
+      "rejected": "Not Approved",
+      "suspended": "Suspended"
+    },
     "event": {
       "CREATE_DOCTOR_PROFILE": "Profile Created",
       "DOCTOR_MATERIAL_PROFILE_UPDATE": "Profile Changed, Sent for Review",
@@ -184,8 +277,16 @@
   "appointments": {
     "title": "My Appointments",
     "doctorTitle": "Appointments",
-    "tab": { "upcoming": "Upcoming", "past": "Past", "cancelled": "Cancelled" },
-    "status": { "booked": "Booked", "completed": "Completed", "cancelled": "Cancelled" },
+    "tab": {
+      "upcoming": "Upcoming",
+      "past": "Past",
+      "cancelled": "Cancelled"
+    },
+    "status": {
+      "booked": "Booked",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
     "noTime": "Time unavailable",
     "unknownDoctor": "Doctor",
     "unknownPatient": "Patient",
@@ -200,14 +301,32 @@
     "cancelBodyDoctor": "Cancel the appointment with {{patient}} on {{time}}? The patient will see it as cancelled.",
     "cancelReason": "Reason",
     "empty": {
-      "upcoming": { "title": "No Upcoming Appointments", "body": "Describe your symptoms to the assistant and it will help you find a doctor." },
-      "past": { "title": "No Past Appointments", "body": "Appointments you’ve attended will appear here." },
-      "cancelled": { "title": "No Cancelled Appointments", "body": "Anything you cancel will appear here." }
+      "upcoming": {
+        "title": "No Upcoming Appointments",
+        "body": "Describe your symptoms to the assistant and it will help you find a doctor."
+      },
+      "past": {
+        "title": "No Past Appointments",
+        "body": "Appointments you’ve attended will appear here."
+      },
+      "cancelled": {
+        "title": "No Cancelled Appointments",
+        "body": "Anything you cancel will appear here."
+      }
     },
     "doctorEmpty": {
-      "upcoming": { "title": "No Upcoming Appointments", "body": "Add appointment times so that patients can book with you." },
-      "past": { "title": "No Past Appointments", "body": "Completed appointments will appear here." },
-      "cancelled": { "title": "No Cancelled Appointments", "body": "Cancelled appointments will appear here." }
+      "upcoming": {
+        "title": "No Upcoming Appointments",
+        "body": "Add appointment times so that patients can book with you."
+      },
+      "past": {
+        "title": "No Past Appointments",
+        "body": "Completed appointments will appear here."
+      },
+      "cancelled": {
+        "title": "No Cancelled Appointments",
+        "body": "Cancelled appointments will appear here."
+      }
     }
   },
   "chat": {
@@ -281,7 +400,11 @@
   "onboarding": {
     "title": "Set Up Your Profile",
     "description": "Your progress is saved at each step, so you can leave and come back. Patients see your profile once it’s approved.",
-    "step": { "practice": "Your Practice", "clinical": "Clinical Background", "documents": "Documents" },
+    "step": {
+      "practice": "Your Practice",
+      "clinical": "Clinical Background",
+      "documents": "Documents"
+    },
     "saveContinue": "Save and Continue",
     "saved": "Progress saved.",
     "later": "Finish Later",
@@ -399,10 +522,22 @@
       "suspend": "{{doctor}} was suspended."
     },
     "empty": {
-      "pending": { "title": "Nothing to Review", "body": "New applications will appear here." },
-      "approved": { "title": "No Verified Doctors", "body": "Doctors you approve will appear here." },
-      "rejected": { "title": "No Rejected Doctors", "body": "Doctors you reject will appear here." },
-      "suspended": { "title": "No Suspended Doctors", "body": "Doctors you suspend will appear here." }
+      "pending": {
+        "title": "Nothing to Review",
+        "body": "New applications will appear here."
+      },
+      "approved": {
+        "title": "No Verified Doctors",
+        "body": "Doctors you approve will appear here."
+      },
+      "rejected": {
+        "title": "No Rejected Doctors",
+        "body": "Doctors you reject will appear here."
+      },
+      "suspended": {
+        "title": "No Suspended Doctors",
+        "body": "Doctors you suspend will appear here."
+      }
     }
   },
   "adminDoctors": {

@@ -10,16 +10,17 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          'bg-primary text-white hover:bg-primary-hover active:bg-primary-pressed',
+          'bg-primary text-on-primary hover:bg-primary-hover active:bg-primary-pressed',
         secondary:
-          'border border-control bg-surface text-ink hover:bg-canvas active:bg-border',
-        ghost: 'text-ink hover:bg-canvas active:bg-border',
+          'border border-control bg-transparent text-ink hover:bg-primary-tint active:bg-border',
+        ghost: 'text-ink hover:bg-primary-tint active:bg-border',
         danger: 'bg-danger text-white hover:bg-danger-pressed active:bg-danger-pressed',
         link: 'text-primary underline underline-offset-4 hover:text-primary-hover active:text-primary-pressed',
       },
       size: {
         md: 'h-11 px-4 text-md md:h-10 md:text-sm',
         sm: 'h-11 px-3 text-sm md:h-8',
+        lg: 'h-13 px-6 text-md font-semibold',
         inline: 'h-auto p-0 text-[length:inherit]',
       },
     },
