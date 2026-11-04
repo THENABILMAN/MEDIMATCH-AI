@@ -60,13 +60,16 @@ def create_conversation(patient_id: str, title: Optional[str] = None) -> Dict[st
     }
 
 
-def list_patient_conversations(patient_id: str, db: SyncPostgrestClient) -> List[Dict[str, Any]]:
+def list_patient_conversations(
+    patient_id: str, db: SyncPostgrestClient, limit: int = 100, offset: int = 0
+) -> List[Dict[str, Any]]:
     """Lists all consultation conversations for the patient, ordered latest first."""
     res = (
         db.table("conversations")
         .select("*")
         .eq("patient_id", patient_id)
         .order("created_at", desc=True)
+        .range(offset, offset + limit - 1)
         .execute()
     )
     return res.data or []
@@ -113,10 +116,13 @@ def get_conversation_history(
     }
 
 
-def _emergency_turn(conversation_id: str, patient_id: str, content: str) -> Dict[str, Any]:
+def _emergency_turn(
+    conversation_id: str, patient_id: str, content: str, consented: bool
+) -> Dict[str, Any]:
     """Answers an emergency with the fixed alert. It must arrive even if saving it fails.
 
     Someone else's conversation is still refused, but a database outage only loses the record.
+    Without consent the alert is still given, and nothing the patient wrote is stored.
     """
     reply = get_emergency_response()
     try:
@@ -130,20 +136,26 @@ def _emergency_turn(conversation_id: str, patient_id: str, content: str) -> Dict
                 detail="Access forbidden: You do not own this conversation",
             )
 
-        client.table("messages").insert(
-            {"conversation_id": conversation_id, "sender": "patient", "content": content}
-        ).execute()
-        client.table("messages").insert(
-            {
-                "conversation_id": conversation_id,
-                "sender": "assistant",
-                "content": reply,
-                "metadata": {"is_emergency": True, "recommendations": []},
-            }
-        ).execute()
-        client.table("patient_symptom_sessions").insert(
-            {"patient_id": patient_id, "raw_symptoms": content, "extracted_criteria": {}, "emergency_flag": True}
-        ).execute()
+        if consented:
+            client.table("messages").insert(
+                {"conversation_id": conversation_id, "sender": "patient", "content": content}
+            ).execute()
+            client.table("messages").insert(
+                {
+                    "conversation_id": conversation_id,
+                    "sender": "assistant",
+                    "content": reply,
+                    "metadata": {"is_emergency": True, "recommendations": []},
+                }
+            ).execute()
+            client.table("patient_symptom_sessions").insert(
+                {
+                    "patient_id": patient_id,
+                    "raw_symptoms": content,
+                    "extracted_criteria": {},
+                    "emergency_flag": True,
+                }
+            ).execute()
     except HTTPException:
         raise
     except Exception as e:
@@ -165,6 +177,7 @@ def send_patient_message(
     conversation_id: str,
     patient_id: str,
     message_content: str,
+    consented: bool = True,
 ) -> Dict[str, Any]:
     """Processes incoming patient message through LangGraph and persists dialogue."""
     content = message_content.strip()
@@ -172,7 +185,13 @@ def send_patient_message(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Message content cannot be empty")
 
     if check_emergency(content)[0]:
-        return _emergency_turn(conversation_id, patient_id, content)
+        return _emergency_turn(conversation_id, patient_id, content, consented)
+
+    if not consented:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Please agree to the AI assistant terms before describing your symptoms.",
+        )
 
     client = get_supabase_admin_client()
     if not client:

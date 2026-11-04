@@ -48,6 +48,8 @@ def book_appointment(
 )
 def get_my_appointments(
     status: Optional[AppointmentStatus] = Query(default=None, description="Optional appointment status filter"),
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     current_user: UserMeResponse = Depends(get_current_user),
     db: SyncPostgrestClient = Depends(get_user_db),
 ) -> List[AppointmentResponse]:
@@ -57,6 +59,8 @@ def get_my_appointments(
         role=current_user.role,
         status_filter=status,
         db=db,
+        limit=limit,
+        offset=offset,
     )
 
 

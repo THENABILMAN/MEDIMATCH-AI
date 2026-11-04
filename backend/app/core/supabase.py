@@ -1,8 +1,15 @@
 from functools import lru_cache
 from typing import Optional
 from postgrest import SyncPostgrestClient
-from supabase import Client, create_client
+from supabase import Client, ClientOptions, create_client
 from app.core.config import settings
+
+
+def _options() -> ClientOptions:
+    return ClientOptions(
+        postgrest_client_timeout=settings.SUPABASE_TIMEOUT_SECONDS,
+        storage_client_timeout=int(settings.SUPABASE_TIMEOUT_SECONDS * 3),
+    )
 
 
 def contains_pattern(text: str) -> str:
@@ -21,7 +28,7 @@ def get_supabase_client() -> Optional[Client]:
     """Returns a Supabase client configured with the public anon key (respects RLS)."""
     if not settings.SUPABASE_URL or not settings.SUPABASE_ANON_KEY:
         return None
-    return create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY)
+    return create_client(settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY, _options())
 
 
 def create_auth_client() -> Optional[Client]:
@@ -36,6 +43,7 @@ def create_user_client(token: str) -> SyncPostgrestClient:
     return SyncPostgrestClient(
         f"{settings.SUPABASE_URL}/rest/v1",
         headers={"apikey": settings.SUPABASE_ANON_KEY, "Authorization": f"Bearer {token}"},
+        timeout=settings.SUPABASE_TIMEOUT_SECONDS,
     )
 
 
@@ -48,5 +56,5 @@ def get_supabase_admin_client() -> Optional[Client]:
     """
     if not settings.SUPABASE_URL or not settings.SUPABASE_SERVICE_ROLE_KEY:
         return None
-    return create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
+    return create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY, _options())
 

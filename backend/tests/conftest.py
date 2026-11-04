@@ -32,6 +32,7 @@ INTEGRATION_FILES = {
     "test_doctors.py",
     "test_recommendations.py",
     "test_retrieval_rules.py",
+    "test_privacy_and_ops.py",
     "test_rls.py",
     "test_sync.py",
 }
@@ -161,8 +162,9 @@ def ensure_user(user_id: str, role: UserRole, full_name: str) -> None:
             )
             cur.execute(
                 """
-                INSERT INTO public.profiles (id, role, full_name) VALUES (%s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, full_name = EXCLUDED.full_name
+                INSERT INTO public.profiles (id, role, full_name, ai_consent_at) VALUES (%s, %s, %s, now())
+                ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, full_name = EXCLUDED.full_name,
+                    ai_consent_at = now()
                 """,
                 (user_id, role.value, full_name),
             )

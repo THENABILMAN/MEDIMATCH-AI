@@ -2,11 +2,12 @@
 
 import logging
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
 from fastapi import HTTPException, status
 
+from app.core.config import settings
 from app.core.supabase import get_supabase_admin_client
 from app.models.enums import AppointmentStatus, UserRole
 from app.services.audit_service import log_audit_event
@@ -35,6 +36,24 @@ def _erase_chat_data(client: Any, user_id: str) -> int:
     client.table("patient_symptom_sessions").delete().eq("patient_id", user_id).execute()
 
     return len(conversations.data or [])
+
+
+def purge_expired_chats() -> int:
+    """Erases chats and symptom sessions past the retention period. Run on a schedule."""
+    client = _get_admin_client()
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=settings.CHAT_RETENTION_DAYS)).isoformat()
+
+    expired = client.table("conversations").delete().lt("updated_at", cutoff).execute()
+    client.table("patient_symptom_sessions").delete().lt("created_at", cutoff).execute()
+
+    count = len(expired.data or [])
+    log_audit_event(
+        actor_id=None,
+        action="PURGE_EXPIRED_CHATS",
+        target_type="conversations",
+        metadata={"conversations_deleted": count, "retention_days": settings.CHAT_RETENTION_DAYS},
+    )
+    return count
 
 
 def delete_chat_history(user_id: str) -> Dict[str, Any]:
@@ -99,7 +118,7 @@ def anonymize_patient_account(user_id: str, role: UserRole) -> Dict[str, Any]:
             },
         )
     except Exception as e:
-        logger.error(f"Could not anonymize auth user {user_id}: {e}")
+        logger.error(f"Could not anonymize auth user {user_id}: {type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Your account could not be closed. Please try again.",

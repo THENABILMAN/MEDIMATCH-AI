@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, Field, model_validator
 
 from postgrest import SyncPostgrestClient
@@ -52,11 +52,13 @@ class SendMessageResponse(BaseModel):
     summary="List patient's consultation conversations",
 )
 def api_list_conversations(
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     current_user: UserMeResponse = Depends(require_patient),
     db: SyncPostgrestClient = Depends(get_user_db),
 ) -> List[Dict[str, Any]]:
     """Retrieves all consultation conversations belonging to the authenticated patient."""
-    return list_patient_conversations(patient_id=current_user.id, db=db)
+    return list_patient_conversations(patient_id=current_user.id, db=db, limit=limit, offset=offset)
 
 
 @router.post(
@@ -89,7 +91,8 @@ def api_send_message(
     result = send_patient_message(
         conversation_id=id,
         patient_id=current_user.id,
-        message_content=payload.content,
+        message_content=payload.content or "",
+        consented=current_user.ai_consent_at is not None,
     )
     return SendMessageResponse(
         conversation_id=result["conversation_id"],

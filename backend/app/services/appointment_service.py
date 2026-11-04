@@ -88,11 +88,11 @@ def create_availability_slot(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="This slot overlaps with an existing availability slot",
             )
-        logger.error(f"Error creating slot: {e}")
+        logger.error(f"Error creating slot: {type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Slot creation failed: {e}",
-        )
+            detail="The slot could not be created. Please try again.",
+        ) from e
 
 
 def list_doctor_slots(
@@ -365,6 +365,8 @@ def get_user_appointments(
     role: UserRole,
     status_filter: Optional[AppointmentStatus],
     db: SyncPostgrestClient,
+    limit: int = 100,
+    offset: int = 0,
 ) -> List[AppointmentResponse]:
     """Retrieves appointments as the caller. Names are added only to rows RLS let through."""
     query = db.table("appointments").select("*").order("created_at", desc=True)
@@ -382,7 +384,7 @@ def get_user_appointments(
     if status_filter:
         query = query.eq("status", status_filter.value)
 
-    res = query.execute()
+    res = query.range(offset, offset + limit - 1).execute()
     return _hydrate_appointments(res.data or [])
 
 

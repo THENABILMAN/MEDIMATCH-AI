@@ -15,7 +15,7 @@ def log_audit_event(
     """Records an immutable security/system event in the audit_logs table."""
     admin_client = get_supabase_admin_client()
     if not admin_client:
-        logger.warning(f"Audit log skipped (no admin client): {action} by {actor_id}")
+        logger.error(f"Audit log skipped (no admin client): {action}")
         return
 
     try:
@@ -28,5 +28,5 @@ def log_audit_event(
         }
         admin_client.table("audit_logs").insert(data).execute()
     except Exception as e:
-        logger.error(f"Failed to record audit log: {e}")
+        logger.error(f"Failed to record audit log {action}: {type(e).__name__}")
 

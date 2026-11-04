@@ -76,8 +76,15 @@ class Settings(BaseSettings):
     # Upcoming appointments one patient can hold, so one account cannot take every slot
     MAX_ACTIVE_BOOKINGS: int = Field(default=5, ge=1)
 
-    # Credential uploads
+    # Credential uploads, and the largest request of any kind
     MAX_UPLOAD_BYTES: int = Field(default=10 * 1024 * 1024, ge=1)
+    MAX_REQUEST_BYTES: int = Field(default=11 * 1024 * 1024, ge=1)
+
+    # Conversations and symptom sessions untouched for this long are erased
+    CHAT_RETENTION_DAYS: int = Field(default=365, ge=1)
+
+    # Longest a single Supabase database or Storage call can take
+    SUPABASE_TIMEOUT_SECONDS: float = Field(default=10.0, gt=0)
 
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = [
