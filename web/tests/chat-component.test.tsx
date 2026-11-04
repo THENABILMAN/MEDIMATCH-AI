@@ -1,8 +1,9 @@
 import React from 'react'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { DisclaimerBanner } from '../src/components/chat/DisclaimerBanner'
+import { ErrorBoundary } from '../src/components/common/ErrorBoundary'
 import { DoctorRecommendationCard } from '../src/components/chat/DoctorRecommendationCard'
 import { EmergencyAlert } from '../src/components/chat/EmergencyAlert'
 import type { DoctorRecommendation } from '../src/types'
@@ -32,16 +33,24 @@ describe('Chat Components', () => {
 
   it('renders DoctorRecommendationCard with score, specialties, clinic, fee, and booking link', () => {
     const mockDoctor: DoctorRecommendation = {
-      doctor_id: 'd0000000-0000-0000-0000-000000000001',
+      // Same shape as DoctorRecommendation in backend/app/search/recommend.py
+      id: 'd0000000-0000-0000-0000-000000000001',
+      user_id: 'u0000000-0000-0000-0000-000000000001',
       full_name: 'Dr. Sarah Khan',
-      specialties: ['Neurology', 'General Medicine'],
+      specialties: [
+        { id: 's1', name: 'Neurology', description: 'Brain and nerves' },
+        { id: 's2', name: 'General Medicine', description: null },
+      ],
+      bio: null,
+      qualifications: ['MBBS'],
       city: 'Dhaka',
       clinic_name: 'Square Hospital',
       consultation_fee: 1500,
       years_experience: 12,
-      score: 0.94,
+      match_score: 94.4,
+      available_slots_count: 3,
+      soonest_slot: '2026-11-05T10:00:00Z',
       match_explanation: 'Strong specialist match for persistent neurological migraines.',
-      next_available_slot: '2026-11-05T10:00:00Z',
     }
 
     render(
@@ -62,6 +71,24 @@ describe('Chat Components', () => {
 
     const bookLink = screen.getByRole('link', { name: /View & Book Slot/i })
     expect(bookLink).toHaveAttribute('href', '/doctors/d0000000-0000-0000-0000-000000000001')
+    expect(screen.getByText(/Slots Available/i)).toBeInTheDocument()
+  })
+
+  it('shows a recoverable error with the emergency number when a page fails to render', () => {
+    const Broken = (): React.ReactNode => {
+      throw new Error('render failure')
+    }
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    render(
+      <ErrorBoundary>
+        <Broken />
+      </ErrorBoundary>
+    )
+
+    expect(screen.getByText(/call 999 now/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Reload page/i })).toBeInTheDocument()
+    consoleError.mockRestore()
   })
 })
 

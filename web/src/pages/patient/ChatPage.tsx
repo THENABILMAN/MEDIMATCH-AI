@@ -217,7 +217,7 @@ export const ChatPage: React.FC = () => {
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                           {msg.recommendations.map((doc) => (
-                            <DoctorRecommendationCard key={doc.doctor_id} doctor={doc} />
+                            <DoctorRecommendationCard key={doc.id} doctor={doc} />
                           ))}
                         </div>
                       </div>

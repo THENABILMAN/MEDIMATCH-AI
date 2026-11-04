@@ -51,16 +51,20 @@ export interface AvailabilitySlot {
 }
 
 export interface DoctorRecommendation {
-  doctor_id: string
+  id: string
+  user_id: string
   full_name: string
-  specialties: string[]
-  city: string
-  clinic_name?: string | null
-  consultation_fee: number
+  specialties: Specialty[]
+  bio?: string | null
+  qualifications: string[]
   years_experience: number
-  score: number
+  consultation_fee: number
+  clinic_name?: string | null
+  city: string
+  match_score: number
+  available_slots_count: number
+  soonest_slot?: string | null
   match_explanation: string
-  next_available_slot?: string | null
 }
 
 export interface Appointment {
