@@ -2,8 +2,8 @@
 
 ## Before You Deploy
 
-- Set `ENVIRONMENT=production`. The app then refuses `:free` LLM models and fake embeddings, and turns off `/docs`.
-- Use a paid OpenRouter model. See `docs/PRIVACY.md`.
+- Set `ENVIRONMENT=production`. The app then refuses fake embeddings and turns off `/docs`.
+- This project uses a free OpenRouter model. Read the limits in `docs/PRIVACY.md` first.
 - Have a clinician review `backend/app/ai/data/emergency_patterns.json`.
 - Decide on email confirmation. Registration confirms addresses automatically today, because the web app signs in straight after. Turning it off needs an email service and a web change.
 
@@ -19,7 +19,7 @@ Set `BACKEND_CORS_ORIGINS` to your web origins. A wildcard is refused at startup
 
 1. In Render, choose New, then Blueprint, and connect this GitHub repository.
 2. Fill in the values it asks for. They stay in Render and are never committed.
-3. Set `OPENROUTER_MODEL` to a paid model, or the API refuses to start in production.
+3. Set `OPENROUTER_MODEL` to a free model, such as `nvidia/nemotron-3-ultra-550b-a55b:free`. Free models are limited per account: 50 requests a day, or 1,000 with $10 of credit. Each chat turn uses one.
 4. Set `BACKEND_CORS_ORIGINS` to `["https://your-web-address"]`, and `VITE_API_BASE_URL` to the API address, then redeploy the web app.
 5. Check the whole journey on the hosted API:
 

@@ -236,6 +236,7 @@ flutter run
 - **2026-11-04**: Backend tests ignore `.env` and refuse non-local hosts, because they once wrote fake approved doctors to the real project.
 - **2026-11-04**: Rule-based detection alone missed 61% to 88% of unseen phrases, so the classifier is a second net rather than a replacement. Never report a detection score measured on phrases the rules were tuned on.
 - **2026-11-05**: Reversed the fixed-reply design on the owner's instruction, because it made the assistant robotic. One model call now writes the reply and reads the details. A model failure returns 503 and saves nothing, rather than a canned question. The guard is now the last check on model text, and it is known to be incomplete.
+- **2026-11-05**: Always use a free OpenRouter model, in every environment. Use a paid model only when the owner says so. The free limit is per account, so changing free models does not get past it.
 - **2026-11-04**: Assistant state lives on the conversation row, not in a LangGraph checkpointer, so deletion and multiple workers need no extra machinery.
 - **2026-11-04**: Booking, cancelling and completing run in locked stored procedures. Appointments keep their own times, and audit logs are append-only for every writer.
 - **2026-11-04**: Signed-in reads of chats, appointments and credentials use the caller's token, so RLS applies. Writes use the service role behind route checks.

@@ -32,7 +32,7 @@ services:
         sync: false
       - key: OPENROUTER_API_KEY
         sync: false
-      # Production refuses a :free model, because free endpoints may keep patient text
+      # Use a free model, such as nvidia/nemotron-3-ultra-550b-a55b:free
       - key: OPENROUTER_MODEL
         sync: false
 

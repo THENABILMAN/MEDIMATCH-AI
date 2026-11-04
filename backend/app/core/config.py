@@ -128,13 +128,6 @@ class Settings(BaseSettings):
             raise ValueError(f"Recommendation weights must sum to 1.0, not {total}")
         return self
 
-    @model_validator(mode="after")
-    def refuse_free_model_in_production(self) -> "Settings":
-        # Free endpoints may log or train on prompts, and those prompts hold patient symptoms
-        if self.ENVIRONMENT == "production" and self.OPENROUTER_MODEL.endswith(":free"):
-            raise ValueError("A :free OPENROUTER_MODEL cannot be used in production")
-        return self
-
 
 @lru_cache
 def get_settings() -> Settings:

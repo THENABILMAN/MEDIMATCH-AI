@@ -114,7 +114,8 @@ class LLMClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-        if settings.ENVIRONMENT == "production":
+        # Free endpoints may need to keep prompts, so asking otherwise can leave no provider at all
+        if settings.ENVIRONMENT == "production" and not self.model.endswith(":free"):
             body["provider"] = {"data_collection": "deny"}
 
         raw = self._post(body)

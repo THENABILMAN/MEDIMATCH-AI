@@ -110,7 +110,7 @@ The script's own report showed 1 item to check. That was a bug in its comparison
 **Decisions for you**
 - **Live migrations `00008` to `00012` are not applied.** Until then, forged consent and the admin-row insert remain possible there, and the code in this repository does not match that database: it needs `public_doctors`, `conversations.graph_state`, and the new booking functions. **Do not deploy this code to the live project before migrating.**
 - **Email addresses are not verified.** Anyone can register with someone else's address, because the web app signs in straight after registering. Fixing this needs an email service and a web change.
-- **The free LLM model must not handle real patient text.** See `docs/PRIVACY.md`.
+- **The project uses a free LLM model by choice.** Providers may keep redacted patient text, and production no longer refuses it. See `docs/PRIVACY.md`.
 - **45 other `@test.com` accounts remain on the live project**, which you have not approved removing.
 
 **Limits of what was built**

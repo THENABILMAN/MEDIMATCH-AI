@@ -36,7 +36,7 @@ Emergency messages caught by the rules go to no third party. Messages the rules 
 
 ## Before Real Patients
 
-- **Do not use a `:free` OpenRouter model.** Free endpoints may log or train on prompts. The app refuses one when `ENVIRONMENT=production`, and asks providers not to keep data on every production call. Check the policy of the provider you choose.
+- **Free model risk:** this project uses a free OpenRouter model by choice. Free endpoints may log or train on prompts, so redacted patient text may be kept by the provider. Check the chosen model's policy, and decide whether that is acceptable before real patients use it.
 - Sign data processing agreements with OpenRouter or the model provider, Pinecone and Supabase, as required.
 - Have a lawyer review the consent wording and retention period against Bangladeshi law.
 

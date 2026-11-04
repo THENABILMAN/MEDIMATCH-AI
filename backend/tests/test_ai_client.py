@@ -128,6 +128,19 @@ def test_production_asks_providers_not_to_keep_data(monkeypatch):
     assert bodies[0]["provider"]["data_collection"] == "deny"
 
 
+def test_free_models_are_not_restricted_by_provider_settings(monkeypatch):
+    bodies: list[dict] = []
+
+    def handler(request):
+        bodies.append(json.loads(request.content))
+        return reply("ok")
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    client = LLMClient(api_key="k", model="vendor/m:free", transport=httpx.MockTransport(handler))
+    client.generate(MESSAGES)
+    assert "provider" not in bodies[0]
+
+
 def test_history_sent_to_the_model_is_bounded():
     messages = [{"role": "user", "content": str(i)} for i in range(200)]
     assert len(_recent_messages(messages)) == settings.LLM_HISTORY_MESSAGES
