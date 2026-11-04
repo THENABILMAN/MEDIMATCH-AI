@@ -68,3 +68,8 @@ mobile/.flutter-plugins-dependencies
 .DS_Store
 Thumbs.db
 
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
+
+# Keep lib folders inside vendored agent skills
+!.claude/skills/**/lib/
