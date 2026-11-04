@@ -28,10 +28,8 @@ class ConversationIntent(BaseModel):
     intent: Literal["symptom_update", "general_conversation"] = Field(
         description="Whether the latest message adds clinical/search information or is conversational."
     )
-    assistant_reply: Optional[str] = Field(
-        default=None,
-        description="A safe, helpful reply for general conversation; null for symptom updates.",
-    )
+
+    model_config = ConfigDict(extra="ignore")
 
 
 class SearchCriteria(BaseModel):

@@ -7,6 +7,7 @@ structured clinical criteria, keywords, budget, and location.
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
+from app.ai.safety import check_emergency
 from app.api.deps import require_patient
 from app.schemas.common import MAX_CONSULTATION_FEE, ShortText
 from app.schemas.profile import UserMeResponse
@@ -47,6 +48,16 @@ def api_get_recommendations(
 
     and upcoming schedule availability to rank and return suitable doctors.
     """
+    # Booking a doctor is the wrong answer to an emergency, however this route was reached
+    if any(check_emergency(keyword)[0] for keyword in payload.keywords):
+        return RecommendationResponse(
+            recommendations=[],
+            total_found=0,
+            query_specialties=payload.candidate_specialties,
+            query_city=payload.city,
+            retrieval_mode="emergency_blocked",
+        )
+
     search_criteria = {
         "candidate_specialties": payload.candidate_specialties,
         "city": payload.city,

@@ -11,6 +11,7 @@ from fastapi import HTTPException, status
 from postgrest import SyncPostgrestClient
 
 from app.ai.graph import get_symptom_graph
+from app.ai.safety import check_emergency, get_emergency_response
 from app.core.supabase import get_supabase_admin_client
 
 logger = logging.getLogger("medimatch.chat_service")
@@ -111,6 +112,54 @@ def get_conversation_history(
     }
 
 
+def _emergency_turn(conversation_id: str, patient_id: str, content: str) -> Dict[str, Any]:
+    """Answers an emergency with the fixed alert. It must arrive even if saving it fails.
+
+    Someone else's conversation is still refused, but a database outage only loses the record.
+    """
+    reply = get_emergency_response()
+    try:
+        client = get_supabase_admin_client()
+        conversation = client.table("conversations").select("patient_id").eq("id", conversation_id).execute()
+        if not conversation.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+        if conversation.data[0]["patient_id"] != patient_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access forbidden: You do not own this conversation",
+            )
+
+        client.table("messages").insert(
+            {"conversation_id": conversation_id, "sender": "patient", "content": content}
+        ).execute()
+        client.table("messages").insert(
+            {
+                "conversation_id": conversation_id,
+                "sender": "assistant",
+                "content": reply,
+                "metadata": {"is_emergency": True, "recommendations": []},
+            }
+        ).execute()
+        client.table("patient_symptom_sessions").insert(
+            {"patient_id": patient_id, "raw_symptoms": content, "extracted_criteria": {}, "emergency_flag": True}
+        ).execute()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Emergency turn was not saved: {type(e).__name__}")
+
+    return {
+        "conversation_id": conversation_id,
+        "assistant_reply": reply,
+        "current_step": "emergency_escalated",
+        "safety_status": "emergency",
+        "is_emergency": True,
+        "search_criteria": None,
+        "recommendations": [],
+        "followup_field": None,
+    }
+
+
 def send_patient_message(
     conversation_id: str,
     patient_id: str,
@@ -120,6 +169,9 @@ def send_patient_message(
     content = message_content.strip()
     if not content:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Message content cannot be empty")
+
+    if check_emergency(content)[0]:
+        return _emergency_turn(conversation_id, patient_id, content)
 
     client = get_supabase_admin_client()
     if not client:
@@ -194,7 +246,7 @@ def send_patient_message(
             recommendations_list = [r.model_dump() for r in rec_res.recommendations]
 
         except Exception as e:
-            logger.warning(f"Could not generate recommendations during chat: {e}")
+            logger.warning(f"Could not generate recommendations during chat: {type(e).__name__}")
 
     # 6. Persist assistant reply, with what the UI needs to redraw it on reload
     is_emergency = result_state.get("safety_status") == "emergency"

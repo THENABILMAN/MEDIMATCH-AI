@@ -119,14 +119,14 @@ class LLMClient:
             parsed_dict = json.loads(cleaned)
             return response_model.model_validate(parsed_dict)
         except Exception as e:
-            logger.warning(f"Structured JSON parsing failed, attempting repair: {e}")
+            logger.warning(f"Structured JSON parsing failed, attempting repair: {type(e).__name__}")
             # Try parsing with json_repair if available
             try:
                 import json_repair
                 repaired = json_repair.repair_json(cleaned, return_objects=True)
                 return response_model.model_validate(repaired)
             except Exception:
-                raise ValueError(f"Failed to parse LLM structured output into {response_model.__name__}: {cleaned}")
+                raise ValueError(f"Failed to parse LLM structured output into {response_model.__name__}") from e
 
 
 _DEFAULT_LLM_CLIENT: Optional[LLMClient] = None

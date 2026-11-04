@@ -94,3 +94,23 @@ def test_oversized_doctor_profile_is_rejected(client):
     body = {"qualifications": ["MBBS"] * 500, "city": "Dhaka"}
     res = client.put("/doctors/me/profile", headers=headers(token), json=body)
     assert res.status_code == 422
+
+
+def test_recommendations_refuse_an_emergency(client, patient_token):
+    res = client.post(
+        "/recommendations", headers=headers(patient_token), json={"keywords": ["my chest hurts"]}
+    )
+    assert res.status_code == 200
+    assert res.json()["recommendations"] == []
+    assert res.json()["retrieval_mode"] == "emergency_blocked"
+
+
+def test_a_stranger_gets_no_access_through_an_emergency_message(
+    client, other_patient_token, conversation_id
+):
+    res = client.post(
+        f"/chat/conversations/{conversation_id}/messages",
+        headers=headers(other_patient_token),
+        json={"content": "severe chest pain"},
+    )
+    assert res.status_code == 403

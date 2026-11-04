@@ -53,6 +53,9 @@ class Settings(BaseSettings):
         default=0.10, description="Weight for upcoming appointment availability"
     )
 
+    # Number shown in every emergency alert
+    EMERGENCY_NUMBER: str = Field(default="999", min_length=2, max_length=15, pattern=r"^\d+$")
+
     # Abuse limits, per minute
     RATE_LIMIT_ENABLED: bool = True
     RATE_LIMIT_LOGIN: int = Field(default=10, ge=1)

@@ -57,7 +57,7 @@ class RecommendationResponse(BaseModel):
     total_found: int
     query_specialties: List[str]
     query_city: str
-    retrieval_mode: str  # "hybrid" | "sql_fallback"
+    retrieval_mode: str  # "hybrid" | "sql_fallback" | "emergency_blocked"
 
 
 def _generate_safe_explanation(
