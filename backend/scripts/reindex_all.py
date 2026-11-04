@@ -32,6 +32,9 @@ from app.core.supabase import get_supabase_admin_client
 from app.models.enums import VerificationStatus
 from app.search.builder import build_doctor_embedding_text
 from app.search.embeddings import get_embedding_provider
+from app.search.sync import retry_unsynced
+import argparse
+from app.search.sync import retry_unsynced
 from app.search.sync import get_pinecone_index
 
 
@@ -155,5 +158,10 @@ def reindex_all():
 
 
 if __name__ == "__main__":
-    reindex_all()
+    parser = argparse.ArgumentParser(description="Rebuild the vector index from Supabase")
+    parser.add_argument("--unsynced", action="store_true", help="Only retry pending or failed doctors")
+    if parser.parse_args().unsynced:
+        print(f"[INFO] Retried {retry_unsynced()} doctor(s).")
+    else:
+        reindex_all()
 

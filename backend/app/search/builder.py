@@ -5,7 +5,9 @@ Strict Rule: Must NEVER include doctor full names, phone numbers, email addresse
 or consultation fees to preserve privacy and prevent fee bias in vector similarity.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+
+from app.ai.privacy import redact_pii
 
 
 def build_doctor_embedding_text(doctor: Dict[str, Any]) -> str:
@@ -31,8 +33,8 @@ def build_doctor_embedding_text(doctor: Dict[str, Any]) -> str:
         spec_entries = []
         for s in specialties:
             if isinstance(s, dict):
-                name = s.get("name", "").strip()
-                desc = s.get("description", "").strip()
+                name = (s.get("name") or "").strip()
+                desc = (s.get("description") or "").strip()
                 if name and desc:
                     spec_entries.append(f"{name} ({desc})")
                 elif name:
@@ -43,9 +45,10 @@ def build_doctor_embedding_text(doctor: Dict[str, Any]) -> str:
             parts.append(f"Medical Specialties: {', '.join(spec_entries)}.")
 
     # 2. Clinical Bio & Practice Focus
+    # Bios and clinic names are free text, so they can hold contact details
     bio = doctor.get("bio")
     if bio and bio.strip():
-        parts.append(f"Clinical Bio and Expertise: {bio.strip()}")
+        parts.append(f"Clinical Bio and Expertise: {redact_pii(bio.strip())}")
 
     # 3. Medical Qualifications & Degrees
     qualifications = doctor.get("qualifications") or []
@@ -64,7 +67,7 @@ def build_doctor_embedding_text(doctor: Dict[str, Any]) -> str:
     # 5. Clinic / Hospital Practice
     clinic_name = doctor.get("clinic_name")
     if clinic_name and clinic_name.strip():
-        parts.append(f"Clinical Practice Hospital: {clinic_name.strip()}.")
+        parts.append(f"Clinical Practice Hospital: {redact_pii(clinic_name.strip())}.")
 
     # 6. Practice City / Region
     city = doctor.get("city")

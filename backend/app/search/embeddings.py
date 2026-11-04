@@ -64,7 +64,7 @@ class PineconeInferenceEmbeddingProvider(BaseEmbeddingProvider):
 
     @retry(
         retry=retry_if_exception_type(Exception),
-        stop=stop_after_attempt(3),
+        stop=stop_after_attempt(2),
         wait=wait_exponential(multiplier=1, min=1, max=4),
         reraise=True,
     )
@@ -82,7 +82,7 @@ class PineconeInferenceEmbeddingProvider(BaseEmbeddingProvider):
 
     @retry(
         retry=retry_if_exception_type(Exception),
-        stop=stop_after_attempt(3),
+        stop=stop_after_attempt(2),
         wait=wait_exponential(multiplier=1, min=1, max=4),
         reraise=True,
     )

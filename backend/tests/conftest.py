@@ -31,6 +31,7 @@ INTEGRATION_FILES = {
     "test_data_access.py",
     "test_doctors.py",
     "test_recommendations.py",
+    "test_retrieval_rules.py",
     "test_rls.py",
     "test_sync.py",
 }
@@ -85,6 +86,7 @@ os.environ.update(
         "OPENROUTER_API_KEY": "",
         "EMBEDDING_PROVIDER": "fake",
         "RATE_LIMIT_ENABLED": "false",
+        "SYNC_IN_BACKGROUND": "false",
     }
 )
 

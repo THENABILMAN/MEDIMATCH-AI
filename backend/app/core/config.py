@@ -47,7 +47,12 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = Field(default="llama-text-embed-v2", description="Embedding model name")
     EMBEDDING_DIMENSION: int = Field(default=1024, description="Vector dimension matching index")
 
-    # Recommendation Weights (Must sum to ~1.0)
+    # Vector Search
+    SYNC_IN_BACKGROUND: bool = True
+    VECTOR_CANDIDATES: int = Field(default=30, ge=1, description="Vector matches fetched before filtering")
+    PINECONE_TIMEOUT_SECONDS: float = Field(default=5.0, gt=0)
+
+    # Recommendation Weights (must sum to 1.0)
     WEIGHT_VECTOR: float = Field(default=0.40, description="Weight for vector similarity score")
     WEIGHT_SPECIALTY: float = Field(
         default=0.25, description="Weight for candidate specialty match"
@@ -97,6 +102,19 @@ class Settings(BaseSettings):
                 "BACKEND_CORS_ORIGINS cannot contain '*' when credentialed requests are enabled"
             )
         return v
+
+    @model_validator(mode="after")
+    def weights_sum_to_one(self) -> "Settings":
+        total = (
+            self.WEIGHT_VECTOR
+            + self.WEIGHT_SPECIALTY
+            + self.WEIGHT_EXPERIENCE
+            + self.WEIGHT_FEE
+            + self.WEIGHT_AVAILABILITY
+        )
+        if abs(total - 1.0) > 0.001:
+            raise ValueError(f"Recommendation weights must sum to 1.0, not {total}")
+        return self
 
     @model_validator(mode="after")
     def refuse_free_model_in_production(self) -> "Settings":

@@ -28,6 +28,18 @@ logger = logging.getLogger("medimatch.search.recommend")
 # Bangladesh has one fixed offset and no daylight saving
 DHAKA = timezone(timedelta(hours=6))
 
+MIN_HYBRID_RESULTS = 3
+MAX_SQL_CANDIDATES = 200
+NEUTRAL_VECTOR_SCORE = 0.5
+
+
+def _is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(value)
+        return True
+    except ValueError:
+        return False
+
 
 class DoctorRecommendation(BaseModel):
     """Structured representation of a recommended doctor card."""
@@ -115,7 +127,6 @@ def _calculate_score(
     fee: float,
     max_fee: Optional[float],
     available_slots_count: int,
-    soonest_slot: Optional[str],
 ) -> float:
     """Calculates transparent multi-factor weighted score (0.0 to 1.0).
 
@@ -139,8 +150,10 @@ def _calculate_score(
     # 3. Clinical experience score (capped at 25 years)
     s_experience = min(years_experience / 25.0, 1.0)
 
-    # 4. Fee fit score
-    if max_fee and max_fee > 0:
+    # 4. Fee fit score. A missing fee is unknown, not free, so it scores in the middle
+    if fee <= 0:
+        s_fee = 0.5
+    elif max_fee and max_fee > 0:
         s_fee = max(0.0, 1.0 - (fee / max_fee))
     else:
         s_fee = max(0.0, 1.0 - (fee / 3000.0))
@@ -162,6 +175,93 @@ def _calculate_score(
     return max(0.0, min(total, 1.0))
 
 
+def _doctor_query(client: Any, now_iso: str) -> Any:
+    """Approved doctors with their specialties and open future slots, ready for scoring."""
+    return (
+        client.table("doctor_profiles")
+        .select(
+            "id, user_id, bio, qualifications, years_experience, consultation_fee, clinic_name, city, "
+            "verification_status, profiles!inner(full_name), "
+            "doctor_specialties(specialties(id, name, description)), "
+            "availability_slots(id, start_time, is_booked)"
+        )
+        .eq("verification_status", VerificationStatus.APPROVED.value)
+        .eq("availability_slots.is_booked", False)
+        .gt("availability_slots.start_time", now_iso)
+    )
+
+
+def _to_recommendation(
+    doc: Dict[str, Any],
+    vector_sim: float,
+    candidate_specialties: List[str],
+    city: str,
+    max_fee: Optional[float],
+    now_iso: str,
+) -> Optional[DoctorRecommendation]:
+    """Applies every hard rule to a database row, or returns None if the doctor does not qualify."""
+    doc_id = str(doc["id"])
+
+    # Rule 1: Verification status MUST be 'approved' (discards stale vectors)
+    if doc.get("verification_status") != VerificationStatus.APPROVED.value:
+        logger.info(f"[RECOMMENDATION] Rejecting doctor {doc_id}: not approved")
+        return None
+
+    # Rule 2: Budget constraint
+    fee = float(doc.get("consultation_fee", 0.0))
+    if max_fee is not None and fee > max_fee:
+        return None
+
+    # Rule 3: Must match the requested city and a suitable specialty
+    specs = [item["specialties"] for item in doc.get("doctor_specialties", []) if item.get("specialties")]
+    spec_names = [s["name"] for s in specs]
+    if not _fits_request(spec_names, candidate_specialties, doc.get("city"), city):
+        return None
+
+    # Rule 4: Must have active upcoming slots
+    future_slots = sorted(
+        (s for s in doc.get("availability_slots") or [] if not s.get("is_booked") and s.get("start_time", "") > now_iso),
+        key=lambda s: s["start_time"],
+    )
+    if not future_slots:
+        return None
+
+    years = doc.get("years_experience", 0)
+    soonest = future_slots[0]["start_time"]
+    score = _calculate_score(
+        vector_sim=vector_sim,
+        doctor_specialties=spec_names,
+        candidate_specialties=candidate_specialties,
+        years_experience=years,
+        fee=fee,
+        max_fee=max_fee,
+        available_slots_count=len(future_slots),
+    )
+
+    return DoctorRecommendation(
+        id=doc_id,
+        user_id=str(doc["user_id"]),
+        full_name=(doc.get("profiles") or {}).get("full_name") or "Medical Specialist",
+        specialties=specs,
+        bio=doc.get("bio"),
+        qualifications=doc.get("qualifications") or [],
+        years_experience=years,
+        consultation_fee=fee,
+        clinic_name=doc.get("clinic_name"),
+        city=doc.get("city", "Dhaka"),
+        match_score=round(score * 100, 1),
+        available_slots_count=len(future_slots),
+        soonest_slot=soonest,
+        match_explanation=_generate_safe_explanation(
+            specialty_names=spec_names,
+            city=doc.get("city", "Dhaka"),
+            years_experience=years,
+            fee=fee,
+            soonest_slot=soonest,
+        ),
+    )
+
+
 def _sql_fallback_search(
     candidate_specialties: List[str],
     city: str,
@@ -175,87 +275,18 @@ def _sql_fallback_search(
         return []
 
     now_iso = datetime.now(timezone.utc).isoformat()
-
-    # Query approved doctors with upcoming slots
-    query = (
-        client.table("doctor_profiles")
-        .select(
-            "id, user_id, bio, qualifications, years_experience, consultation_fee, clinic_name, city, "
-            "verification_status, profiles!inner(full_name), "
-            "doctor_specialties(specialties(id, name, description)), "
-            "availability_slots(id, start_time, is_booked)"
-        )
-        .eq("verification_status", VerificationStatus.APPROVED.value)
-    )
+    query = _doctor_query(client, now_iso).order("years_experience", desc=True).limit(MAX_SQL_CANDIDATES)
 
     if city and city.lower() != "bangladesh":
         query = query.ilike("city", contains_pattern(city))
-
     if max_fee is not None:
         query = query.lte("consultation_fee", max_fee)
 
-    res = query.execute()
-    raw_doctors = res.data or []
-
-    recommendations: List[DoctorRecommendation] = []
-    for doc in raw_doctors:
-        doc_id = str(doc["id"])
-        specs = [item["specialties"] for item in doc.get("doctor_specialties", []) if item.get("specialties")]
-        spec_names = [s["name"] for s in specs]
-
-        if not _fits_request(spec_names, candidate_specialties, doc.get("city"), city):
-            continue
-
-        # Extract future unbooked slots
-        all_slots = doc.get("availability_slots") or []
-        future_slots = [
-            s for s in all_slots if not s.get("is_booked") and s.get("start_time", "") > now_iso
-        ]
-        if not future_slots:
-            continue
-
-        future_slots.sort(key=lambda s: s["start_time"])
-        soonest = future_slots[0]["start_time"] if future_slots else None
-
-        score = _calculate_score(
-            vector_sim=0.5,  # neutral default for SQL fallback
-            doctor_specialties=spec_names,
-            candidate_specialties=candidate_specialties,
-            years_experience=doc.get("years_experience", 0),
-            fee=float(doc.get("consultation_fee", 0.0)),
-            max_fee=max_fee,
-            available_slots_count=len(future_slots),
-            soonest_slot=soonest,
-        )
-
-        full_name = doc.get("profiles", {}).get("full_name") or "Medical Specialist"
-        explanation = _generate_safe_explanation(
-            specialty_names=spec_names,
-            city=doc.get("city", "Dhaka"),
-            years_experience=doc.get("years_experience", 0),
-            fee=float(doc.get("consultation_fee", 0.0)),
-            soonest_slot=soonest,
-        )
-
-        recommendations.append(
-            DoctorRecommendation(
-                id=doc_id,
-                user_id=str(doc["user_id"]),
-                full_name=full_name,
-                specialties=specs,
-                bio=doc.get("bio"),
-                qualifications=doc.get("qualifications") or [],
-                years_experience=doc.get("years_experience", 0),
-                consultation_fee=float(doc.get("consultation_fee", 0.0)),
-                clinic_name=doc.get("clinic_name"),
-                city=doc.get("city", "Dhaka"),
-                match_score=round(score * 100, 1),
-                available_slots_count=len(future_slots),
-                soonest_slot=soonest,
-                match_explanation=explanation,
-            )
-        )
-
+    recommendations = [
+        rec
+        for doc in query.execute().data or []
+        if (rec := _to_recommendation(doc, NEUTRAL_VECTOR_SCORE, candidate_specialties, city, max_fee, now_iso))
+    ]
     recommendations.sort(key=lambda r: r.match_score, reverse=True)
     return recommendations[:limit]
 
@@ -281,147 +312,49 @@ def recommend_doctors(
 
     client = get_supabase_admin_client()
     now_iso = datetime.now(timezone.utc).isoformat()
-
     vector_matches: Dict[str, float] = {}
-    used_sql_fallback = False
 
     # 2. Query Pinecone vector index
     try:
-        provider = get_embedding_provider()
-        query_vector = provider.embed_query(query_text)
-
-        index = get_pinecone_index()
-        # Query with top_k=15 to leave room for post-filtering
-        pinecone_res = index.query(
+        query_vector = get_embedding_provider().embed_query(query_text)
+        pinecone_res = get_pinecone_index().query(
             vector=query_vector,
-            top_k=15,
-            include_metadata=True,
+            top_k=max(settings.VECTOR_CANDIDATES, top_k * 3),
+            filter={"status": {"$eq": VerificationStatus.APPROVED.value}},
+            _request_timeout=settings.PINECONE_TIMEOUT_SECONDS,
         )
-
         for match in getattr(pinecone_res, "matches", []):
-            m_id = getattr(match, "id", None) or match.get("id")
-            m_score = getattr(match, "score", 0.0) or match.get("score", 0.0)
+            m_id = getattr(match, "id", None)
             if m_id:
-                vector_matches[str(m_id)] = float(m_score)
-
+                vector_matches[str(m_id)] = float(getattr(match, "score", 0.0) or 0.0)
     except Exception as e:
-        logger.warning(f"[RECOMMENDATION] Pinecone query failed ({e}); switching to SQL fallback.")
-        used_sql_fallback = True
+        logger.warning(f"[RECOMMENDATION] Pinecone query failed ({type(e).__name__}); using SQL search.")
 
-    # 3. If Pinecone returned candidates, re-fetch and strictly verify from Supabase
+    # 3. Re-fetch every candidate from Supabase, the source of truth
     recommendations: List[DoctorRecommendation] = []
-    if vector_matches and not used_sql_fallback and client:
-        # Filter for valid UUIDs to prevent Postgres syntax errors
-        matched_ids = []
-        for raw_id in vector_matches.keys():
-            try:
-                uuid.UUID(str(raw_id))
-                matched_ids.append(str(raw_id))
-            except (ValueError, TypeError):
-                continue
-
-        if matched_ids:
-            res = (
-                client.table("doctor_profiles")
-                .select(
-                    "id, user_id, bio, qualifications, years_experience, consultation_fee, clinic_name, city, "
-                    "verification_status, profiles!inner(full_name), "
-                    "doctor_specialties(specialties(id, name, description)), "
-                    "availability_slots(id, start_time, is_booked)"
-                )
-                .in_("id", matched_ids)
-                .execute()
-            )
-            raw_docs = res.data or []
-        else:
-            raw_docs = []
-
-        for doc in raw_docs:
-            doc_id = str(doc["id"])
-
-            # Rule 1: Verification status MUST be 'approved' (discards stale vectors)
-            if doc.get("verification_status") != VerificationStatus.APPROVED.value:
-                logger.info(f"[RECOMMENDATION] Rejecting doctor {doc_id}: not approved")
-                continue
-
-            # Rule 2: Budget constraint
-            fee = float(doc.get("consultation_fee", 0.0))
-            if max_fee is not None and fee > max_fee:
-                logger.info(f"[RECOMMENDATION] Rejecting doctor {doc_id}: fee {fee} > max_fee {max_fee}")
-                continue
-
-            # Rule 3: Must match the requested city and a suitable specialty
-            specs = [item["specialties"] for item in doc.get("doctor_specialties", []) if item.get("specialties")]
-            spec_names = [s["name"] for s in specs]
-            if not _fits_request(spec_names, candidate_specialties, doc.get("city"), city):
-                logger.info(f"[RECOMMENDATION] Rejecting doctor {doc_id}: city or specialty mismatch")
-                continue
-
-            # Rule 4: Must have active upcoming slots
-            all_slots = doc.get("availability_slots") or []
-            future_slots = [
-                s for s in all_slots if not s.get("is_booked") and s.get("start_time", "") > now_iso
-            ]
-            if not future_slots:
-                logger.info(f"[RECOMMENDATION] Rejecting doctor {doc_id}: no future availability slots")
-                continue
-
-            future_slots.sort(key=lambda s: s["start_time"])
-            soonest = future_slots[0]["start_time"] if future_slots else None
-
-            sim = vector_matches.get(doc_id, 0.5)
-            score = _calculate_score(
-                vector_sim=sim,
-                doctor_specialties=spec_names,
-                candidate_specialties=candidate_specialties,
-                years_experience=doc.get("years_experience", 0),
-                fee=fee,
-                max_fee=max_fee,
-                available_slots_count=len(future_slots),
-                soonest_slot=soonest,
-            )
-
-            full_name = doc.get("profiles", {}).get("full_name") or "Medical Specialist"
-            explanation = _generate_safe_explanation(
-                specialty_names=spec_names,
-                city=doc.get("city", "Dhaka"),
-                years_experience=doc.get("years_experience", 0),
-                fee=fee,
-                soonest_slot=soonest,
-            )
-
-            recommendations.append(
-                DoctorRecommendation(
-                    id=doc_id,
-                    user_id=str(doc["user_id"]),
-                    full_name=full_name,
-                    specialties=specs,
-                    bio=doc.get("bio"),
-                    qualifications=doc.get("qualifications") or [],
-                    years_experience=doc.get("years_experience", 0),
-                    consultation_fee=fee,
-                    clinic_name=doc.get("clinic_name"),
-                    city=doc.get("city", "Dhaka"),
-                    match_score=round(score * 100, 1),
-                    available_slots_count=len(future_slots),
-                    soonest_slot=soonest,
-                    match_explanation=explanation,
+    matched_ids = [doc_id for doc_id in vector_matches if _is_uuid(doc_id)]
+    if matched_ids and client:
+        rows = _doctor_query(client, now_iso).in_("id", matched_ids).execute().data or []
+        recommendations = [
+            rec
+            for doc in rows
+            if (
+                rec := _to_recommendation(
+                    doc, vector_matches[str(doc["id"])], candidate_specialties, city, max_fee, now_iso
                 )
             )
+        ]
+    retrieval_mode = "hybrid" if recommendations else "sql_fallback"
 
-    # 4. If fewer than 3 qualifying recommendations found, fall back to SQL search
-    if len(recommendations) < 3:
-        fallback_results = _sql_fallback_search(
-            candidate_specialties=candidate_specialties,
-            city=city,
-            max_fee=max_fee,
-            limit=top_k,
-        )
-        if fallback_results:
-            recommendations = fallback_results
-            used_sql_fallback = True
+    # 4. Too few matches: add qualifying doctors from SQL, keeping the vector matches
+    if len(recommendations) < MIN_HYBRID_RESULTS:
+        seen = {rec.id for rec in recommendations}
+        recommendations += [
+            rec
+            for rec in _sql_fallback_search(candidate_specialties, city, max_fee, limit=top_k)
+            if rec.id not in seen
+        ]
 
-    # Sort descending by match score
     recommendations.sort(key=lambda r: r.match_score, reverse=True)
     final_recs = recommendations[:top_k]
 
@@ -430,5 +363,5 @@ def recommend_doctors(
         total_found=len(final_recs),
         query_specialties=candidate_specialties,
         query_city=city,
-        retrieval_mode="sql_fallback" if used_sql_fallback else "hybrid",
+        retrieval_mode=retrieval_mode,
     )

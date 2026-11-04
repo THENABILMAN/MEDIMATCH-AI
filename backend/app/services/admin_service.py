@@ -11,6 +11,7 @@ from app.schemas.doctor import (
     SpecialtyUpdate,
 )
 from app.schemas.profile import DoctorProfileRead, SpecialtyRead
+from app.search.sync import run_in_background, sync_doctor_vector
 from app.services.audit_service import log_audit_event
 from app.services.doctor_events import (
     on_doctor_approved,
@@ -264,6 +265,17 @@ def get_audit_logs(
 # Specialty CRUD Operations
 # ------------------------------------------------------------------------------
 
+def _doctors_with_specialty(client: Any, specialty_id: str) -> List[str]:
+    rows = client.table("doctor_specialties").select("doctor_id").eq("specialty_id", specialty_id).execute()
+    return [str(row["doctor_id"]) for row in rows.data or []]
+
+
+def _reindex_doctors(doctor_ids: List[str]) -> None:
+    """Specialty names and descriptions are part of what each doctor's vector was built from."""
+    for doctor_id in doctor_ids:
+        run_in_background(sync_doctor_vector, doctor_id)
+
+
 def create_specialty(payload: SpecialtyCreate, admin_id: str) -> SpecialtyRead:
     admin_client = get_supabase_admin_client()
     if not admin_client:
@@ -328,6 +340,7 @@ def update_specialty(specialty_id: str, payload: SpecialtyUpdate, admin_id: str)
         metadata=updates,
     )
 
+    _reindex_doctors(_doctors_with_specialty(admin_client, specialty_id))
     return SpecialtyRead(id=str(row["id"]), name=row["name"], description=row.get("description"))
 
 
@@ -336,7 +349,9 @@ def delete_specialty(specialty_id: str, admin_id: str) -> Dict[str, Any]:
     if not admin_client:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database service unavailable")
 
-    res = admin_client.table("specialties").delete().eq("id", specialty_id).execute()
+    affected = _doctors_with_specialty(admin_client, specialty_id)
+    admin_client.table("specialties").delete().eq("id", specialty_id).execute()
+    _reindex_doctors(affected)
     log_audit_event(
         actor_id=admin_id,
         action="DELETE_SPECIALTY",
