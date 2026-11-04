@@ -1,12 +1,18 @@
 """Migration Runner Utility for MediMatch AI.
 
-Applies SQL migrations from supabase/migrations/ in sequential order
-against the configured DATABASE_URL.
+Applies each SQL file in supabase/migrations/ once, in order, and records it in
+public.schema_migrations. Every file runs in its own transaction, so a failure leaves that file
+with no effect and stops the run.
+
+A database created before tracking existed needs a baseline, to say which files it already has:
+
+    python backend/app/run_migrations.py --baseline 00007
 """
 
-import os
+import argparse
 import sys
 from pathlib import Path
+from typing import List, Optional
 
 # Ensure backend root is on sys.path
 backend_dir = Path(__file__).resolve().parent.parent
@@ -14,52 +20,88 @@ if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
 import psycopg2
+
 from app.core.config import settings
 
+MIGRATIONS_DIR = backend_dir.parent / "supabase" / "migrations"
 
-def apply_migrations():
-    db_url = settings.DATABASE_URL
-    if not db_url:
+CREATE_TRACKING_TABLE = """
+CREATE TABLE IF NOT EXISTS public.schema_migrations (
+    version TEXT PRIMARY KEY,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.schema_migrations ENABLE ROW LEVEL SECURITY;
+"""
+
+
+def apply_migrations(
+    db_url: str,
+    migrations_dir: Path = MIGRATIONS_DIR,
+    baseline: Optional[str] = None,
+) -> List[str]:
+    """Applies pending files and returns their names. Raises if any of them fails."""
+    conn = psycopg2.connect(db_url)
+    try:
+        with conn, conn.cursor() as cur:
+            cur.execute("SELECT to_regclass('public.schema_migrations')")
+            first_run = cur.fetchone()[0] is None
+            cur.execute("SELECT to_regclass('public.profiles')")
+            existing_schema = cur.fetchone()[0] is not None
+            if first_run and existing_schema and baseline is None:
+                raise RuntimeError(
+                    "This database has tables but no migration history. "
+                    "Pass --baseline with the last migration it already has."
+                )
+            cur.execute(CREATE_TRACKING_TABLE)
+            cur.execute("SELECT version FROM public.schema_migrations")
+            applied = {row[0] for row in cur.fetchall()}
+
+        pending: List[Path] = []
+        for sql_file in sorted(migrations_dir.glob("*.sql")):
+            if sql_file.name in applied:
+                continue
+            if baseline is not None and sql_file.name[: len(baseline)] <= baseline:
+                with conn, conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO public.schema_migrations (version) VALUES (%s)",
+                        (sql_file.name,),
+                    )
+                continue
+            pending.append(sql_file)
+
+        done: List[str] = []
+        for sql_file in pending:
+            with conn, conn.cursor() as cur:
+                cur.execute(sql_file.read_text(encoding="utf-8"))
+                cur.execute(
+                    "INSERT INTO public.schema_migrations (version) VALUES (%s)",
+                    (sql_file.name,),
+                )
+            done.append(sql_file.name)
+        return done
+    finally:
+        conn.close()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Apply pending database migrations")
+    parser.add_argument("--baseline", help="Mark migrations up to this prefix as already applied")
+    args = parser.parse_args()
+
+    if not settings.DATABASE_URL:
         print("[ERROR] DATABASE_URL is not set in environment or .env file.")
         sys.exit(1)
 
-    migrations_dir = Path(__file__).resolve().parent.parent.parent / "supabase" / "migrations"
-    if not migrations_dir.exists():
-        print(f"[ERROR] Migrations directory not found at {migrations_dir}")
-        sys.exit(1)
-
-    sql_files = sorted(migrations_dir.glob("*.sql"))
-    if not sql_files:
-        print("[INFO] No SQL migration files found.")
-        return
-
-    print(f"[INFO] Connecting to database...")
     try:
-        conn = psycopg2.connect(db_url)
-        conn.autocommit = True
-        cur = conn.cursor()
+        applied = apply_migrations(settings.DATABASE_URL, baseline=args.baseline)
     except Exception as e:
-        print(f"[ERROR] Failed to connect to database: {e}")
+        print(f"[ERROR] Migration failed: {e}")
         sys.exit(1)
 
-    print(f"[INFO] Connected successfully. Found {len(sql_files)} migration(s).")
-
-    for sql_file in sql_files:
-        print(f"[INFO] Applying {sql_file.name}...")
-        try:
-            sql_content = sql_file.read_text(encoding="utf-8")
-            cur.execute(sql_content)
-            print(f"[SUCCESS] Applied {sql_file.name}")
-        except Exception as e:
-            print(f"[ERROR] Failed applying {sql_file.name}: {e}")
-            cur.close()
-            conn.close()
-            sys.exit(1)
-
-    cur.close()
-    conn.close()
-    print("[SUCCESS] All migrations applied successfully!")
+    for name in applied:
+        print(f"[SUCCESS] Applied {name}")
+    print(f"[SUCCESS] {len(applied)} migration(s) applied.")
 
 
 if __name__ == "__main__":
-    apply_migrations()
+    main()

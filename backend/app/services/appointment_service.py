@@ -1,9 +1,9 @@
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from uuid import UUID
 from fastapi import HTTPException, status
-from postgrest import SyncPostgrestClient
+from postgrest import APIError, SyncPostgrestClient
+from app.core.config import settings
 from app.core.supabase import get_supabase_admin_client, get_supabase_client
 from app.models.enums import AppointmentStatus, UserRole, VerificationStatus
 from app.schemas.appointment import (
@@ -42,12 +42,6 @@ def create_availability_slot(
         )
 
     client = _get_client()
-
-    # Normalize to ISO UTC
-    if start_time.tzinfo is None:
-        start_time = start_time.replace(tzinfo=timezone.utc)
-    if end_time.tzinfo is None:
-        end_time = end_time.replace(tzinfo=timezone.utc)
 
     # Check for slot overlaps in python first for user-friendly error
     overlap_res = (
@@ -208,47 +202,52 @@ def delete_availability_slot(doctor_user_id: str, slot_id: str) -> None:
             detail="You do not have permission to delete this availability slot",
         )
 
-    if slot.get("is_booked"):
+    # The is_booked condition makes this safe against a booking that lands at the same moment
+    deleted = (
+        client.table("availability_slots").delete().eq("id", slot_id).eq("is_booked", False).execute()
+    )
+    if not deleted.data:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot delete an availability slot that is currently booked. Cancel the appointment first.",
         )
 
-    client.table("availability_slots").delete().eq("id", slot_id).execute()
+
+def _call_atomic(function: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Runs a stored procedure and turns its outcome into an API response."""
+    try:
+        result = _get_client().rpc(function, params).execute().data
+    except APIError as e:
+        # The unique index is the second guard behind the row lock
+        if e.code == "23505":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This slot has already been booked by another patient",
+            ) from e
+        raise
+
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="The appointment could not be updated. Please try again.",
+        )
+    if not result.get("success"):
+        raise HTTPException(status_code=result.get("code", 400), detail=result.get("error", "Request failed"))
+    return result
 
 
 def book_slot_atomic(patient_user_id: str, slot_id: str) -> AppointmentResponse:
     """Atomically books an appointment slot for a patient using the database RPC."""
-    client = _get_client()
-
-    # Call atomic stored procedure
-    rpc_res = client.rpc(
+    result = _call_atomic(
         "book_appointment_atomic",
-        {"p_slot_id": str(slot_id), "p_patient_id": str(patient_user_id)},
-    ).execute()
-
-    result = rpc_res.data
-    if not result:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database booking procedure returned empty response",
-        )
-
-    if not result.get("success"):
-        code = result.get("code", 400)
-        error_msg = result.get("error", "Booking failed")
-        if code == 409:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=error_msg)
-        elif code == 404:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_msg)
-        elif code == 400:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
-        else:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error_msg)
-
+        {
+            "p_slot_id": str(slot_id),
+            "p_patient_id": str(patient_user_id),
+            "p_max_active": settings.MAX_ACTIVE_BOOKINGS,
+        },
+    )
     appointment_id = result["appointment_id"]
 
-    # Audit log booking
     log_audit_event(
         actor_id=patient_user_id,
         action="APPOINTMENT_BOOKED",
@@ -260,7 +259,6 @@ def book_slot_atomic(patient_user_id: str, slot_id: str) -> AppointmentResponse:
         },
     )
 
-    # Return full hydrated appointment
     return get_appointment_by_id(appointment_id)
 
 
@@ -273,7 +271,6 @@ def _hydrate_appointments(raw_appointments: List[Dict[str, Any]]) -> List[Appoin
 
     doc_ids = list({str(a["doctor_id"]) for a in raw_appointments if a.get("doctor_id")})
     patient_ids = list({str(a["patient_id"]) for a in raw_appointments if a.get("patient_id")})
-    slot_ids = list({str(a["slot_id"]) for a in raw_appointments if a.get("slot_id")})
 
     # Bulk fetch doctors with profiles and specialties
     doctors_map: Dict[str, AppointmentDoctorInfo] = {}
@@ -319,26 +316,12 @@ def _hydrate_appointments(raw_appointments: List[Dict[str, Any]]) -> List[Appoin
                 email=None,
             )
 
-    # Bulk fetch slot times
-    slots_map: Dict[str, Dict[str, Any]] = {}
-    if slot_ids:
-        slots_res = (
-            client.table("availability_slots")
-            .select("id, start_time, end_time")
-            .in_("id", slot_ids)
-            .execute()
-        )
-        for s in slots_res.data or []:
-            slots_map[str(s["id"])] = s
-
     results: List[AppointmentResponse] = []
     for row in raw_appointments:
         a_id = str(row["id"])
         d_id = str(row["doctor_id"])
         p_id = str(row["patient_id"])
         s_id = str(row["slot_id"]) if row.get("slot_id") else None
-
-        slot_info = slots_map.get(s_id) if s_id else None
 
         results.append(
             AppointmentResponse(
@@ -349,8 +332,8 @@ def _hydrate_appointments(raw_appointments: List[Dict[str, Any]]) -> List[Appoin
                 status=AppointmentStatus(row["status"]),
                 created_at=row["created_at"],
                 updated_at=row.get("updated_at"),
-                start_time=slot_info["start_time"] if slot_info else None,
-                end_time=slot_info["end_time"] if slot_info else None,
+                start_time=row.get("scheduled_start"),
+                end_time=row.get("scheduled_end"),
                 doctor=doctors_map.get(d_id),
                 patient=patients_map.get(p_id),
             )
@@ -425,18 +408,6 @@ def cancel_appointment(
         )
 
     app = res.data[0]
-    app_status = app.get("status")
-
-    if app_status == AppointmentStatus.CANCELLED.value:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Appointment is already cancelled",
-        )
-    if app_status == AppointmentStatus.COMPLETED.value:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot cancel an appointment that is already completed",
-        )
 
     # Enforce authorization: only involved patient, doctor, or admin
     if role == UserRole.PATIENT:
@@ -458,19 +429,8 @@ def cancel_appointment(
             detail="Forbidden",
         )
 
-    # 1. Update appointment status to cancelled
-    now_utc = datetime.now(timezone.utc).isoformat()
-    client.table("appointments").update({
-        "status": AppointmentStatus.CANCELLED.value,
-        "updated_at": now_utc,
-    }).eq("id", appointment_id).execute()
-
-    # 2. Free up the availability slot
+    _call_atomic("cancel_appointment_atomic", {"p_appointment_id": appointment_id})
     slot_id = app.get("slot_id")
-    if slot_id:
-        client.table("availability_slots").update({
-            "is_booked": False,
-        }).eq("id", slot_id).execute()
 
     # 3. Log immutable audit log
     log_audit_event(
@@ -514,17 +474,7 @@ def complete_appointment(doctor_user_id: str, appointment_id: str) -> Appointmen
             detail="Only the assigned doctor can mark this appointment as completed",
         )
 
-    if app.get("status") == AppointmentStatus.CANCELLED.value:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot complete a cancelled appointment",
-        )
-
-    now_utc = datetime.now(timezone.utc).isoformat()
-    client.table("appointments").update({
-        "status": AppointmentStatus.COMPLETED.value,
-        "updated_at": now_utc,
-    }).eq("id", appointment_id).execute()
+    _call_atomic("complete_appointment_atomic", {"p_appointment_id": appointment_id})
 
     log_audit_event(
         actor_id=doctor_user_id,

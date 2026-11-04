@@ -25,6 +25,7 @@ INTEGRATION_FILES = {
     "test_admin.py",
     "test_appointments.py",
     "test_auth.py",
+    "test_booking_rules.py",
     "test_chat_api.py",
     "test_data_access.py",
     "test_doctors.py",

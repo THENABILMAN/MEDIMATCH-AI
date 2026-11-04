@@ -12,7 +12,7 @@ Guarantees:
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field
@@ -24,6 +24,9 @@ from app.search.embeddings import get_embedding_provider
 from app.search.sync import get_pinecone_index
 
 logger = logging.getLogger("medimatch.search.recommend")
+
+# Bangladesh has one fixed offset and no daylight saving
+DHAKA = timezone(timedelta(hours=6))
 
 
 class DoctorRecommendation(BaseModel):
@@ -76,8 +79,8 @@ def _generate_safe_explanation(
     )
     if soonest_slot:
         try:
-            dt = datetime.fromisoformat(soonest_slot.replace("Z", "+00:00"))
-            time_str = dt.strftime("%b %d at %I:%M %p UTC")
+            dt = datetime.fromisoformat(soonest_slot.replace("Z", "+00:00")).astimezone(DHAKA)
+            time_str = dt.strftime("%b %d at %I:%M %p Dhaka time")
             explanation += f" Earliest appointment available on {time_str}."
         except Exception:
             explanation += " Has upcoming appointments available."

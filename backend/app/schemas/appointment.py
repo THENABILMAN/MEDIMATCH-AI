@@ -1,30 +1,22 @@
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 from app.models.enums import AppointmentStatus
 from app.schemas.common import UuidStr
 
 
 class SlotCreate(BaseModel):
-    start_time: datetime = Field(description="Slot start time in UTC")
-    end_time: datetime = Field(description="Slot end time in UTC")
+    start_time: AwareDatetime = Field(description="Slot start, with a UTC offset")
+    end_time: AwareDatetime = Field(description="Slot end, with a UTC offset")
 
     model_config = ConfigDict(extra="forbid")
 
     @model_validator(mode="after")
     def validate_slot_times(self) -> "SlotCreate":
-        # Make sure tz-aware comparison is safe
-        now_utc = datetime.now(timezone.utc)
-        start = self.start_time
-        end = self.end_time
+        start, end = self.start_time, self.end_time
 
-        if start.tzinfo is None:
-            start = start.replace(tzinfo=timezone.utc)
-        if end.tzinfo is None:
-            end = end.replace(tzinfo=timezone.utc)
-
-        if start <= now_utc:
+        if start <= datetime.now(timezone.utc):
             raise ValueError("Slot start_time must be in the future.")
 
         if end <= start:

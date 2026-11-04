@@ -265,6 +265,12 @@ def test_doctor_complete_appointment(client: TestClient, doctor_headers: dict, p
         assert p_comp.status_code == status.HTTP_403_FORBIDDEN
 
         # Doctor completes -> 200 OK
+        # An appointment can only be completed once it has started
+        past = datetime.now(timezone.utc) - timedelta(hours=1)
+        get_supabase_admin_client().table("appointments").update(
+            {"scheduled_start": past.isoformat()}
+        ).eq("id", app_id).execute()
+
         d_comp = client.post(f"/appointments/{app_id}/complete", headers=doctor_headers)
         assert d_comp.status_code == status.HTTP_200_OK
         assert d_comp.json()["status"] == AppointmentStatus.COMPLETED.value

@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     RATE_LIMIT_CHAT: int = Field(default=20, ge=1)
     RATE_LIMIT_UPLOAD: int = Field(default=10, ge=1)
 
+    # Upcoming appointments one patient can hold, so one account cannot take every slot
+    MAX_ACTIVE_BOOKINGS: int = Field(default=5, ge=1)
+
     # Credential uploads
     MAX_UPLOAD_BYTES: int = Field(default=10 * 1024 * 1024, ge=1)
 
