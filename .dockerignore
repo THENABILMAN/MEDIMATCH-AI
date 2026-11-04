@@ -1,0 +1,15 @@
+**/.env
+**/.env.*
+!.env.example
+.git
+.github
+docs
+web
+mobile
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+backend/tests
+supabase/.temp
+supabase/.branches

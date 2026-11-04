@@ -48,6 +48,8 @@ MEDIMATCH-AI/
 5. **Doctor Verification Enforcement**: Only doctors with `verification_status = 'approved'` may ever be recommended or searchable by patients.
 6. **Row-Level Security (RLS)**: Every table containing user data must have RLS enabled with strict least-privilege policies.
 7. **Privacy Preservation**: Minimize personal data sent to LLM/embedding providers; never send patient names, phone numbers, email addresses, or identifying credentials.
+8. **Defense in Depth**: Every route enforces auth and role checks, and RLS guards the same data. Rely on neither alone. Clients never write directly: the API is the only writer.
+9. **No Model Text to Patients**: Assistant replies are fixed text. LLM output is only ever parsed into validated fields, and the classifier can add an emergency alert but never remove one.
 
 ---
 
@@ -65,16 +67,20 @@ MEDIMATCH-AI/
 ### Backend
 ```bash
 # Install dependencies
-python -m pip install -r backend/requirements.txt
+python -m pip install -r backend/requirements-dev.txt   # Python 3.12. requirements.txt is runtime only
 
-# Run migrations against Supabase database
+# Start local Supabase (needs Docker), or rebuild it from zero
+npx supabase@latest start
+npx supabase@latest db reset
+
+# Apply pending migrations to DATABASE_URL. A database with no history needs --baseline once
 python backend/app/run_migrations.py
 
-# Seed specialties, 10 demo doctors, and 3 test accounts
-python backend/scripts/seed.py
+# Seed demo data. --with-logins sets demo passwords and only works on a local database
+python backend/scripts/seed.py --with-logins
 
 # Run development server
-python -m uvicorn backend.app.main:app --reload --port 8000
+cd backend && python -m uvicorn app.main:app --reload --port 8000
 
 # Run interactive AI symptom assistant terminal CLI
 python backend/scripts/chat_cli.py
@@ -82,21 +88,30 @@ python backend/scripts/chat_cli.py
 # Verify / setup Pinecone serverless index
 python backend/scripts/setup_pinecone_index.py
 
-# Rebuild entire vector index from Supabase PostgreSQL (idempotent)
+# Rebuild the vector index, or only retry failed doctors
 python backend/scripts/reindex_all.py
+python backend/scripts/reindex_all.py --unsynced
 
-# Run recommendation evaluation benchmark (Precision@3)
+# Erase chats past the retention period. Run daily
+python backend/scripts/purge_expired.py
+
+# Run all tests. They use local Supabase only and refuse any other host
+cd backend && python -m pytest tests -q
+
+# Run tests that need no database
+cd backend && python -m pytest tests -q -m "not integration"
+
+# Evaluations. These call real services, so they are opt-in
 python backend/scripts/eval_recommendations.py
+python backend/scripts/eval_emergency.py
 
-# Run all test suites
-python -m pytest backend/tests/ -v
+# Whole journey against a running local API, with real Pinecone and LLM
+python backend/scripts/e2e_check.py --api http://127.0.0.1:8010
 
-# Run formatting & linting
+# Lint, format and types
 ruff check backend/
 ruff format backend/
-
-# Run tests without touching the real project (blank the service variables)
-DATABASE_URL= SUPABASE_URL= SUPABASE_ANON_KEY= SUPABASE_SERVICE_ROLE_KEY= python -m pytest backend/tests/ -q
+cd backend && mypy app
 ```
 
 ### Web
@@ -142,7 +157,7 @@ flutter run
   - Output guard sanitizing any unauthorized diagnosis claims or drug prescription phrasing from LLM responses
   - PII redaction layer (`privacy.py`) masking patient names, phone numbers (BD + international), and emails before submitting prompts to external LLMs
   - LangGraph conversational workflow (`graph.py`) with typed state, single-question follow-ups bounded at max 3 rounds, and verified DB specialty mapping with General Medicine fallback
-  - In-memory checkpointer (`MemorySaver`) for per-process state; each turn reloads message history from PostgreSQL, so a restart only resets the follow-up counter
+  - Assistant progress is saved in `conversations.graph_state`, so it survives restarts, works across workers and is erased with the conversation
   - Patient chat API (`POST /chat/conversations`, `POST /chat/conversations/{id}/messages`, `GET /chat/conversations/{id}`) enforcing strict patient ownership and mandatory medical disclaimer
   - Interactive terminal CLI (`backend/scripts/chat_cli.py`) for live triage testing
   - 101/101 automated tests passing across the repository (including 32 emergency test cases, 21 non-emergency test cases, output guard tests, workflow scripted tests, and patient isolation tests)
@@ -155,7 +170,7 @@ flutter run
   - Full idempotent reindex script (`reindex_all.py`) synchronizing all approved doctors
   - Hybrid recommendation engine (`recommend.py`) combining Pinecone semantic vector similarity with Supabase verification, budget limits, and future availability slots, with transparent multi-factor scoring and graceful SQL fallback
   - Direct recommendation endpoint `POST /recommendations` (and `/api/v1/recommendations`) and automatic recommendation cards formatted into chat consultation responses
-  - Evaluation benchmark (`eval_recommendations.py`) scoring 100% Precision@3 across 20 clinical queries
+  - Evaluation benchmark (`eval_recommendations.py`): that first version scored 100% only because it passed the answer in. See `docs/EVAL_REPORT.md`
   - 112/112 automated tests passing across the repository
 - [x] **Phase 5: Appointments Engine & Web Application**
   - **Part A (Backend Appointments & Concurrency)**:
@@ -177,6 +192,11 @@ flutter run
   - Patient, doctor and admin portals rebuilt, with URL-synced state and designed loading, empty and error states
   - Backend additions: credential links, verification history, admin patients, consent, chat history erasure, patient anonymization; migrations `00006` and `00007`
   - Tests: 44 Vitest, 95 Playwright on a mocked API covering every screen at 3 sizes with axe, keyboard paths, offline and slow network, and critical journeys
+- [x] **Phase 5c: Backend Audit and Hardening**
+  - `docs/AUDIT.md` records the state before, `docs/SECURITY_REPORT.md` after, and `docs/EVAL_REPORT.md` what was measured
+  - Tests run on local Supabase only: 867 passing, 93% coverage, 100% on safety and booking
+  - Emergency detection is rules plus an LLM classifier that can only add alerts, and replies are fixed text
+  - Migrations `00008` to `00012` exist but are **not applied to the live project**
 - [ ] **Phase 6: Mobile App & Production Deployment**
   - Flutter app for Patient and Doctor workflows
   - End-to-end integration test suite & deployment readiness
@@ -207,13 +227,19 @@ flutter run
 - **2026-10-30**: Enforced strict separation of frontend keys in `web/.env.example`: frontend holds exclusively `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, communicating with backend API using Supabase JWT tokens; backend never exposes service-role, Pinecone, or OpenRouter keys to client code.
 - **2026-10-30**: Designed patient triage chat UI to surface medical safety warnings as permanent prominent disclaimers and render emergency escalations as high-urgency red alerts with direct 999 toll-free dialers.
 - **2026-10-30**: Integrated specialist recommendations directly into chat turns with match explanation snippets, match score percentage badges, and direct links to live slot booking.
-- **2026-11-04**: JWT signatures are only skipped when `ENVIRONMENT=test`; roles always come from `profiles`, never from token metadata. Never set `ENVIRONMENT=test` on a server.
+- **2026-11-04**: Tokens are always verified by Supabase Auth, and production code has no test bypass. Tests replace verification from `conftest.py`. Roles always come from `profiles`, never from token metadata.
 - **2026-11-04**: Migration `00006` makes the API the only writer: RLS gives clients read access only, and `book_appointment_atomic` is executable by the service role alone.
 - **2026-11-04**: Recommendations hard-filter on city and specialty (General Medicine doctors stay eligible) on both the hybrid and SQL paths.
 - **2026-11-04**: Closing a patient account anonymizes the profile and bans the sign-in identity rather than deleting it, so doctors' appointment records survive. Upcoming appointments block closure.
 - **2026-11-04**: Playwright runs against a mocked API with `api.test` and `supabase.test` hosts, and blocks all other outbound requests, so UI tests cannot reach the real project or paid AI services.
-- **2026-11-04**: AI consent is enforced by the chat screen, not the API.
-- **2026-11-04**: Backend tests read `.env` and can write to the configured database; blank `DATABASE_URL` and the `SUPABASE_*` variables to run them offline.
+- **2026-11-04**: AI consent is enforced by the API. An emergency still gets its alert without consent, and nothing the patient wrote is stored.
+- **2026-11-04**: Backend tests ignore `.env` and refuse non-local hosts, because they once wrote fake approved doctors to the real project.
+- **2026-11-04**: Rule-based detection alone missed 61% to 88% of unseen phrases, so the classifier is a second net rather than a replacement. Never report a detection score measured on phrases the rules were tuned on.
+- **2026-11-04**: Model text never reaches patients. A guard can always be beaten, so replies are fixed text and the guard is a backstop.
+- **2026-11-04**: Assistant state lives on the conversation row, not in a LangGraph checkpointer, so deletion and multiple workers need no extra machinery.
+- **2026-11-04**: Booking, cancelling and completing run in locked stored procedures. Appointments keep their own times, and audit logs are append-only for every writer.
+- **2026-11-04**: Signed-in reads of chats, appointments and credentials use the caller's token, so RLS applies. Writes use the service role behind route checks.
+- **2026-11-04**: LLM calls have a deadline on the whole call, because OpenRouter keep-alive bytes restart httpx read timeouts.
 
 
 

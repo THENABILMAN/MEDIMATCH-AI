@@ -71,7 +71,7 @@ EMBEDDING_MODEL=text-embedding-3-small
 ### 3. Install Backend Dependencies
 ```bash
 # Navigate to backend or repo root
-python -m pip install -r backend/requirements.txt
+python -m pip install -r backend/requirements-dev.txt
 ```
 
 ### 4. Apply Database Migrations
@@ -99,14 +99,15 @@ python backend/scripts/seed.py
 
 ### 6. Run the Backend API
 ```bash
-python -m uvicorn backend.app.main:app --reload --port 8000
+cd backend && python -m uvicorn app.main:app --reload --port 8000
 ```
 - Interactive API Docs: `http://localhost:8000/docs`
 - Health check: `http://localhost:8000/health`
 
 ### 7. Run the Automated Tests
 ```bash
-python -m pytest backend/tests/ -v
+npx supabase@latest start   # Tests use local Supabase only, which needs Docker
+cd backend && python -m pytest tests -q
 ```
 
 ---
@@ -120,3 +121,9 @@ python -m pytest backend/tests/ -v
 6. **Strict Row-Level Security (RLS)**: Every user table has least-privilege RLS policies.
 7. **PII Sanitization**: Personal identifiers (names, emails, phones) are stripped before sending symptom descriptions to LLMs or vector embeddings.
 
+## More
+
+- `docs/DEPLOYMENT.md`: configuration, migrations, Docker and scheduled jobs
+- `docs/PRIVACY.md`: what is stored, and what third parties receive
+- `docs/SECURITY_REPORT.md`: test results and known gaps
+- `docs/EVAL_REPORT.md`: emergency detection and recommendation quality

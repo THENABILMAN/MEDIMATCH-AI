@@ -24,13 +24,23 @@ for path in (backend_dir, backend_dir / "tests"):
 
 from test_safety_tables import HELD_OUT_EMERGENCIES, HELD_OUT_ORDINARY
 
-from app.ai.graph import classify_intent_node
+from app.ai.graph import CLASSIFIER_PROMPT
+from app.ai.llm import LLMUnavailableError, get_llm_client
+from app.ai.state import ConversationIntent
 from app.core.config import settings
 
 
-def flagged(text: str) -> bool:
-    state = {"messages": [{"role": "user", "content": text}]}
-    return classify_intent_node(state).get("safety_status") == "emergency"
+def classify(text: str) -> bool | None:
+    """True or False from the model, or None if the call failed."""
+    try:
+        result = get_llm_client().generate_structured(
+            messages=[{"role": "user", "content": text}],
+            response_model=ConversationIntent,
+            system_prompt=CLASSIFIER_PROMPT,
+        )
+    except (LLMUnavailableError, ValueError):
+        return None
+    return result.possible_emergency
 
 
 def main() -> None:
@@ -50,21 +60,25 @@ def main() -> None:
     ordinary = rng.sample(HELD_OUT_ORDINARY, min(args.ordinary, len(HELD_OUT_ORDINARY)))
     print(f"Model: {settings.OPENROUTER_MODEL}")
 
-    missed, false_alarms = [], []
+    missed, false_alarms, failed = [], [], []
     for label, phrases, wrong, expected in (
         ("emergency", emergencies, missed, True),
         ("ordinary", ordinary, false_alarms, False),
     ):
         for text in phrases:
-            result = flagged(text)
-            print(f"  {label:9} {'flagged' if result else 'not flagged':11} {text}")
-            if result != expected:
+            result = classify(text)
+            shown = "CALL FAILED" if result is None else ("flagged" if result else "not flagged")
+            print(f"  {label:9} {shown:11} {text}")
+            if result is None:
+                failed.append(text)
+            elif result != expected:
                 wrong.append(text)
             time.sleep(args.pause)
 
-    print(f"\nEmergencies flagged: {len(emergencies) - len(missed)} of {len(emergencies)}")
-    print(f"Ordinary messages wrongly flagged: {len(false_alarms)} of {len(ordinary)}")
-    print("A failed call counts as not flagged, so an outage appears here as a missed emergency.")
+    answered = len(emergencies) + len(ordinary) - len(failed)
+    print(f"\nCalls answered: {answered}, failed: {len(failed)}")
+    print(f"Emergencies missed: {len(missed)}")
+    print(f"Ordinary messages wrongly flagged: {len(false_alarms)}")
 
 
 if __name__ == "__main__":

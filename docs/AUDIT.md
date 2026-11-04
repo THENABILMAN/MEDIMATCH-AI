@@ -10,6 +10,8 @@ Part of this code was written by Claude Code earlier in the same project (`accou
 
 **Severity:** Critical, High, Medium, Low.
 
+**This records the state before the fixes.** For what changed and what remains, see `docs/SECURITY_REPORT.md`.
+
 ## Summary
 
 The backend runs and its core design is reasonable, but it is not ready for patients.
