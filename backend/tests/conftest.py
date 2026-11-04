@@ -22,6 +22,7 @@ LOCAL_HOSTS = {"127.0.0.1", "localhost"}
 INTEGRATION_FILES = {
     "test_access_rules.py",
     "test_abuse_rules.py",
+    "test_api_contract.py",
     "test_admin.py",
     "test_appointments.py",
     "test_auth.py",

@@ -17,6 +17,7 @@ from app.schemas.doctor import (
     PublicDoctorRead,
 )
 from app.schemas.profile import DoctorProfileRead, SpecialtyRead, UserMeResponse
+from app.schemas.responses import CredentialLink, VerificationEvent
 from app.services.admin_service import list_specialties
 from app.services.appointment_service import (
     create_availability_slot,
@@ -135,14 +136,22 @@ def get_my_credentials(
     return list_my_credentials(current_user.id, db)
 
 
-@router.get("/me/verification-history", summary="List own verification status events")
+@router.get(
+    "/me/verification-history",
+    response_model=List[VerificationEvent],
+    summary="List own verification status events",
+)
 def get_my_verification_history(
     current_user: UserMeResponse = Depends(require_doctor),
 ) -> List[Dict[str, Any]]:
     return get_verification_history(current_user.id)
 
 
-@router.get("/credentials/{id}/url", summary="Get a short-lived link to a credential document")
+@router.get(
+    "/credentials/{id}/url",
+    response_model=CredentialLink,
+    summary="Get a short-lived link to a credential document",
+)
 def get_credential_link(
     id: UuidStr,
     current_user: UserMeResponse = Depends(get_current_user),

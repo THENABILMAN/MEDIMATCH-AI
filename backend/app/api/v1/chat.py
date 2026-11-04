@@ -9,6 +9,8 @@ from app.api.deps import get_user_db, require_patient
 from app.core.rate_limit import limit_by_user
 from app.schemas.common import UuidStr
 from app.schemas.profile import UserMeResponse
+from app.schemas.responses import ConversationCreated, ConversationDetail, ConversationSummary
+from app.search.recommend import DoctorRecommendation
 from app.services.chat_service import (
     create_conversation,
     get_conversation_history,
@@ -43,12 +45,13 @@ class SendMessageResponse(BaseModel):
     safety_status: str
     is_emergency: bool
     search_criteria: Optional[Dict[str, Any]] = None
-    recommendations: Optional[List[Dict[str, Any]]] = None
+    recommendations: Optional[List[DoctorRecommendation]] = None
     followup_field: Optional[str] = None
 
 
 @router.get(
     "/conversations",
+    response_model=List[ConversationSummary],
     summary="List patient's consultation conversations",
 )
 def api_list_conversations(
@@ -63,6 +66,7 @@ def api_list_conversations(
 
 @router.post(
     "/conversations",
+    response_model=ConversationCreated,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new symptom consultation conversation",
 )
@@ -108,6 +112,7 @@ def api_send_message(
 
 @router.get(
     "/conversations/{id}",
+    response_model=ConversationDetail,
     summary="Get conversation history and status",
 )
 def api_get_conversation(

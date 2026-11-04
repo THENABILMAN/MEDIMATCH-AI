@@ -3,6 +3,7 @@ from typing import Dict
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.supabase import get_supabase_client
@@ -12,7 +13,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Health"])
 
 
-@router.get("/health", summary="Liveness: the process is running")
+class HealthResponse(BaseModel):
+    status: str
+    service: str
+
+
+@router.get("/health", response_model=HealthResponse, summary="Liveness: the process is running")
 def health_check() -> Dict[str, str]:
     return {"status": "healthy", "service": "MediMatch AI"}
 

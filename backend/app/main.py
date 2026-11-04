@@ -33,6 +33,7 @@ from app.api.v1.api import api_router
 from app.core.config import settings
 from app.core.logging import configure_logging, request_id_var
 from app.schemas.profile import SpecialtyRead
+from app.schemas.responses import ErrorResponse
 from app.search.sync import wait_for_background_syncs
 from app.services.admin_service import list_specialties
 
@@ -59,6 +60,11 @@ SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Cache-Control": "no-store",
+}
+
+
+ERROR_RESPONSES: Dict[int | str, Dict[str, Any]] = {
+    code: {"model": ErrorResponse} for code in (400, 401, 403, 404, 409, 429, 503)
 }
 
 
@@ -167,23 +173,26 @@ def create_app() -> FastAPI:
     application.middleware("http")(request_context)
 
     # Include v1 API router (/api/v1/...)
-    application.include_router(api_router, prefix=settings.API_V1_STR)
+    application.include_router(api_router, prefix=settings.API_V1_STR, include_in_schema=False)
 
     # The web app calls these root paths
     application.include_router(health.router)
-    application.include_router(users.router)
-    application.include_router(auth.router)
-    application.include_router(doctors.router)
-    application.include_router(appointments.router)
-    application.include_router(admin.router)
-    application.include_router(chat.router)
-    application.include_router(recommendations.router)
+    for router in (
+        users.router,
+        auth.router,
+        doctors.router,
+        appointments.router,
+        admin.router,
+        chat.router,
+        recommendations.router,
+    ):
+        application.include_router(router, responses=ERROR_RESPONSES)
 
     @application.get("/specialties", response_model=list[SpecialtyRead], summary="Public specialties listing")
     def root_specialties() -> list[SpecialtyRead]:
         return list_specialties()
 
-    @application.get("/", summary="Root index")
+    @application.get("/", response_model=Dict[str, str], summary="Root index")
     def root_index() -> Dict[str, str]:
         return {"message": f"Welcome to {settings.PROJECT_NAME} API", "health_check": "/health"}
 

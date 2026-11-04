@@ -11,6 +11,7 @@ from app.schemas.doctor import (
     SpecialtyUpdate,
 )
 from app.schemas.profile import SpecialtyRead, UserMeResponse
+from app.schemas.responses import AdminDoctorPage, AdminPatientPage, DoctorActionResponse, MessageResponse
 from app.services.admin_service import (
     approve_doctor,
     create_specialty,
@@ -31,7 +32,7 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 # Doctor Verification Management
 # ------------------------------------------------------------------------------
 
-@router.get("/patients", summary="List patient accounts")
+@router.get("/patients", response_model=AdminPatientPage, summary="List patient accounts")
 def read_patients(
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
@@ -45,7 +46,7 @@ def read_patients(
     )
 
 
-@router.get("/doctors", summary="List doctor profiles for admin review")
+@router.get("/doctors", response_model=AdminDoctorPage, summary="List doctor profiles for admin review")
 def read_doctors(
     status: Optional[VerificationStatus] = Query(default=None, description="Filter by status"),
     limit: int = Query(default=50, ge=1, le=100),
@@ -59,7 +60,7 @@ def read_doctors(
     )
 
 
-@router.post("/doctors/{id}/approve", summary="Approve doctor profile")
+@router.post("/doctors/{id}/approve", response_model=DoctorActionResponse, summary="Approve doctor profile")
 def approve_doctor_profile(
     id: UuidStr,
     current_admin: UserMeResponse = Depends(require_admin),
@@ -67,7 +68,7 @@ def approve_doctor_profile(
     return approve_doctor(doctor_id=id, admin_id=current_admin.id)
 
 
-@router.post("/doctors/{id}/reject", summary="Reject doctor profile")
+@router.post("/doctors/{id}/reject", response_model=DoctorActionResponse, summary="Reject doctor profile")
 def reject_doctor_profile(
     id: UuidStr,
     payload: AdminDoctorActionRequest,
@@ -76,11 +77,11 @@ def reject_doctor_profile(
     return reject_doctor(
         doctor_id=id,
         admin_id=current_admin.id,
-        reason=payload.reason or "Does not meet verification guidelines",
+        reason=payload.reason or "",
     )
 
 
-@router.post("/doctors/{id}/suspend", summary="Suspend doctor profile")
+@router.post("/doctors/{id}/suspend", response_model=DoctorActionResponse, summary="Suspend doctor profile")
 def suspend_doctor_profile(
     id: UuidStr,
     payload: AdminDoctorActionRequest,
@@ -89,7 +90,7 @@ def suspend_doctor_profile(
     return suspend_doctor(
         doctor_id=id,
         admin_id=current_admin.id,
-        reason=payload.reason or "Suspended by administrator",
+        reason=payload.reason or "",
     )
 
 
@@ -139,7 +140,7 @@ def admin_update_specialty(
     return update_specialty(specialty_id=id, payload=payload, admin_id=current_admin.id)
 
 
-@router.delete("/specialties/{id}", summary="Delete specialty")
+@router.delete("/specialties/{id}", response_model=MessageResponse, summary="Delete specialty")
 def admin_delete_specialty(
     id: UuidStr,
     current_admin: UserMeResponse = Depends(require_admin),
