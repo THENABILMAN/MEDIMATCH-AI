@@ -164,3 +164,18 @@ def test_doctor_events_lifecycle_triggers_vector_sync(setup_fake_search):
     assert mock_index.delete.called
     mock_index.delete.assert_called_with(ids=[suspended_id])
 
+
+
+def test_failed_vector_delete_is_retried_and_reported(monkeypatch):
+    """A doctor must not be marked synced while their vector is still searchable."""
+    mock_index = MagicMock()
+    mock_index.delete = MagicMock(side_effect=ConnectionError("pinecone down"))
+    set_pinecone_index_client(mock_index)
+    statuses = []
+    monkeypatch.setattr("app.search.sync._update_sync_status", lambda _id, s: statuses.append(s))
+    monkeypatch.setattr("app.search.sync._delete_vector_from_pinecone.retry.sleep", lambda _s: None)
+
+    assert delete_doctor_vector("d1") is False
+    assert mock_index.delete.call_count == 3
+    assert statuses == ["failed"]
+    set_pinecone_index_client(None)

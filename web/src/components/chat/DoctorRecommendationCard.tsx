@@ -8,7 +8,7 @@ interface DoctorRecommendationCardProps {
 }
 
 export const DoctorRecommendationCard: React.FC<DoctorRecommendationCardProps> = ({ doctor }) => {
-  const matchPct = Math.min(100, Math.max(50, Math.round(doctor.score * 100)))
+  const matchPct = Math.round(doctor.match_score)
 
   return (
     <div
@@ -42,12 +42,12 @@ export const DoctorRecommendationCard: React.FC<DoctorRecommendationCardProps> =
               </span>
             </div>
             <div className="mt-0.5 flex flex-wrap gap-1">
-              {doctor.specialties.map((s, idx) => (
+              {doctor.specialties.map((s) => (
                 <span
-                  key={idx}
+                  key={s.id}
                   className="rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700"
                 >
-                  {s}
+                  {s.name}
                 </span>
               ))}
             </div>
@@ -78,14 +78,14 @@ export const DoctorRecommendationCard: React.FC<DoctorRecommendationCardProps> =
 
       {/* CTA Button */}
       <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
-        {doctor.next_available_slot && (
+        {doctor.available_slots_count > 0 && (
           <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-700">
             <Clock className="h-3.5 w-3.5" />
             <span>Slots Available</span>
           </div>
         )}
         <Link
-          to={`/doctors/${doctor.doctor_id}`}
+          to={`/doctors/${doctor.id}`}
           className="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-indigo-700 active:scale-95"
         >
           <Calendar className="h-3.5 w-3.5" />

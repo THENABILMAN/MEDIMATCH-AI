@@ -112,11 +112,7 @@ def _upsert_vector_to_pinecone(doctor_id: str, vector: List[float], metadata: Di
 )
 def _delete_vector_from_pinecone(doctor_id: str) -> None:
     index = get_pinecone_index()
-    try:
-        index.delete(ids=[doctor_id])
-    except Exception as e:
-        # If vector didn't exist, ignore or log
-        logger.info(f"Vector delete notice for {doctor_id}: {e}")
+    index.delete(ids=[doctor_id])
 
 
 def sync_doctor_vector(doctor_id: str) -> bool:

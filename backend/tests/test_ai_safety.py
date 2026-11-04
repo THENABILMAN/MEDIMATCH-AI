@@ -9,7 +9,7 @@ Verifies:
 
 import pytest
 from app.ai.privacy import redact_pii
-from app.ai.safety import check_emergency, output_guard
+from app.ai.safety import _load_patterns, check_emergency, output_guard
 
 
 # ------------------------------------------------------------------------------
@@ -167,3 +167,109 @@ def test_privacy_redacts_self_identifying_names():
     assert "রহিম আহমেদ" not in redacted2
     assert "[NAME REDACTED]" in redacted2
 
+
+
+# ------------------------------------------------------------------------------
+# Regression cases
+# ------------------------------------------------------------------------------
+
+MISSED_EMERGENCIES = [
+    "baby is not breathing",
+    "I don't want to live anymore",
+    "I don\u2019t want to live anymore",
+    "pressure in my chest and left arm numb",
+    "my lips are turning blue",
+    "worst headache of my life",
+    "sudden severe headache",
+    "shash nite parchi na",
+    "I can\u2019t breathe",
+    "my father collapsed in the bathroom",
+    "snake bite on her leg",
+    "আমি আর বাঁচতে চাই না",
+    "ami ar banchte chai na",
+    # Same word, two Bengali encodings of the letter RA with dot below
+    "কথা জড়িয়ে যাচ্ছে",
+    "কথা জ\u09a1\u09bcিয়ে যাচ্ছে",
+]
+
+
+@pytest.mark.parametrize("phrase", MISSED_EMERGENCIES)
+def test_previously_missed_emergencies_escalate(phrase: str):
+    assert check_emergency(phrase)[0] is True
+
+
+def test_triage_refuses_to_start_without_patterns(tmp_path):
+    empty = tmp_path / "patterns.json"
+    empty.write_text('{"categories": []}', encoding="utf-8")
+
+    with pytest.raises(RuntimeError):
+        _load_patterns(empty)
+
+
+@pytest.mark.parametrize("path_name", ["missing.json"])
+def test_triage_refuses_to_start_with_missing_file(tmp_path, path_name: str):
+    with pytest.raises(FileNotFoundError):
+        _load_patterns(tmp_path / path_name)
+
+
+@pytest.mark.parametrize(
+    "unsafe",
+    [
+        "You may have diabetes.",
+        "You probably have a migraine",
+        "It sounds like you have the flu",
+        "This could be a stomach infection",
+        "Try 2 Napa tablets",
+        "Take 2 tablets every 6 hours",
+        "You should be taking antibiotics",
+        "Don't worry, it's nothing serious",
+        "আপনার ডায়াবেটিস আছে",
+        "দিনে দুইবার ওষুধ খান",
+        "500 মিগ্রা ট্যাবলেট",
+    ],
+)
+def test_output_guard_blocks_unsafe_replies(unsafe: str):
+    assert output_guard(unsafe) != unsafe
+
+
+@pytest.mark.parametrize(
+    "safe",
+    [
+        "Hello! I can help you find a suitable doctor.",
+        "Do you have a fever?",
+        "How long have you had these symptoms?",
+        "A neurologist can evaluate your headaches.",
+        "What can MediMatch do? It helps you book verified doctors.",
+    ],
+)
+def test_output_guard_allows_safe_replies(safe: str):
+    assert output_guard(safe) == safe
+
+
+@pytest.mark.parametrize(
+    "text, kept",
+    [
+        ("I am having chest tightness for 3 days", "having chest tightness"),
+        ("I am feeling dizzy and nauseous", "feeling dizzy"),
+        ("this is very painful", "very painful"),
+        ("I'm diabetic and pregnant", "diabetic and pregnant"),
+    ],
+)
+def test_redaction_keeps_clinical_detail(text: str, kept: str):
+    assert kept in redact_pii(text)
+
+
+@pytest.mark.parametrize(
+    "text, name",
+    [
+        ("My name is Rahim Uddin", "Rahim"),
+        ("my name is rahim", "rahim"),
+        ("I am Fatema Begum from Dhaka", "Fatema"),
+        ("I\u2019m Karim", "Karim"),
+        ("amar naam Rahim", "Rahim"),
+    ],
+)
+def test_redaction_still_removes_names(text: str, name: str):
+    redacted = redact_pii(text)
+    assert name not in redacted
+    assert "[NAME REDACTED]" in redacted

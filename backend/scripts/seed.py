@@ -4,9 +4,11 @@ Seeds:
 - 3 Specialties: Neurology, Cardiology, General Medicine
 - 10 Fake clearly-labelled demo doctors in Bangladesh (mix of approved, pending, suspended)
 - 3 Core test accounts:
-    - Admin:   admin@medimatch.test   / AdminPass123!
-    - Doctor:  doctor@medimatch.test  / DoctorPass123!
-    - Patient: patient@medimatch.test / PatientPass123!
+    - Admin:   admin@medimatch.test
+    - Doctor:  doctor@medimatch.test
+    - Patient: patient@medimatch.test
+
+This script does not set passwords. Set them in the Supabase dashboard before signing in.
 
 Usage:
     python backend/scripts/seed.py

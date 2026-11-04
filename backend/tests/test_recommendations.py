@@ -20,7 +20,7 @@ from app.ai.llm import LLMClient, set_llm_client
 from app.ai.state import ConversationIntent, ExtractedSymptoms
 from app.models.enums import UserRole
 from app.search.embeddings import FakeEmbeddingProvider, set_embedding_provider
-from app.search.recommend import recommend_doctors
+from app.search.recommend import _fits_request, recommend_doctors
 from app.search.sync import set_pinecone_index_client
 
 
@@ -156,7 +156,7 @@ def test_budget_max_fee_filter_enforced():
         assert doc.consultation_fee <= 1300.0
 
 
-def test_direct_recommendations_api_endpoints(client: TestClient):
+def test_direct_recommendations_api_endpoints(client: TestClient, patient_token: str):
     """POST /recommendations and POST /api/v1/recommendations respond with recommendations."""
     payload = {
         "candidate_specialties": ["Neurology"],
@@ -165,8 +165,10 @@ def test_direct_recommendations_api_endpoints(client: TestClient):
         "top_k": 3,
     }
 
+    headers = {"Authorization": f"Bearer {patient_token}"}
+
     # Test top-level route
-    res1 = client.post("/recommendations", json=payload)
+    res1 = client.post("/recommendations", json=payload, headers=headers)
     assert res1.status_code == status.HTTP_200_OK
     data1 = res1.json()
     assert "recommendations" in data1
@@ -174,7 +176,7 @@ def test_direct_recommendations_api_endpoints(client: TestClient):
     assert len(data1["recommendations"]) <= 3
 
     # Test /api/v1/recommendations
-    res2 = client.post("/api/v1/recommendations", json=payload)
+    res2 = client.post("/api/v1/recommendations", json=payload, headers=headers)
     assert res2.status_code == status.HTTP_200_OK
     data2 = res2.json()
     assert len(data2["recommendations"]) >= 1
@@ -236,3 +238,22 @@ def test_chat_completion_populates_recommendations(client: TestClient):
 
     # Reset LLM
     set_llm_client(LLMClient())
+
+
+def test_recommendations_require_sign_in(client: TestClient):
+    assert client.post("/recommendations", json={}).status_code == 401
+
+
+@pytest.mark.parametrize(
+    "specialties, candidates, doctor_city, city, expected",
+    [
+        (["Neurology"], ["Neurology"], "Dhaka", "Dhaka", True),
+        (["General Medicine"], ["Cardiology"], "Dhaka", "Dhaka", True),
+        (["Cardiology"], ["Neurology"], "Dhaka", "Dhaka", False),
+        (["Neurology"], ["Neurology"], "Sylhet", "Dhaka", False),
+        (["Neurology"], ["Neurology"], "Sylhet", "Bangladesh", True),
+        (["neurology"], ["Neurology"], "Dhaka North", "dhaka", True),
+    ],
+)
+def test_doctors_must_fit_city_and_specialty(specialties, candidates, doctor_city, city, expected):
+    assert _fits_request(specialties, candidates, doctor_city, city) is expected

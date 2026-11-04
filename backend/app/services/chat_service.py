@@ -170,9 +170,10 @@ def send_patient_message(
     config = {"configurable": {"thread_id": conversation_id}}
     result_state = graph.invoke(initial_state, config=config)
 
-    assistant_reply = result_state.get(
-        "assistant_reply",
-        "Could you tell me a little more about your symptoms and location?",
+    # A node can leave the reply as None, so a .get() default is not enough
+    assistant_reply = (
+        result_state.get("assistant_reply")
+        or "Could you tell me a little more about your symptoms and location?"
     )
     current_step = result_state.get("current_step", "extract_symptoms")
     search_criteria = result_state.get("search_criteria")
@@ -200,15 +201,16 @@ def send_patient_message(
         except Exception as e:
             logger.warning(f"Could not generate recommendations during chat: {e}")
 
-    # 6. Persist assistant reply
+    # 6. Persist assistant reply, with what the UI needs to redraw it on reload
+    is_emergency = result_state.get("safety_status") == "emergency"
     client.table("messages").insert({
         "conversation_id": conversation_id,
         "sender": "assistant",
         "content": assistant_reply,
+        "metadata": {"is_emergency": is_emergency, "recommendations": recommendations_list},
     }).execute()
 
     # 7. If search criteria formed or emergency flagged, record in patient_symptom_sessions
-    is_emergency = result_state.get("safety_status") == "emergency"
     if search_criteria or is_emergency:
         client.table("patient_symptom_sessions").insert({
             "patient_id": patient_id,
