@@ -7,7 +7,6 @@ Part of this code was written by Claude Code earlier in the same project (`accou
 **Evidence labels**
 - **PROVEN:** the behaviour was observed by running it.
 - **READ:** found by reading the code, not yet triggered.
-- **BLOCKED:** could not be checked. See the next section.
 
 **Severity:** Critical, High, Medium, Low.
 
@@ -22,17 +21,66 @@ The backend runs and its core design is reasonable, but it is not ready for pati
 5. **Claimed results:** the 100% Precision@3 score tests nothing, and the race and RLS tests only run against a real project.
 6. **Clean install:** a fresh install from `requirements.txt` cannot start the app.
 
-## Checks That Could Not Run
+## Update: Blocked Checks Now Run
 
-| Check | Why | Needed |
+Completed the same day, once Docker and the database password were available. All attacks ran against a local Supabase stack with real tokens, never the live project.
+
+**Live project containment, done:**
+- Backed up `public` and `auth` first. The backup's contents were listed, but a test restore has not been run.
+- Applied `00006` and `00007`. Anon now gets `permission denied` on `book_appointment_atomic`, and doctors' phone numbers are no longer readable by anon.
+- Removed the 15 fake approved doctors and their 7 vectors. They had no appointments, slots, credentials or audit rows. 7 real approved doctors remain.
+
+**Rebuild from zero: PROVEN.** All 7 migrations apply cleanly to an empty Supabase database.
+
+**Double-booking attack: PROVEN safe.**
+
+| Attack | Result |
+|---|---|
+| 20 patients, one slot, 3 rounds | 1 success and 19 409s each round, 1 booked row each time |
+| One patient, one slot, 20 requests | 1 success, 19 409s |
+| Double cancel racing a rebook, 25 rounds | 0 inconsistent slots. Concurrent cancels can both return 200 |
+
+**New or upgraded findings:**
+
+| Severity | Finding | Evidence |
 |---|---|---|
-| Rebuild the database from zero | No Postgres available | Docker Desktop |
-| RLS as anon, patient, doctor and admin with real sessions | No isolated database. Anon was checked on the live project, read-only | Docker Desktop |
-| Real double-booking attack | Must not run against the live project | Docker Desktop |
-| Live migration state, beyond what anon can see | `DATABASE_URL` password rejected | Correct password |
-| Gitleaks and TruffleHog on git history | The binary download was refused by a permission check | Your permission, or install it yourself |
-| Whether Storage resolves `../` in a path | Needs a real Storage service | Docker Desktop |
-| Text sent to OpenRouter, captured live | Would send data to a paid service | Mocked capture in Step 5 |
+| High | **A doctor account can read another doctor's credential file through the API.** Registering `own-id/../victim-id/file.pdf` passes the prefix check, and the signed link opened the victim's file. Anyone can self-register as a doctor. The attacker needs the exact path, which is hard to guess for API uploads because they carry a random prefix. `doctors.py:75` | PROVEN |
+| High | A user with no `profiles` row can insert `role = 'admin'` directly. Signup normally creates that row, so this needs an edge case, but the policy is live. `00002:82` | PROVEN |
+| High | A patient can set `ai_consent_at` and `deleted_at` on their own profile directly, so consent can be forged. `profiles_update_own` | PROVEN |
+| High | No throttling: 60 wrong passwords through `/auth/login` in 0.4 seconds, all 401 | PROVEN |
+| High | 30 accounts registered with 6-character passwords, with no throttling | PROVEN |
+| High | A duplicate email returns "A user with this email address has already been registered" | PROVEN |
+| High | Admin read a patient's chat with 200 and no audit entry | PROVEN |
+| High | An approved doctor renamed to "Prof. Famous Surgeon" and stayed approved | PROVEN |
+| High | Completing a future appointment returns 200, and completing it again returns 200 | PROVEN |
+| High | A chat message with no consent returned 200, and raw symptoms were stored | PROVEN |
+| Medium | A doctor can book another doctor's slot | PROVEN |
+| Medium | A disguised executable uploaded as a PDF was accepted | PROVEN |
+| Medium | A 30MB upload is read fully into memory, then fails with 502 rather than 413 | PROVEN |
+| Medium | One patient booked 10 slots with no limit | PROVEN |
+| Medium | Only 5 of 7 approved doctors are in Pinecone | PROVEN |
+| Medium | 45 other `@test.com` accounts remain on the live project, not authorized for removal | PROVEN |
+| Low | Cancelling checks status before ownership, so a stranger learns an appointment is completed from the 400 | PROVEN |
+
+**Corrections to the first pass:**
+- The cancel race was rated High from reading the code. It did not reproduce in 25 rounds, so it is now Medium. Cancels are still not atomic and will be fixed.
+- A chat emergency returns 200 now that the live database has its columns. The fix to return the alert before any database write still stands.
+
+**RLS with real sessions**
+
+Rows visible to each role, in a seeded local database:
+
+| Table | anon | patient A | patient B | doctor | pending doctor | admin |
+|---|---|---|---|---|---|---|
+| `profiles` | 0 | 1 | 1 | 1 | 1 | all |
+| `doctor_profiles` | 1 | 1 | 1 | 1 | 2 | 2 |
+| `availability_slots` | 2 | 2 | 2 | 2 | 2 | 2 |
+| `appointments` | 0 | 1 | 0 | 1 | 0 | 1 |
+| `conversations`, `messages`, `patient_symptom_sessions` | 0 | 1 | 0 | 0 | 0 | 1 |
+| `doctor_credentials` | 0 | 0 | 0 | 1 | 0 | 1 |
+| `audit_logs` | 0 | 0 | 0 | 0 | 0 | 1 |
+
+Isolation holds. Blocked direct writes: own role change, editing another profile, self-approval, editing a doctor profile, inserting or changing appointments, changing slots, inserting messages, deleting conversations, inserting audit logs, admins changing or deleting audit logs, and creating specialties. Anon and patients are refused the booking function, and the bucket refuses direct reads and uploads.
 
 ## Tooling Results
 
@@ -45,7 +93,7 @@ Run on Python 3.12.13 in a venv outside the repo. All service variables were bla
 | Coverage, offline | 58% overall. `appointment_service` 13%, `auth_service` 16%, `admin_service` 21%, `recommend` 46%, `safety` 96%. Lines ran; assertions are a separate question, see 3f |
 | pip-audit | No known vulnerabilities. This only covers versions resolved today, because nothing is pinned |
 | detect-secrets, tracked files | 5 files flagged. All are placeholders, mock keys or UI labels |
-| Pattern scan, full git history | No real keys. 8 hits, all placeholders in `.env.example` and `README.md`. This is weaker than gitleaks |
+| gitleaks 8.30.1, full git history | 0 findings |
 | ruff | 745 errors, 59 files need formatting |
 | mypy | 962 errors, 987 with `--strict` |
 
@@ -166,7 +214,7 @@ The zero rows may mean RLS blocked them or that the tables are empty. This check
 | Severity | Finding | Evidence |
 |---|---|---|
 | High | An approved doctor can change `full_name` and stay approved, so they could impersonate another doctor. `profile_service.py:95` | READ |
-| High | `file_path` passes a prefix check only, so `uid/../other/x` is accepted. The web app does not use this field. `doctors.py:75` | READ, BLOCKED for the Storage side |
+| High | `file_path` passes a prefix check only, so `uid/../other/x` is accepted. The web app does not use this field. `doctors.py:75` | PROVEN, see the update near the top |
 | High | Uploads have no app-side size cap and are read fully into memory. `doctors.py:92` | READ |
 | High | The content type comes from the client and the file bytes are not inspected, so a disguised file passes. `doctors.py:99` | READ |
 | Medium | Blocking Storage calls run inside an `async def`, stalling the event loop. `doctors.py:96` | READ |
@@ -263,7 +311,7 @@ Provider: Pinecone Inference with `llama-text-embed-v2`, 1024 dimensions. The li
 | Medium | Naive datetimes are treated as UTC. A Dhaka local time would be stored 6 hours off. `schemas/appointment.py:21` | READ |
 | Medium | Patients see "UTC" in recommendation text. `recommend.py:80` | READ |
 
-**Double-booking attack: BLOCKED.** The design looks sound: a row lock, then a partial unique index as the second guard, plus an overlap exclusion constraint.
+**Double-booking attack: PROVEN safe**, see the update near the top. The design is a row lock, then a partial unique index as the second guard, plus an overlap exclusion constraint.
 
 ## 3i. Privacy
 
@@ -309,7 +357,7 @@ Provider: Pinecone Inference with `llama-text-embed-v2`, 1024 dimensions. The li
 | Medium | `pytest` and `ruff` are in runtime requirements | READ |
 | Low | Python 3.14 on this machine, 3.12 in the docs, and `>=3.11` in `pyproject.toml` | PROVEN |
 
-**No secret was found in git history or tracked files**, subject to gitleaks still being unrun.
+**No secret was found in git history or tracked files.**
 
 ## 3l. Contract with the Frontend
 
@@ -329,11 +377,7 @@ No Dockerfile, docker-compose, CI, Makefile, pre-commit, mypy configuration or c
 
 ## 5. Fix Plan
 
-Blocked until you act:
-1. **Fix `DATABASE_URL`** in `.env`. This unlocks live containment: back up, apply `00006` and `00007`, confirm anon is refused, and remove the 15 test doctors and their vectors.
-2. **Install Docker Desktop.** This unlocks the checks listed at the top, and the test-first work in Steps 1 to 3.
-
-Then Phase B in the brief's order, then Phase C:
+Phase B in the brief's order, then Phase C:
 
 | Step | Work | Estimate |
 |---|---|---|
