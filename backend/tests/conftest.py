@@ -155,7 +155,7 @@ def ensure_user(user_id: str, role: UserRole, full_name: str) -> None:
             cur.execute(
                 """
                 INSERT INTO public.profiles (id, role, full_name) VALUES (%s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role
+                ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, full_name = EXCLUDED.full_name
                 """,
                 (user_id, role.value, full_name),
             )

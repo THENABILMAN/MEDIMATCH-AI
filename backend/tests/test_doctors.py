@@ -165,4 +165,5 @@ def test_doctor_upload_credentials(client: TestClient):
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert data["document_type"] == "bmdc_license"
-    assert "sample_bmdc_license.pdf" in data["file_path"]
+    assert data["file_path"].startswith("a0000000-0000-0000-0000-000000000003/")
+    assert data["file_path"].endswith(".pdf")
