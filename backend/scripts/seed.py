@@ -1,7 +1,7 @@
 """Database Seeding Script for MediMatch AI.
 
 Seeds:
-- 3 Specialties: Neurology, Cardiology, General Medicine
+- 6 Specialties: Neurology, Cardiology, General Medicine, Psychiatry, Clinical Psychology, Counselling
 - 10 Fake clearly-labelled demo doctors in Bangladesh (mix of approved, pending, suspended)
 - 3 Core test accounts:
     - Admin:   admin@medimatch.test
@@ -53,6 +53,21 @@ SPECIALTIES = [
         "id": "11111111-0000-0000-0000-000000000003",
         "name": "General Medicine",
         "description": "Primary healthcare, internal medicine, comprehensive diagnosis, fever management, and chronic disease control.",
+    },
+    {
+        "id": "11111111-0000-0000-0000-000000000004",
+        "name": "Psychiatry",
+        "description": "Medical assessment and care for mental health, including severe or long-lasting emotional difficulties.",
+    },
+    {
+        "id": "11111111-0000-0000-0000-000000000005",
+        "name": "Clinical Psychology",
+        "description": "Talking therapy and psychological assessment for emotional difficulties that affect daily life.",
+    },
+    {
+        "id": "11111111-0000-0000-0000-000000000006",
+        "name": "Counselling",
+        "description": "Support for working through loss, relationships, stress and life changes.",
     },
 ]
 
@@ -231,6 +246,76 @@ DEMO_DOCTORS = [
         "city": "Dhaka",
         "verification_status": VerificationStatus.REJECTED.value,
         "specialty_id": "11111111-0000-0000-0000-000000000003",
+    },
+    {
+        "user_id": "d1000000-0000-0000-0000-000000000011",
+        "doc_id": "d2000000-0000-0000-0000-000000000011",
+        "email": "dr.nusrat.psychiatry@medimatch.test",
+        "full_name": "[Demo] Dr. Nusrat Jahan (Psychiatrist)",
+        "bio": "Psychiatrist supporting adults with low mood, anxiety, panic and long-term sleep problems.",
+        "qualifications": ["MBBS", "FCPS (Psychiatry)"],
+        "years_experience": 12,
+        "consultation_fee": 1500.0,
+        "clinic_name": "Demo Mind Care Centre, Dhanmondi",
+        "city": "Dhaka",
+        "verification_status": VerificationStatus.APPROVED.value,
+        "specialty_id": "11111111-0000-0000-0000-000000000004",
+    },
+    {
+        "user_id": "d1000000-0000-0000-0000-000000000012",
+        "doc_id": "d2000000-0000-0000-0000-000000000012",
+        "email": "dr.tanvir.psychiatry@medimatch.test",
+        "full_name": "[Demo] Dr. Tanvir Hossain (Psychiatrist)",
+        "bio": "Psychiatrist providing medical evaluation for anxiety, low mood and stress-related difficulties.",
+        "qualifications": ["MBBS", "MD (Psychiatry)"],
+        "years_experience": 9,
+        "consultation_fee": 1200.0,
+        "clinic_name": "Demo Wellbeing Clinic, Agrabad",
+        "city": "Chittagong",
+        "verification_status": VerificationStatus.APPROVED.value,
+        "specialty_id": "11111111-0000-0000-0000-000000000004",
+    },
+    {
+        "user_id": "d1000000-0000-0000-0000-000000000013",
+        "doc_id": "d2000000-0000-0000-0000-000000000013",
+        "email": "farhana.psychology@medimatch.test",
+        "full_name": "[Demo] Farhana Akter (Clinical Psychologist)",
+        "bio": "Clinical psychologist offering talking therapy for grief, heartbreak, anxiety and relationship distress.",
+        "qualifications": ["MPhil (Clinical Psychology)"],
+        "years_experience": 8,
+        "consultation_fee": 1000.0,
+        "clinic_name": "Demo Mind Care Centre, Dhanmondi",
+        "city": "Dhaka",
+        "verification_status": VerificationStatus.APPROVED.value,
+        "specialty_id": "11111111-0000-0000-0000-000000000005",
+    },
+    {
+        "user_id": "d1000000-0000-0000-0000-000000000014",
+        "doc_id": "d2000000-0000-0000-0000-000000000014",
+        "email": "rafiq.psychology@medimatch.test",
+        "full_name": "[Demo] Rafiq Ahmed (Clinical Psychologist)",
+        "bio": "Clinical psychologist working with low mood, burnout, loneliness and sleep problems from stress.",
+        "qualifications": ["MPhil (Clinical Psychology)"],
+        "years_experience": 6,
+        "consultation_fee": 900.0,
+        "clinic_name": "Demo Calm Space, Zindabazar",
+        "city": "Sylhet",
+        "verification_status": VerificationStatus.APPROVED.value,
+        "specialty_id": "11111111-0000-0000-0000-000000000005",
+    },
+    {
+        "user_id": "d1000000-0000-0000-0000-000000000015",
+        "doc_id": "d2000000-0000-0000-0000-000000000015",
+        "email": "shirin.counselling@medimatch.test",
+        "full_name": "[Demo] Shirin Sultana (Counsellor)",
+        "bio": "Counsellor supporting people through loss, relationship breakdown, loneliness and work stress.",
+        "qualifications": ["MSS (Counselling Psychology)"],
+        "years_experience": 7,
+        "consultation_fee": 700.0,
+        "clinic_name": "Demo Listening Room, Banani",
+        "city": "Dhaka",
+        "verification_status": VerificationStatus.APPROVED.value,
+        "specialty_id": "11111111-0000-0000-0000-000000000006",
     },
 ]
 

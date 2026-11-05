@@ -89,11 +89,13 @@ def _fits_request(
     candidate_specialties: list[str],
     doctor_city: str | None,
     city: str,
+    strict: bool = False,
 ) -> bool:
     """Hard filter shared by both search paths. Scoring alone can rank a wrong match first.
 
     A general physician is an acceptable first visit for any specialty; a doctor from an
-    unrelated specialty or another city is not.
+    unrelated specialty or another city is not. The assistant searches strictly, so a person in
+    emotional distress is only shown General Medicine when routing chose it.
     """
     wanted = city.strip().lower()
     if wanted and wanted != "bangladesh" and wanted not in (doctor_city or "").lower():
@@ -101,7 +103,7 @@ def _fits_request(
 
     cand_lower = [c.lower() for c in candidate_specialties]
     doc_lower = [s.lower() for s in doctor_specialties]
-    return any(s in cand_lower or "general" in s for s in doc_lower)
+    return any(s in cand_lower or (not strict and "general" in s) for s in doc_lower)
 
 
 def _calculate_score(
@@ -183,6 +185,7 @@ def _to_recommendation(
     city: str,
     max_fee: float | None,
     now_iso: str,
+    strict: bool = False,
 ) -> DoctorRecommendation | None:
     """Applies every hard rule to a database row, or returns None if the doctor does not qualify."""
     doc_id = str(doc["id"])
@@ -202,7 +205,7 @@ def _to_recommendation(
         item["specialties"] for item in doc.get("doctor_specialties", []) if item.get("specialties")
     ]
     spec_names = [s["name"] for s in specs]
-    if not _fits_request(spec_names, candidate_specialties, doc.get("city"), city):
+    if not _fits_request(spec_names, candidate_specialties, doc.get("city"), city, strict):
         return None
 
     # Rule 4: Must have active upcoming slots
@@ -255,6 +258,7 @@ def _sql_fallback_search(
     city: str,
     max_fee: float | None = None,
     limit: int = 5,
+    strict: bool = False,
 ) -> list[DoctorRecommendation]:
     """Graceful fallback query when Pinecone is down or yields insufficient results."""
     logger.info("[RECOMMENDATION] Executing SQL fallback search")
@@ -279,7 +283,7 @@ def _sql_fallback_search(
         for doc in query.execute().data or []
         if (
             rec := _to_recommendation(
-                doc, NEUTRAL_VECTOR_SCORE, candidate_specialties, city, max_fee, now_iso
+                doc, NEUTRAL_VECTOR_SCORE, candidate_specialties, city, max_fee, now_iso, strict
             )
         )
     ]
@@ -303,6 +307,7 @@ def recommend_doctors(
     city: str = search_criteria.get("city") or "Dhaka"
     max_fee: float | None = search_criteria.get("max_fee")
     raw_keywords: list[str] = search_criteria.get("keywords") or []
+    strict: bool = bool(search_criteria.get("strict_specialty"))
 
     # 1. Redact keywords before submitting to vector query
     redacted_keywords = [redact_pii(k) for k in raw_keywords if k]
@@ -347,6 +352,7 @@ def recommend_doctors(
                     city,
                     max_fee,
                     now_iso,
+                    strict,
                 )
             )
         ]
@@ -357,7 +363,9 @@ def recommend_doctors(
         seen = {rec.id for rec in recommendations}
         recommendations += [
             rec
-            for rec in _sql_fallback_search(candidate_specialties, city, max_fee, limit=top_k)
+            for rec in _sql_fallback_search(
+                candidate_specialties, city, max_fee, limit=top_k, strict=strict
+            )
             if rec.id not in seen
         ]
 

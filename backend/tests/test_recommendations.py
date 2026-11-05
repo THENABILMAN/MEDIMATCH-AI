@@ -270,3 +270,15 @@ def test_recommendations_require_sign_in(client: TestClient):
 )
 def test_doctors_must_fit_city_and_specialty(specialties, candidates, doctor_city, city, expected):
     assert _fits_request(specialties, candidates, doctor_city, city) is expected
+
+
+@pytest.mark.parametrize(
+    ("specialties", "candidates", "expected"),
+    [
+        (["General Medicine"], ["Clinical Psychology"], False),
+        (["Clinical Psychology"], ["Clinical Psychology"], True),
+        (["General Medicine"], ["General Medicine"], True),
+    ],
+)
+def test_a_strict_search_shows_general_medicine_only_when_chosen(specialties, candidates, expected):
+    assert _fits_request(specialties, candidates, "Dhaka", "Dhaka", strict=True) is expected

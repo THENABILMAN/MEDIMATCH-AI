@@ -1,0 +1,78 @@
+# How patient problems map to specialties. The analysis step reads this as guidance, and only
+# specialties that exist in the database can ever be searched. A clinician should review this file.
+#
+# ambiguous_phrases: wording that can be physical or emotional. Routing waits until the patient says
+# which. These never change what the assistant says, which the model writes. Phrases that should
+# raise an alert belong in emergency_patterns.json, which always runs first.
+
+specialties:
+  Clinical Psychology:
+    when: talking therapy for emotional pain that is affecting daily life
+    groups:
+      - heartbreak or a relationship ending
+      - grief after a death or loss
+      - low mood
+      - anxiety and constant worry
+      - relationship distress
+      - loneliness
+      - sleep problems from stress
+      - burnout
+  Counselling:
+    when: someone to talk things through with, for a recent or practical emotional difficulty
+    groups:
+      - heartbreak or a relationship ending
+      - grief after a death or loss
+      - relationship distress
+      - loneliness
+      - stress at work or at home
+      - burnout
+  Psychiatry:
+    when: a medical evaluation is wanted, or emotional difficulties are severe, long-lasting or stopping daily life
+    groups:
+      - panic episodes
+      - low mood lasting weeks that stops daily life
+      - anxiety that stops daily life
+      - severe sleep problems for weeks
+      - hearing or seeing things others do not
+  Cardiology:
+    when: physical heart symptoms
+    groups:
+      - palpitations with no emotional cause
+      - known heart problems
+      - high blood pressure follow-up
+  Neurology:
+    when: symptoms of the brain and nerves
+    groups:
+      - headaches that keep coming back
+      - dizziness
+      - numbness or tingling
+      - memory problems
+  General Medicine:
+    when: general physical complaints with no more suitable specialty listed, or when the patient asks for a general doctor
+    groups:
+      - fever, cough or cold
+      - stomach pain or digestion problems
+      - tiredness with no clear cause
+      - skin complaints
+      - general check-ups
+      - a physical complaint with no other specialty that fits
+
+ambiguous_phrases:
+  - id: broken_heart
+    meaning: heartbreak, or a physical heart problem
+    pattern: '\b(?:broken\s+heart|heart\s*(?:is\s+)?broken|heartbroken|heartbreak)\b|হৃদয়\s*ভাঙ|হৃদয়\s*ভেঙে|মন\s*ভেঙে|মন\s*ভাঙ|\b(?:mon|hridoy)\s*(?:bhenge|venge|bhanga|vanga)\b'
+  - id: heart_hurts
+    meaning: emotional pain, or pain in the chest
+    pattern: '\bheart\s+(?:\w+\s+)?hurts?\b|\bheart\s+is\s+hurting\b'
+  - id: heavy_chest
+    meaning: a heavy feeling from sadness or stress, or physical pressure in the chest
+    pattern: '\b(?:heavy\s+chest|chest\s+(?:\w+\s+)?heavy|heaviness\s+in\s+(?:my\s+|the\s+)?chest)\b|বুক\s*(?:\S+\s+)?ভারী|\bbuk(?:e|er)?\s+(?:\w+\s+)?bhari\b'
+  - id: feeling_empty
+    meaning: emotional emptiness, or a physical hollow or hungry feeling
+    pattern: '\b(?:feel(?:ing)?|felt)\s+(?:so\s+|very\s+|really\s+)?empty\b|ফাঁকা\s*লাগ|\bfaka\s+lag'
+  - id: heart_racing
+    meaning: worry or panic, or a physical heart rhythm problem
+    pattern: '\bheart\s+(?:is\s+|keeps\s+)?(?:racing|pounding|beating\s+fast)\b|\bracing\s+heart\b|বুক\s*ধড়ফড়|\bbuk\s+dhorphor\b'
+  - id: burning_inside
+    meaning: anger or grief, or a physical burning pain
+    pattern: '\bburning\s+inside\b|\bburning\s+up\s+inside\b|ভেতরটা\s*জ্বল|\bbhitor(?:ta)?\s+jol'
