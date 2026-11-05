@@ -4,9 +4,16 @@ import pytest
 
 from app.ai.graph import build_symptom_graph
 from app.ai.llm import LLMClient, LLMUnavailableError, set_llm_client
-from app.ai.safety import check_emergency, get_emergency_response, output_guard
+from app.ai.safety import (
+    check_emergency,
+    emergency_kind,
+    get_crisis_response,
+    get_emergency_response,
+    output_guard,
+    reply_violation,
+)
 from app.ai.state import AssistantTurn
-from app.core.config import settings
+from app.core.config import CrisisHelpline, Settings, settings
 
 MUST_TRIGGER = """
 pain in my chest
@@ -466,12 +473,173 @@ napa khan
 """.strip().splitlines()
 
 SAFE_REPLIES = [
+    "I'm sorry, that sounds really painful.",
+    "Thank you for telling me that. How long has it been this way?",
+    "That sounds exhausting, and you mentioned you haven't been sleeping.",
+    "I'm an AI assistant, and I'm here to help you find the right support.",
+    "I'm not a doctor, but a psychiatrist or counsellor can talk this through with you.",
+    "আপনি যা বললেন তা খুব কষ্টের শোনাচ্ছে। এটা কতদিন ধরে চলছে?",
+    "Ami dukkhito, eta khub koshter mone hochhe. Koto din dhore emon?",
     "How long have you been experiencing these symptoms (e.g. hours, days, weeks)?",
     "Which city or area in Bangladesh are you looking to visit a doctor in (e.g. Dhaka, Chittagong)?",
     "I can help you find a suitable doctor in your city.",
     "A cardiologist can review this with you.",
     "Please see a qualified doctor for a proper assessment.",
 ]
+
+
+# Left to the assistant's question on the owner's decision of 2026-11-05, because they can be emotional
+VAGUE_HEART_PHRASES = [
+    "my heart hurts",
+    "my heart hurts so much since she left",
+    "heavy chest",
+    "my chest feels heavy",
+    "heaviness in my chest",
+    "বুক ভারী লাগছে",
+    "buk bhari lagche",
+]
+
+# The same words with any other danger sign, and every plain chest phrase, stay alerts on their own
+VAGUE_HEART_PHRASES_THAT_STAY_ALERTS = [
+    "my heart hurts and i am sweating",
+    "my heart hurts and i feel dizzy",
+    "my heart hurts really badly",
+    "heart pain",
+    "my chest feels heavy and i am out of breath",
+    "heavy chest and pain in my left arm",
+    "my chest is heavy and i feel faint",
+    "বুক ভারী আর ঘাম হচ্ছে",
+    "buk bhari ar gham hochhe",
+    "chest pain",
+    "my chest hurts",
+    "pressure in my chest",
+    "tight chest",
+    "বুক ব্যথা",
+    "buk betha",
+    "can't breathe from stress",
+]
+
+ADDED_SELF_HARM_PHRASES = [
+    "I want to disappear",
+    "I wish I could sleep and never wake up",
+    "what's the point of going on",
+    "i am tired of living",
+    "i keep thinking about ending things",
+    "moira jaite mon chay",
+    "more gele bhalo",
+    "beche thakte chai na",
+    "মরে গেলেই ভালো",
+    "বেঁচে থাকার ইচ্ছে নেই",
+    "ঘুমিয়ে আর না উঠি",
+]
+
+FEELINGS_NOT_EMERGENCIES = [
+    "I have a broken heart",
+    "my heart is broken",
+    "feeling empty",
+    "burning inside",
+    "my heart is racing",
+    "আমার মন ভেঙে গেছে",
+    "mon bhenge geche",
+]
+
+HUMAN_CLAIMS = [
+    "I feel your pain.",
+    "I understand how you feel.",
+    "I know exactly how you feel.",
+    "I've been there too.",
+    "I went through a breakup last year.",
+    "As a human, I care.",
+    "I am a real person.",
+    "I'm so sad to hear that.",
+    "My heart goes out to you.",
+    "আমি আপনার কষ্ট অনুভব করছি।",
+    "আমারও এমন হয়েছিল।",
+    "ami tomar koshto onubhob korchi",
+]
+
+CONDITIONS_AND_MEDICINES = [
+    "A psychiatrist can help with depression.",
+    "Many people have panic attacks after a loss.",
+    "Sertraline is often used for this.",
+    "Some people use sleeping pills.",
+    "ডিপ্রেশন হলে একজন মনোরোগ বিশেষজ্ঞ দেখান।",
+    "নাপা অনেকে ব্যবহার করেন।",
+]
+
+
+@pytest.mark.parametrize("phrase", VAGUE_HEART_PHRASES)
+def test_vague_heart_phrases_reach_the_assistant(phrase):
+    assert check_emergency(phrase)[0] is False
+
+
+@pytest.mark.parametrize("phrase", VAGUE_HEART_PHRASES_THAT_STAY_ALERTS)
+def test_every_other_heart_phrase_stays_an_alert(phrase):
+    is_emergency, category, _ = check_emergency(phrase)
+    assert is_emergency is True
+    assert emergency_kind(category) == "physical"
+
+
+@pytest.mark.parametrize("phrase", ADDED_SELF_HARM_PHRASES)
+def test_added_self_harm_phrases_get_the_crisis_response(phrase):
+    is_emergency, category, _ = check_emergency(phrase)
+    assert is_emergency is True
+    assert emergency_kind(category) == "self_harm"
+
+
+@pytest.mark.parametrize("phrase", FEELINGS_NOT_EMERGENCIES)
+def test_heartbreak_alone_is_not_an_emergency(phrase):
+    assert check_emergency(phrase)[0] is False
+
+
+@pytest.mark.parametrize("reply", HUMAN_CLAIMS)
+def test_claims_of_being_human_are_blocked(reply):
+    assert reply_violation(reply) == "human_claim"
+
+
+@pytest.mark.parametrize("reply", CONDITIONS_AND_MEDICINES)
+def test_condition_and_medicine_names_are_blocked_anywhere(reply):
+    assert reply_violation(reply) in {"diagnosis", "prescription"}
+
+
+@pytest.mark.parametrize(
+    ("language", "expected"),
+    [("en", "doctor can"), ("bn", "ডাক্তার"), ("banglish", "ekjon doctor")],
+)
+def test_a_blocked_reply_falls_back_in_the_patients_language(language, expected):
+    assert expected in output_guard("You have dengue.", language)
+
+
+def test_the_crisis_message_is_warm_and_gives_the_number():
+    reply = get_crisis_response("I want to die")
+    assert "Thank you for telling me" in reply and "999" in reply
+    assert "সহায়তা" in reply
+    assert "EMERGENCY" not in reply
+    assert "{helplines}" not in reply
+
+
+def test_bangla_script_gets_the_bangla_crisis_message_alone():
+    reply = get_crisis_response("আমি মরতে চাই")
+    assert "ধন্যবাদ" in reply and "Thank you" not in reply
+
+
+def test_a_repeated_crisis_message_is_shorter():
+    assert len(get_crisis_response("x", repeat=True)) < len(get_crisis_response("x"))
+
+
+def test_helplines_come_from_config(monkeypatch):
+    lines = [CrisisHelpline(name="Support line", number="12345", hours="24 hours")]
+    monkeypatch.setattr(settings, "CRISIS_HELPLINES", lines)
+    assert "Support line: 12345 (24 hours)" in get_crisis_response("x")
+
+
+def test_no_helpline_number_ships_in_the_defaults():
+    assert Settings.model_fields["CRISIS_HELPLINES"].get_default(call_default_factory=True) == []
+
+
+def test_the_physical_alert_no_longer_carries_the_self_harm_line():
+    assert "harm yourself" not in get_emergency_response()
+    assert "ক্ষতি" not in get_emergency_response()
 
 
 @pytest.mark.parametrize("phrase", MUST_TRIGGER)

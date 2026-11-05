@@ -1,8 +1,16 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class CrisisHelpline(BaseModel):
+    """A support line shown in crisis messages."""
+
+    name: str = Field(min_length=1, max_length=100)
+    number: str = Field(min_length=2, max_length=30)
+    hours: str | None = Field(default=None, max_length=50)
 
 
 class Settings(BaseSettings):
@@ -68,6 +76,11 @@ class Settings(BaseSettings):
 
     # Number shown in every emergency alert
     EMERGENCY_NUMBER: str = Field(default="999", min_length=2, max_length=15, pattern=r"^\d+$")
+
+    # TODO(owner): set this before launch, and verify every number by calling it yourself.
+    # Nothing is filled in here on purpose. With an empty list, crisis messages show only
+    # EMERGENCY_NUMBER. JSON, for example: [{"name": "...", "number": "...", "hours": "24 hours"}]
+    CRISIS_HELPLINES: list[CrisisHelpline] = Field(default_factory=list)
 
     # Abuse limits, per minute
     RATE_LIMIT_ENABLED: bool = True

@@ -1,5 +1,5 @@
 {
-  "_review_note": "Patterns are regular expressions, matched case-insensitively after normalization. Each category has exact patterns, plus combinations: every group in a combination must match somewhere in the message, which catches wording nobody listed. A clinician must review this file before real patients use it. If a category sets negatable to true, a plain negation such as 'no chest pain' or 'buke betha nai' does not trigger it. Self-harm and pregnancy categories are never negatable. Past-tense mentions trigger on purpose: a false alarm costs less than a missed emergency.",
+  "_review_note": "Patterns are regular expressions, matched case-insensitively after normalization. Each category has exact patterns, plus combinations: every group in a combination must match somewhere in the message, which catches wording nobody listed. A clinician must review this file before real patients use it. If a category sets negatable to true, a plain negation such as 'no chest pain' or 'buke betha nai' does not trigger it. Self-harm and pregnancy categories are never negatable. Past-tense mentions trigger on purpose: a false alarm costs less than a missed emergency. On the owner's decision of 2026-11-05, 'my heart hurts' and 'heavy chest' alone are left to the assistant's clarifying question, because they can be emotional. They still trigger with any other danger sign, and every other chest phrase still triggers alone.",
   "negation": {
     "before": "(?:\\bno\\b|\\bnot\\b|\\bnever\\b|\\bwithout\\b|\\bdenies\\b|\\bdeny\\b|\\bdon'?t\\s+have\\b|\\bdo\\s+not\\s+have\\b|\\bdidn'?t\\s+have\\b|\\bhaven'?t\\s+had\\b)(?:\\s+(?:any|severe|sudden|serious|real|bad|bad|major))*\\s*$",
     "after": "^\\s*(?:নেই|নাই|\\bnai\\b|\\bnei\\b)"
@@ -10,8 +10,8 @@
       "description": "Chest pain, acute coronary syndromes, severe dyspnea, and respiratory distress",
       "negatable": true,
       "patterns": [
-        "\\bchest\\s+(?:(?:is|feels?|feeling|has|got|really|very|so|a\\s+lot\\s+of|severe|bad|sudden|sharp|been)\\s+)*(?:pain\\w*|hurt\\w*|ache\\w*|aching|tight\\w*|heavy|heaviness|pressure|crush\\w*|squeez\\w*)",
-        "\\b(?:pain|ache|aching|hurting|tightness|pressure|heaviness|squeezing)\\s+(?:in|on|across|around|behind|at)\\s+(?:the\\s+|my\\s+|his\\s+|her\\s+|their\\s+)?(?:\\w+\\s+)?chest\\b",
+        "\\bchest\\s+(?:(?:is|feels?|feeling|has|got|really|very|so|a\\s+lot\\s+of|severe|bad|sudden|sharp|been)\\s+)*(?:pain\\w*|hurt\\w*|ache\\w*|aching|tight\\w*|pressure|crush\\w*|squeez\\w*)",
+        "\\b(?:pain|ache|aching|hurting|tightness|pressure|squeezing)\\s+(?:in|on|across|around|behind|at)\\s+(?:the\\s+|my\\s+|his\\s+|her\\s+|their\\s+)?(?:\\w+\\s+)?chest\\b",
         "\\bcrushing\\s+(?:\\w+\\s+)?chest\\b",
         "\\bpain\\s+(?:is\\s+)?(?:radiating|spreading|going)\\s+(?:down\\s+|up\\s+)?to\\s+(?:my\\s+|the\\s+)?(?:left\\s+arm|jaw|neck)",
         "\\bheart\\s+attack\\b",
@@ -48,16 +48,27 @@
         "দম\\s*নিতে",
         "\\bdom\\s*nite\\b",
         "\\bbreastbone\\b",
-        "\\bheart\\s+(?:keeps\\s+)?(?:stopping|skipping)\\b"
+        "\\bheart\\s+(?:keeps\\s+)?(?:stopping|skipping)\\b",
+        "\\bheart\\s+hurts?\\s+(?:\\w+\\s+){0,2}(?:bad|badly|severely)\\b"
       ],
       "combinations": [
         [
           "\\bchest\\b|বুক|\\bbuk(?:e|er)?\\b",
-          "\\b(?:discomfort|pain\\w*|hurt\\w*|tight\\w*|pressure|squeez\\w*|heavy|heaviness|crush\\w*|sitting\\s+on|stabbing|burning)\\b|চাপ|ব্যথা|ব্যাথা|ধড়ফড়|\\b(?:batha|betha|byatha|chap|dhorphor)\\b|ভারী|\\bbhari\\b"
+          "\\b(?:discomfort|pain\\w*|hurt\\w*|tight\\w*|pressure|squeez\\w*|crush\\w*|sitting\\s+on|stabbing|burning)\\b|চাপ|ব্যথা|ব্যাথা|ধড়ফড়|\\b(?:batha|betha|byatha|chap|dhorphor)\\b"
         ],
         [
           "\\bheart\\b",
-          "\\b(?:hurt\\w*|pain\\w*|aching)\\b"
+          "\\b(?:pain\\w*|aching)\\b"
+        ],
+        [
+          "\\bheart\\b",
+          "\\bhurt\\w*\\b",
+          "\\b(?:sweat\\w*|clammy|breath\\w*|dizz\\w*|faint\\w*|nause\\w*|vomit\\w*|arm|jaw|shoulder)\\b|ঘাম|শ্বাস|মাথা\\s*ঘোর|বমি|\\b(?:gham|shash|shas|sash|bomi)\\b"
+        ],
+        [
+          "\\bchest\\b|বুক|\\bbuk(?:e|er)?\\b",
+          "\\b(?:heavy|heaviness|bhari)\\b|ভারী",
+          "\\b(?:sweat\\w*|clammy|breath\\w*|dizz\\w*|faint\\w*|nause\\w*|vomit\\w*|arm|jaw|shoulder)\\b|ঘাম|শ্বাস|মাথা\\s*ঘোর|বমি|\\b(?:gham|shash|shas|sash|bomi)\\b"
         ],
         [
           "\\bbreath\\w*|শ্বাস|নিঃশ্বাস|\\b(?:shash|shas|sash|nishash|nisshash)\\b",
@@ -279,7 +290,7 @@
       "negatable": false,
       "patterns": [
         "\\bsuicid\\w*",
-        "\\bkill\\s+myself\\b",
+        "\\bkill(?:ing)?\\s+myself\\b",
         "\\bwant\\s+to\\s+die\\b",
         "\\bend(?:ing)?\\s+my\\s+life\\b",
         "\\bend\\s+it\\s+all\\b",
@@ -326,7 +337,23 @@
         "গলায়\\s*দড়ি",
         "\\bgolay\\s*dori\\b",
         "সব\\s*শেষ\\s*করে",
-        "\\bsob\\s*shesh\\s*kore\\b"
+        "\\bsob\\s*shesh\\s*kore\\b",
+        "\\bwant\\s+to\\s+disappear\\b",
+        "\\b(?:sleep|go\\s+to\\s+sleep)\\b.{0,20}\\bnever\\s+wake\\b",
+        "\\bwhat'?s\\s+the\\s+point\\s+(?:of|in)\\s+(?:living|life|going\\s+on|being\\s+alive)\\b",
+        "\\btired\\s+of\\s+(?:living|being\\s+alive|life)\\b",
+        "\\bwish\\s+i\\s+(?:had\\s+never|hadn'?t)\\s+been\\s+born\\b",
+        "\\b(?:ending|end)\\s+things\\b",
+        "ঘুমিয়ে\\s*(?:আর\\s*)?(?:না\\s*উঠি|উঠতে\\s*চাই\\s*না)",
+        "মরে\\s*গেলে(?:ই)?\\s*ভালো",
+        "বেঁচে\\s*থাকতে\\s*(?:চাই\\s*না|ইচ্ছে\\s*করে\\s*না|ইচ্ছা\\s*করে\\s*না)",
+        "বেঁচে\\s*থাকার\\s*(?:ইচ্ছে|ইচ্ছা)\\s*(?:নেই|নাই)",
+        "হারিয়ে\\s*যেতে\\s*চাই",
+        "\\b(?:moira|mora|more)\\s*(?:jaite|jete)\\s*(?:mon\\s*chay|ichcha|icche|chai)\\b",
+        "\\bmore\\s*gele(?:i|y)?\\s*(?:bhalo|valo)\\b",
+        "\\bbeche\\s*thakte\\s*(?:chai\\s*na|ichcha\\s*kore\\s*na|icche\\s*kore\\s*na)\\b",
+        "\\bbachar\\s*(?:ichcha|icche)\\s*(?:nai|nei)\\b",
+        "\\bghumiye\\s*(?:ar\\s*)?na\\s*uthi\\b"
       ],
       "combinations": []
     },

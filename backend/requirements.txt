@@ -162,6 +162,7 @@ python-multipart==0.0.33
 pyyaml==6.0.3
     # via
     #   langchain-core
+    #   medimatch-backend (pyproject.toml)
     #   uvicorn
 realtime==2.34.0
     # via supabase

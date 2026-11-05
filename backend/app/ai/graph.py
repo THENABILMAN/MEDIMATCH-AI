@@ -13,7 +13,13 @@ from langgraph.graph import END, StateGraph
 
 from app.ai.llm import LLMUnavailableError, get_llm_client
 from app.ai.privacy import redact_pii
-from app.ai.safety import check_emergency, get_emergency_response, output_guard
+from app.ai.safety import (
+    check_emergency,
+    emergency_kind,
+    get_crisis_response,
+    get_emergency_response,
+    output_guard,
+)
 from app.ai.state import AssistantTurn, ConversationState, SearchCriteria
 from app.core.config import settings
 from app.core.supabase import get_supabase_admin_client
@@ -140,11 +146,12 @@ def build_system_prompt(state: ConversationState, specialties: list[str]) -> str
 # ------------------------------------------------------------------------------
 
 
-def _emergency_update() -> dict[str, Any]:
+def _emergency_update(kind: str = "physical", patient_text: str = "") -> dict[str, Any]:
+    reply = get_crisis_response(patient_text) if kind == "self_harm" else get_emergency_response()
     return {
         "safety_status": "emergency",
         "current_step": "emergency_escalated",
-        "assistant_reply": get_emergency_response(),
+        "assistant_reply": reply,
         "search_criteria": None,
     }
 
@@ -152,8 +159,10 @@ def _emergency_update() -> dict[str, Any]:
 def safety_check_node(state: ConversationState) -> dict[str, Any]:
     """Inspects the most recent patient message for emergency patterns."""
     messages = state.get("messages", [])
-    if messages and check_emergency(messages[-1].get("content", ""))[0]:
-        return _emergency_update()
+    latest = messages[-1].get("content", "") if messages else ""
+    is_emergency, category, _ = check_emergency(latest)
+    if is_emergency:
+        return _emergency_update(emergency_kind(category), latest)
     return {"safety_status": "safe", "current_step": "safety_check"}
 
 

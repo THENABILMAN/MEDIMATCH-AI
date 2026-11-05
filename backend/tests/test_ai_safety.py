@@ -10,7 +10,7 @@ Verifies:
 import pytest
 
 from app.ai.privacy import redact_pii
-from app.ai.safety import _load_patterns, check_emergency, output_guard
+from app.ai.safety import _load_patterns, check_emergency, guard_fallback, output_guard
 
 # ------------------------------------------------------------------------------
 # 1. Emergency Phrases Test Table (32 distinct test cases)
@@ -114,7 +114,7 @@ def test_output_guard_blocks_diagnosis_claims():
     """Output guard must intercept and sanitize diagnostic claims."""
     diagnosis_output = "Based on your symptoms, you have hypertension and migraine."
     safe_output = output_guard(diagnosis_output)
-    assert "cannot provide a medical diagnosis" in safe_output
+    assert safe_output == guard_fallback()
     assert "hypertension" not in safe_output
 
 
@@ -122,7 +122,7 @@ def test_output_guard_blocks_prescription_claims():
     """Output guard must intercept and sanitize drug prescriptions."""
     prescription_output = "You should take 500mg amoxicillin twice daily with water."
     safe_output = output_guard(prescription_output)
-    assert "cannot prescribe medications" in safe_output
+    assert safe_output == guard_fallback()
     assert "amoxicillin" not in safe_output
 
 

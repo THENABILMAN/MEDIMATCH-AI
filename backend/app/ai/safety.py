@@ -3,8 +3,9 @@
 Provides:
 1. Rule-based emergency detection in English, Bangla, and transliterated Bangla (Banglish)
    using externalized patterns from emergency_patterns.json.
-2. Fixed, non-LLM emergency escalation responses, in English and Bangla.
-3. Output guard inspecting assistant replies to catch diagnosis, treatment and reassurance.
+2. Fixed, non-LLM responses to physical emergencies and to self-harm risk. No model writes these.
+3. Output guard inspecting assistant replies to catch diagnosis, treatment, reassurance and any
+   claim to be human or to have feelings.
 
 Crucial Rule: Patient text is NEVER logged here, not even the matched phrase.
 """
@@ -14,13 +15,19 @@ import logging
 import re
 import unicodedata
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, Literal, NamedTuple
+
+import yaml
 
 from app.core.config import settings
 
 logger = logging.getLogger("medimatch.ai.safety")
 
 PATTERNS_FILE = Path(__file__).resolve().parent / "data" / "emergency_patterns.json"
+MESSAGES_FILE = Path(__file__).resolve().parent / "prompts" / "safety_messages.yaml"
+
+EmergencyKind = Literal["physical", "self_harm"]
+SELF_HARM_CATEGORY = "psychiatric_self_harm"
 
 _ZERO_WIDTH = re.compile("[​‌‍⁠﻿]")
 _WHITESPACE = re.compile(r"\s+")
@@ -145,41 +152,90 @@ def check_emergency(text: str) -> tuple[bool, str | None, str | None]:
     return False, None, None
 
 
+def _load_messages(path: Path = MESSAGES_FILE) -> dict[str, Any]:
+    """Loads the fixed messages, failing loudly so an alert can never be missing at runtime."""
+    with open(path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+_MESSAGES = _load_messages()
+
+
+def emergency_kind(category: str | None) -> EmergencyKind:
+    """Which fixed response a rule category gets. Anything not self-harm is physical."""
+    return "self_harm" if category == SELF_HARM_CATEGORY else "physical"
+
+
+def has_bangla_script(text: str) -> bool:
+    return any("\u0980" <= ch <= "\u09ff" for ch in text)
+
+
 def get_emergency_response() -> str:
-    """Returns the fixed, non-LLM emergency alert, in English and Bangla."""
-    number = settings.EMERGENCY_NUMBER
-    return (
-        f"EMERGENCY ALERT: Based on what you described, this may need emergency medical care now.\n\n"
-        f"Please call {number} immediately or go to the nearest hospital emergency room. "
-        f"Do not wait for an appointment. If you may harm yourself, stay with someone you trust.\n\n"
-        f"জরুরি সতর্কতা: আপনি যা লিখেছেন তাতে এখনই জরুরি চিকিৎসা দরকার হতে পারে।\n\n"
-        f"অনুগ্রহ করে এখনই {number} নম্বরে কল করুন অথবা নিকটস্থ হাসপাতালের জরুরি বিভাগে যান। "
-        f"অ্যাপয়েন্টমেন্টের জন্য অপেক্ষা করবেন না। নিজের ক্ষতি করার আশঙ্কা থাকলে বিশ্বস্ত কারও সঙ্গে থাকুন।"
+    """Returns the fixed, non-LLM alert for a physical emergency, in English and Bangla."""
+    return _MESSAGES["physical"].replace("{number}", settings.EMERGENCY_NUMBER)
+
+
+def _helpline_lines() -> str:
+    return "\n".join(
+        f"{line.name}: {line.number}" + (f" ({line.hours})" if line.hours else "")
+        for line in settings.CRISIS_HELPLINES
     )
+
+
+def _fill_crisis(template: str) -> str:
+    helplines = _helpline_lines()
+    filled = template.replace("{number}", settings.EMERGENCY_NUMBER)
+    if not helplines:
+        return filled.replace("\n{helplines}", "")
+    return filled.replace("{helplines}", helplines)
+
+
+def get_crisis_response(patient_text: str, repeat: bool = False) -> str:
+    """Returns the fixed, non-LLM message for self-harm risk.
+
+    Bangla script gets Bangla. Everything else gets English then Bangla, because Latin letters
+    cannot reliably separate English from Banglish and this message must always be understood.
+    """
+    messages = _MESSAGES["crisis_repeat" if repeat else "crisis"]
+    if has_bangla_script(patient_text):
+        return _fill_crisis(messages["bn"])
+    return f"{_fill_crisis(messages['en'])}\n\n{_fill_crisis(messages['bn'])}"
 
 
 # ------------------------------------------------------------------------------
 # Output Guard (Anti-Diagnosis, Anti-Prescription, Anti-Reassurance)
 # ------------------------------------------------------------------------------
-# A backstop. The assistant's replies are fixed templates, so LLM text does not reach patients,
-# and this catches anything that ever would.
+# The last check on model text. It is known to be incomplete, so the persona prompt carries the same
+# rules. A reply that fails gets one rewrite, then a short fixed reply in the patient's language.
 
 _CONDITIONS = (
     r"pneumonia|stroke|heart\s+attack|cancer|tumou?r|hypertension|migraine|diabetes|asthma|"
     r"appendicitis|flu|influenza|covid(-19)?|dengue|typhoid|chikungunya|malaria|tuberculosis|"
     r"infection|gastritis|ulcer|anemia|anaemia|depression|anxiety|bronchitis|sinusitis|arthritis|"
-    r"meningitis|gerd|reflux|viral\s+fever|uti|jaundice|hepatitis|kidney\s+stones?"
+    r"meningitis|gerd|reflux|viral\s+fever|uti|jaundice|hepatitis|kidney\s+stones?|"
+    r"panic\s+(attacks?|disorder)|bipolar|schizophrenia|ptsd|insomnia|ocd"
 )
 _DRUGS = (
     r"amoxicillin|paracetamol|acetaminophen|ibuprofen|antibiotics?|ciprofloxacin|azithromycin|"
     r"metronidazole|omeprazole|aspirin|napa|ace|seclo|ceftriaxone|antacids?|painkillers?|"
     r"antihistamines?|insulin|ors|saline"
 )
+# Unmistakable medicine names. Ambiguous short names such as "ace" only count after "take"
+_DRUG_NAMES = (
+    r"amoxicillin|paracetamol|acetaminophen|ibuprofen|antibiotics?|ciprofloxacin|azithromycin|"
+    r"metronidazole|omeprazole|aspirin|seclo|ceftriaxone|antacids?|painkillers?|antihistamines?|"
+    r"antidepressants?|sertraline|escitalopram|fluoxetine|diazepam|alprazolam|clonazepam|"
+    r"lorazepam|sleeping\s+pills?"
+)
 _DOSAGE_FORMS = r"tablets?|pills?|capsules?|syrup|cream|ointment|spray|drops?|injection"
-_BN_CONDITIONS = "ডায়াবেটিস|ক্যান্সার|নিউমোনিয়া|ডেঙ্গু|টাইফয়েড|জন্ডিস|হার্ট\\s*অ্যাটাক|স্ট্রোক|মাইগ্রেন|সংক্রমণ|গ্যাস্ট্রিক"
+_BN_CONDITIONS = "ডায়াবেটিস|ক্যান্সার|নিউমোনিয়া|ডেঙ্গু|টাইফয়েড|জন্ডিস|হার্ট\\s*অ্যাটাক|স্ট্রোক|মাইগ্রেন|সংক্রমণ|গ্যাস্ট্রিক|ডিপ্রেশন|বিষণ্ণতা|বিষণ্নতা|প্যানিক\\s*অ্যাটাক"
+_BN_DRUG_NAMES = "নাপা|প্যারাসিটামল|এন্টিবায়োটিক|অ্যান্টিবায়োটিক|সেকলো"
 _BN_DRUGS = "নাপা|প্যারাসিটামল|এন্টিবায়োটিক|অ্যান্টিবায়োটিক|সেকলো|ওষুধ|ঔষধ|ট্যাবলেট|ক্যাপসুল|সিরাপ"
 
 DIAGNOSIS_PATTERNS = [
+    # A reply names no condition at all, in any sentence
+    re.compile(rf"\b({_CONDITIONS})\b", re.IGNORECASE),
+    re.compile(_BN_CONDITIONS),
     re.compile(
         r"\b(you|your|it|it's|this|that|these|those|symptoms?)\b.{0,40}"
         r"\b(have|has|had|got|is|are|be|seems?|looks?|sounds?|suggests?|indicates?|"
@@ -208,14 +264,19 @@ REASSURANCE_PATTERNS = [
         r"\b(no|not|don't|do\s+not)\s+(need|have)\s+(to|for)\s+(see|visit|a\s+doctor|go)|"
         r"\b(harmless|not\s+(serious|dangerous))\b|"
         r"\b(go\s+away|clear\s+up|pass|resolve|get\s+better)\s+(on\s+its\s+own|by\s+itself|soon)\b|"
-        r"\bshould\s+(go\s+away|clear|pass|resolve)\b",
+        r"\bshould\s+(go\s+away|clear|pass|resolve)\b|"
+        r"\b(it'?ll|it\s+will|everything\s+will|everything'?ll)\s+be\s+(fine|ok|okay|alright)\b",
         re.IGNORECASE,
     ),
+    re.compile("কিছু\\s*হবে\\s*না|ভালো\\s*হয়ে\\s*যাবেন|ঠিক\\s*হয়ে\\s*যাবে"),
+    re.compile(r"\b(thik|valo|bhalo)\s+hoye\s+(jabe|jaben)\b", re.IGNORECASE),
     re.compile("চিন্তা[র]?\\s*(?:কিছু\\s*)?(?:নেই|করবেন\\s*না)|ভয়ের\\s*কিছু|এমনিতেই\\s*ঠিক"),
     re.compile(r"\bchinta[r]?\s*(kichu\s*)?(nai|nei|korben\s*na|koren\s*na)\b", re.IGNORECASE),
 ]
 
 PRESCRIPTION_PATTERNS = [
+    re.compile(rf"\b({_DRUG_NAMES})\b", re.IGNORECASE),
+    re.compile(_BN_DRUG_NAMES),
     re.compile(r"\b\d+\s*(mg|ml|mcg|tablets?|pills?|capsules?)\b", re.IGNORECASE),
     re.compile(r"\b(i\s+prescribe|prescription\s*:|prescribing\s+you)\b", re.IGNORECASE),
     re.compile(
@@ -234,41 +295,63 @@ PRESCRIPTION_PATTERNS = [
     re.compile(rf"\b({_DRUGS}|oshudh?|tablet|capsule)\s+(khan|khaben|nin)\b", re.IGNORECASE),
 ]
 
-SAFE_FALLBACK_DISCLAIMER = (
-    "As an AI assistant, I cannot diagnose medical conditions or prescribe medications. "
-    "Please consult a qualified doctor for professional diagnosis and clinical treatment."
+# Warmth comes from attention, so "I'm sorry" and "that sounds painful" pass. The assistant saying it
+# has a body, a life or feelings of its own does not. "I'm not a doctor" passes too.
+HUMAN_CLAIM_PATTERNS = [
+    re.compile(
+        r"\bi\s+(\w+\s+)?(feel|felt)\b|"
+        r"\bi\s+(\w+\s+)?(know|understand)\s+(\w+\s+)?how\s+you\s+(feel|are\s+feeling)\b|"
+        r"\bi('?ve|\s+have)\s+(\w+\s+)?been\s+(there|through)\b|"
+        r"\bi\s+(went|go)\s+through\b|\bhappened\s+to\s+me\b|"
+        r"\bas\s+a\s+(human|person|woman|man|mother|father|parent|friend|doctor|therapist)\b|"
+        r"\bi(?:'?m|\s+am)\s+(a\s+|your\s+)?(real\s+)?(human|person|friend|doctor|therapist)\b|"
+        r"\bi(?:'?m|\s+am)\s+(so\s+|very\s+|really\s+|deeply\s+)?"
+        r"(sad|heartbroken|worried|concerned|hurt|happy|glad|moved|touched)\b|"
+        r"\bmy\s+(heart|body|family|wife|husband|mother|father|own\s+experience)\b|"
+        r"\bi\s+love\s+you\b|\bas\s+an\s+ai\s+language\s+model\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        "আমি\\s*(?:\\S+\\s+){0,2}অনুভব\\s*করছি|আপনার\\s*কষ্ট\\s*আমি\\s*(?:অনুভব|টের)|আমারও\\s*(?:কষ্ট|খারাপ|এমন)|"
+        "আমি\\s*(?:একজন\\s*)?মানুষ|আমি\\s*(?:একজন\\s*)?(?:ডাক্তার|থেরাপিস্ট)|আমার\\s*(?:হৃদয়|বুক|শরীর|পরিবার)|"
+        "আমিও\\s*(?:একই|এমন|এই)"
+    ),
+    re.compile(
+        r"\bami\s+(\w+\s+){0,2}onubhob\s+kor|\bamaro\s+(kosto|koshto|kharap|emon)\b|"
+        r"\bami\s+(ekjon\s+)?(manush|doctor|daktar|therapist)\b|\bamio\s+(eki|emon)\b",
+        re.IGNORECASE,
+    ),
+]
+
+_RULES = (
+    ("diagnosis", DIAGNOSIS_PATTERNS),
+    ("reassurance", REASSURANCE_PATTERNS),
+    ("prescription", PRESCRIPTION_PATTERNS),
+    ("human_claim", HUMAN_CLAIM_PATTERNS),
 )
 
 
-def output_guard(text: str) -> str:
-    """Replaces any reply that diagnoses, prescribes or reassures with safe advisory text."""
+def reply_violation(text: str) -> str | None:
+    """Names the first rule a reply breaks, or None. Only the rule name is ever logged."""
     if not text:
-        return text
-
+        return None
     normalized = _normalize(text)
+    for name, patterns in _RULES:
+        if any(pattern.search(normalized) for pattern in patterns):
+            return name
+    return None
 
-    for pat in DIAGNOSIS_PATTERNS:
-        if pat.search(normalized):
-            logger.warning("[OUTPUT GUARD] Blocked diagnostic language")
-            return (
-                f"I cannot provide a medical diagnosis for your symptoms. "
-                f"{SAFE_FALLBACK_DISCLAIMER} I can, however, help you find a suitable doctor."
-            )
 
-    for pat in REASSURANCE_PATTERNS:
-        if pat.search(normalized):
-            logger.warning("[OUTPUT GUARD] Blocked reassurance")
-            return (
-                f"I cannot tell you whether your symptoms are serious. "
-                f"{SAFE_FALLBACK_DISCLAIMER} I can, however, help you find a suitable doctor."
-            )
+def guard_fallback(language: str = "en") -> str:
+    """The fixed reply for a model reply that could not be made safe."""
+    messages = _MESSAGES["guard_fallback"]
+    return messages.get(language, messages["en"])
 
-    for pat in PRESCRIPTION_PATTERNS:
-        if pat.search(normalized):
-            logger.warning("[OUTPUT GUARD] Blocked prescription language")
-            return (
-                f"I cannot prescribe medications or dosage instructions. "
-                f"{SAFE_FALLBACK_DISCLAIMER} Would you like help finding a licensed physician?"
-            )
 
-    return text
+def output_guard(text: str, language: str = "en") -> str:
+    """Replaces any reply that breaks a rule with the fixed safe reply."""
+    violation = reply_violation(text)
+    if violation is None:
+        return text
+    logger.warning(f"[OUTPUT GUARD] Blocked {violation}")
+    return guard_fallback(language)

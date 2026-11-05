@@ -1,0 +1,44 @@
+# Every fixed message the assistant can send. None of this text is written by a model.
+# REVIEW BEFORE LAUNCH: a mental-health professional and a native Bangla speaker must approve the
+# crisis messages, and the owner must verify the numbers in CRISIS_HELPLINES.
+# {number} is EMERGENCY_NUMBER. {helplines} is CRISIS_HELPLINES, and its line is dropped when empty.
+
+physical: |-
+  EMERGENCY ALERT: Based on what you described, this may need emergency medical care now.
+
+  Please call {number} immediately or go to the nearest hospital emergency room. Do not wait for an appointment.
+
+  জরুরি সতর্কতা: আপনি যা লিখেছেন তাতে এখনই জরুরি চিকিৎসা দরকার হতে পারে।
+
+  অনুগ্রহ করে এখনই {number} নম্বরে কল করুন অথবা নিকটস্থ হাসপাতালের জরুরি বিভাগে যান। অ্যাপয়েন্টমেন্টের জন্য অপেক্ষা করবেন না।
+
+crisis:
+  en: |-
+    Thank you for telling me. What you're carrying sounds very heavy, and you deserve support right now.
+
+    Please call {number} now, or reach out to someone you trust who can be with you. If you can, try not to be alone.
+    {helplines}
+
+    I'm an AI assistant, so I can't be the support you need most. When you're ready, I can help you find a psychiatrist or counsellor.
+  bn: |-
+    আমাকে জানানোর জন্য ধন্যবাদ। আপনি যা বয়ে বেড়াচ্ছেন তা খুব ভারী মনে হচ্ছে, আর এখনই আপনার পাশে কারও থাকা দরকার।
+
+    অনুগ্রহ করে এখনই {number} নম্বরে কল করুন, অথবা আপনার বিশ্বস্ত এমন কাউকে জানান যিনি আপনার কাছে থাকতে পারবেন। সম্ভব হলে এখন একা থাকবেন না।
+    {helplines}
+
+    আমি একটি এআই সহকারী, তাই আপনার সবচেয়ে বেশি যে সহায়তা দরকার তা আমি দিতে পারি না। আপনি প্রস্তুত হলে আমি একজন সাইকিয়াট্রিস্ট বা কাউন্সেলর খুঁজে পেতে সাহায্য করতে পারি।
+
+# Sent when the risk comes up again, so the same block does not repeat
+crisis_repeat:
+  en: |-
+    You matter, and you deserve real support right now. Please call {number}, or ask someone you trust to stay with you.
+    {helplines}
+  bn: |-
+    আপনি গুরুত্বপূর্ণ, আর এখনই আপনার সত্যিকারের সহায়তা পাওয়া দরকার। অনুগ্রহ করে {number} নম্বরে কল করুন, অথবা বিশ্বস্ত কাউকে আপনার পাশে থাকতে বলুন।
+    {helplines}
+
+# Sent only when a model reply fails the output guard twice
+guard_fallback:
+  en: I can't say what this is or suggest a treatment, but a doctor can. Would you like me to help you find the right one?
+  bn: এটা কী, তা আমি বলতে পারি না বা কোনো চিকিৎসার পরামর্শ দিতে পারি না, তবে একজন ডাক্তার পারবেন। আপনি কি চান আমি সঠিক ডাক্তার খুঁজতে সাহায্য করি?
+  banglish: Eta ki, ami bolte parbo na, ar kono chikitsar poramorsho dite parbo na, tobe ekjon doctor parben. Apni ki chan ami thik doctor khujte sahajjo kori?

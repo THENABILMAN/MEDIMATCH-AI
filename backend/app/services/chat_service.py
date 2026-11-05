@@ -12,7 +12,12 @@ from postgrest import SyncPostgrestClient
 
 from app.ai.graph import get_symptom_graph
 from app.ai.llm import LLMUnavailableError
-from app.ai.safety import check_emergency, get_emergency_response
+from app.ai.safety import (
+    check_emergency,
+    emergency_kind,
+    get_crisis_response,
+    get_emergency_response,
+)
 from app.ai.state import PERSISTED_STATE_FIELDS
 from app.core.supabase import get_supabase_admin_client
 
@@ -132,14 +137,17 @@ def get_conversation_history(
 
 
 def _emergency_turn(
-    conversation_id: str, patient_id: str, content: str, consented: bool
+    conversation_id: str, patient_id: str, content: str, consented: bool, category: str | None
 ) -> dict[str, Any]:
     """Answers an emergency with the fixed alert. It must arrive even if saving it fails.
 
     Someone else's conversation is still refused, but a database outage only loses the record.
     Without consent the alert is still given, and nothing the patient wrote is stored.
     """
-    reply = get_emergency_response()
+    if emergency_kind(category) == "self_harm":
+        reply = get_crisis_response(content)
+    else:
+        reply = get_emergency_response()
     try:
         client = get_supabase_admin_client()
         conversation = (
@@ -205,8 +213,9 @@ def send_patient_message(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Message content cannot be empty"
         )
 
-    if check_emergency(content)[0]:
-        return _emergency_turn(conversation_id, patient_id, content, consented)
+    is_emergency, category, _ = check_emergency(content)
+    if is_emergency:
+        return _emergency_turn(conversation_id, patient_id, content, consented, category)
 
     if not consented:
         raise HTTPException(

@@ -103,6 +103,10 @@ async def _unexpected_error(_request: Request, exc: Exception) -> JSONResponse:
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     configure_logging()
+    if settings.ENVIRONMENT == "production" and not settings.CRISIS_HELPLINES:
+        logger.warning(
+            "CRISIS_HELPLINES is empty, so crisis messages show only the emergency number"
+        )
     yield
     wait_for_background_syncs()
 
