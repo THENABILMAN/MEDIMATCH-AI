@@ -13,7 +13,7 @@ Guarantees:
 
 import logging
 import uuid
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -26,9 +26,6 @@ from app.search.embeddings import get_embedding_provider
 from app.search.sync import get_pinecone_index
 
 logger = logging.getLogger("medimatch.search.recommend")
-
-# Bangladesh has one fixed offset and no daylight saving
-DHAKA = timezone(timedelta(hours=6))
 
 MIN_HYBRID_RESULTS = 3
 MAX_SQL_CANDIDATES = 200
@@ -76,10 +73,7 @@ class RecommendationResponse(BaseModel):
 
 def _generate_safe_explanation(
     specialty_names: list[str],
-    city: str,
     years_experience: int,
-    fee: float,
-    soonest_slot: str | None,
 ) -> str:
     """Generates a template-based explanation for why this doctor matches.
 
@@ -87,18 +81,7 @@ def _generate_safe_explanation(
     or reassurances that symptoms are harmless.
     """
     specs = ", ".join(specialty_names) if specialty_names else "General Medicine"
-    explanation = (
-        f"Specializes in {specs} in {city}. Has {years_experience} years of clinical experience "
-        f"with consultation fee of {int(fee)} BDT."
-    )
-    if soonest_slot:
-        try:
-            dt = datetime.fromisoformat(soonest_slot.replace("Z", "+00:00")).astimezone(DHAKA)
-            time_str = dt.strftime("%b %d at %I:%M %p Dhaka time")
-            explanation += f" Earliest appointment available on {time_str}."
-        except Exception:
-            explanation += " Has upcoming appointments available."
-    return explanation
+    return f"Specializes in {specs}, with {years_experience} years of clinical experience."
 
 
 def _fits_request(
@@ -262,10 +245,7 @@ def _to_recommendation(
         soonest_slot=soonest,
         match_explanation=_generate_safe_explanation(
             specialty_names=spec_names,
-            city=doc.get("city", "Dhaka"),
             years_experience=years,
-            fee=fee,
-            soonest_slot=soonest,
         ),
     )
 

@@ -29,11 +29,9 @@ class Settings(BaseSettings):
     PINECONE_API_KEY: str = Field(default="", description="Pinecone API key")
     PINECONE_INDEX: str = Field(default="medimatch-doctors", description="Pinecone index name")
 
-    # OpenRouter LLM
-    OPENROUTER_API_KEY: str = Field(default="", description="OpenRouter API key")
-    OPENROUTER_MODEL: str = Field(
-        default="anthropic/claude-3.5-sonnet", description="OpenRouter model identifier"
-    )
+    # Groq LLM
+    GROQ_API_KEY: str = Field(default="", description="Groq API key")
+    GROQ_MODEL: str = Field(default="openai/gpt-oss-120b", description="Groq model identifier")
 
     # A chat turn makes two LLM calls in a worker thread, so these bound how long it can hold one
     LLM_TIMEOUT_SECONDS: float = Field(default=15.0, gt=0)

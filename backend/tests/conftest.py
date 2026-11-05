@@ -85,7 +85,7 @@ os.environ.update(
         "SUPABASE_SERVICE_ROLE_KEY": STACK["SERVICE_ROLE_KEY"] if STACK else "",
         "DATABASE_URL": STACK["DB_URL"] if STACK else "",
         "PINECONE_API_KEY": "",
-        "OPENROUTER_API_KEY": "",
+        "GROQ_API_KEY": "",
         "EMBEDDING_PROVIDER": "fake",
         "RATE_LIMIT_ENABLED": "false",
         "SYNC_IN_BACKGROUND": "false",

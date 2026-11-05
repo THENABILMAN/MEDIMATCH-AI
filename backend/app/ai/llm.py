@@ -1,6 +1,6 @@
 """LLM Client Module for MediMatch AI.
 
-OpenRouter wrapper (OpenAI-compatible API) with timeouts, retries,
+Groq wrapper (OpenAI-compatible API) with timeouts, retries,
 and structured Pydantic response generation.
 Crucial Rule: Message contents are NEVER logged, and never placed in exceptions.
 """
@@ -20,6 +20,7 @@ logger = logging.getLogger("medimatch.ai.llm")
 T = TypeVar("T", bound=BaseModel)
 
 RETRY_WAIT_SECONDS = 1.0
+MAX_RETRY_WAIT_SECONDS = 10.0
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
@@ -27,18 +28,26 @@ class LLMUnavailableError(Exception):
     """The provider could not produce a reply. Callers fall back to safe deterministic behaviour."""
 
 
+def _retry_after(response: httpx.Response) -> float | None:
+    """Reads how long a rate-limited provider asks us to wait, in seconds."""
+    try:
+        return max(float(response.headers.get("retry-after", "")), 0.0)
+    except ValueError:
+        return None
+
+
 class LLMClient:
-    """Interface and implementation for OpenRouter LLM requests."""
+    """Interface and implementation for Groq LLM requests."""
 
     def __init__(
         self,
         api_key: str | None = None,
         model: str | None = None,
-        base_url: str = "https://openrouter.ai/api/v1",
+        base_url: str = "https://api.groq.com/openai/v1",
         transport: httpx.BaseTransport | None = None,
     ):
-        self.api_key = settings.OPENROUTER_API_KEY if api_key is None else api_key
-        self.model = model or settings.OPENROUTER_MODEL
+        self.api_key = settings.GROQ_API_KEY if api_key is None else api_key
+        self.model = model or settings.GROQ_MODEL
         self.base_url = base_url.rstrip("/")
         self._http = httpx.Client(
             timeout=httpx.Timeout(settings.LLM_TIMEOUT_SECONDS, connect=5.0),
@@ -48,16 +57,14 @@ class LLMClient:
     def _get_headers(self) -> dict[str, str]:
         return {
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://medimatch.ai",
-            "X-Title": "MediMatch AI Assistant",
             "Authorization": f"Bearer {self.api_key}",
         }
 
-    def _read_within_deadline(self, body: dict[str, Any]) -> tuple[int, bytes]:
+    def _read_within_deadline(self, body: dict[str, Any]) -> tuple[int, bytes, float | None]:
         """Sends a request and enforces a limit on the whole call.
 
-        httpx's read timeout restarts with every chunk, and OpenRouter sends keep-alive bytes while
-        a model is busy, so one call once ran for two minutes under a 12 second read timeout.
+        httpx's read timeout restarts with every chunk, so a provider that sends keep-alive bytes
+        while a model is busy once held a call for two minutes under a 12 second read timeout.
         """
         deadline = time.monotonic() + settings.LLM_TIMEOUT_SECONDS
         url = f"{self.base_url}/chat/completions"
@@ -67,14 +74,15 @@ class LLMClient:
                 chunks.append(chunk)
                 if time.monotonic() > deadline:
                     raise httpx.ReadTimeout("LLM call exceeded its deadline")
-            return resp.status_code, b"".join(chunks)
+            return resp.status_code, b"".join(chunks), _retry_after(resp)
 
     def _post(self, body: dict[str, Any]) -> bytes:
         """Sends one request, retrying only failures that can succeed on another attempt."""
         last_error = "no attempt made"
         for attempt in range(1, settings.LLM_MAX_ATTEMPTS + 1):
+            wait = RETRY_WAIT_SECONDS * attempt
             try:
-                status_code, content = self._read_within_deadline(body)
+                status_code, content, retry_after = self._read_within_deadline(body)
             except (httpx.TimeoutException, httpx.TransportError) as e:
                 last_error = type(e).__name__
             else:
@@ -83,10 +91,14 @@ class LLMClient:
                 last_error = f"HTTP {status_code}"
                 if status_code not in RETRYABLE_STATUS:
                     break
+                if retry_after is not None:
+                    if retry_after > MAX_RETRY_WAIT_SECONDS:
+                        break
+                    wait = retry_after
 
             logger.warning(f"LLM attempt {attempt} failed: {last_error}")
             if attempt < settings.LLM_MAX_ATTEMPTS:
-                time.sleep(RETRY_WAIT_SECONDS * attempt)
+                time.sleep(wait)
 
         raise LLMUnavailableError(last_error)
 
@@ -97,9 +109,9 @@ class LLMClient:
         temperature: float = 0.2,
         max_tokens: int = 1000,
     ) -> str:
-        """Sends chat completion request to OpenRouter and returns string reply."""
+        """Sends a chat completion request to Groq and returns the reply text."""
         if not self.api_key:
-            raise LLMUnavailableError("OPENROUTER_API_KEY is not set")
+            raise LLMUnavailableError("GROQ_API_KEY is not set")
 
         logger.info(f"Submitting LLM request to model '{self.model}' with {len(messages)} messages")
 
@@ -114,9 +126,6 @@ class LLMClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-        # Free endpoints may need to keep prompts, so asking otherwise can leave no provider at all
-        if settings.ENVIRONMENT == "production" and not self.model.endswith(":free"):
-            body["provider"] = {"data_collection": "deny"}
 
         raw = self._post(body)
         try:

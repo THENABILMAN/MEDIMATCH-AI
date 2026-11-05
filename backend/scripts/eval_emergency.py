@@ -1,4 +1,4 @@
-"""Measures the classifier's emergency net against the real LLM. Opt-in: it calls OpenRouter.
+"""Measures the classifier's emergency net against the real LLM. Opt-in: it calls Groq.
 
 Uses only the written test phrases, never patient data. Reports the classifier alone, because the
 rules were tuned on these phrases and their score here says nothing about unseen wording.
@@ -52,14 +52,14 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=7)
     args = parser.parse_args()
 
-    if not settings.OPENROUTER_API_KEY:
-        sys.exit("OPENROUTER_API_KEY is not set.")
+    if not settings.GROQ_API_KEY:
+        sys.exit("GROQ_API_KEY is not set.")
 
     logging.disable(logging.WARNING)
     rng = random.Random(args.seed)
     emergencies = rng.sample(HELD_OUT_EMERGENCIES, min(args.emergencies, len(HELD_OUT_EMERGENCIES)))
     ordinary = rng.sample(HELD_OUT_ORDINARY, min(args.ordinary, len(HELD_OUT_ORDINARY)))
-    print(f"Model: {settings.OPENROUTER_MODEL}")
+    print(f"Model: {settings.GROQ_MODEL}")
 
     missed, false_alarms, failed = [], [], []
     for label, phrases, wrong, expected in (

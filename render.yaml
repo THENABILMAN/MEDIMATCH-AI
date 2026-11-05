@@ -30,11 +30,10 @@ services:
         sync: false
       - key: PINECONE_API_KEY
         sync: false
-      - key: OPENROUTER_API_KEY
+      - key: GROQ_API_KEY
         sync: false
-      # Use a free model, such as nvidia/nemotron-3-ultra-550b-a55b:free
-      - key: OPENROUTER_MODEL
-        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
 
   - type: web
     name: medimatch-web

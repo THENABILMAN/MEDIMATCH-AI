@@ -1,6 +1,5 @@
 """LLM client behaviour and exactly what leaves the server. Offline: transport is mocked."""
 
-import json
 import time
 from collections.abc import Callable
 
@@ -116,31 +115,6 @@ def test_message_contents_are_never_logged(caplog):
     assert "my secret symptom" not in caplog.text
 
 
-def test_production_asks_providers_not_to_keep_data(monkeypatch):
-    bodies: list[dict] = []
-
-    def handler(request):
-        bodies.append(json.loads(request.content))
-        return reply("ok")
-
-    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
-    client_with(handler).generate(MESSAGES)
-    assert bodies[0]["provider"]["data_collection"] == "deny"
-
-
-def test_free_models_are_not_restricted_by_provider_settings(monkeypatch):
-    bodies: list[dict] = []
-
-    def handler(request):
-        bodies.append(json.loads(request.content))
-        return reply("ok")
-
-    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
-    client = LLMClient(api_key="k", model="vendor/m:free", transport=httpx.MockTransport(handler))
-    client.generate(MESSAGES)
-    assert "provider" not in bodies[0]
-
-
 def test_history_sent_to_the_model_is_bounded():
     messages = [{"role": "user", "content": str(i)} for i in range(200)]
     assert len(_recent_messages(messages)) == settings.LLM_HISTORY_MESSAGES
@@ -248,3 +222,20 @@ def test_leading_keep_alive_bytes_do_not_break_parsing():
         )
 
     assert client_with(handler).generate(MESSAGES) == "ok"
+
+
+def test_a_rate_limit_waits_as_long_as_the_provider_asks(monkeypatch):
+    waits: list[float] = []
+    monkeypatch.setattr(time, "sleep", waits.append)
+    responses = [httpx.Response(429, headers={"retry-after": "4"}), reply("ok")]
+    assert client_with(lambda request: responses.pop(0)).generate(MESSAGES) == "ok"
+    assert waits == [4.0]
+
+
+def test_a_long_rate_limit_fails_at_once_rather_than_holding_the_patient(monkeypatch):
+    waits: list[float] = []
+    monkeypatch.setattr(time, "sleep", waits.append)
+    limited = httpx.Response(429, headers={"retry-after": "60"})
+    with pytest.raises(LLMUnavailableError, match="429"):
+        client_with(lambda request: limited).generate(MESSAGES)
+    assert waits == []

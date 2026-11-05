@@ -122,6 +122,7 @@ def test_the_follow_up_limit_is_enforced_even_if_the_model_keeps_asking():
         ScriptedLLM(turn("And one more thing?", asking_about="severity")),
         "still the same",
         symptoms=["headache"],
+        location="Dhaka",
         followup_count=MAX_FOLLOW_UPS,
     )
     assert result["current_step"] == "completed"
@@ -141,6 +142,7 @@ def test_invented_specialties_are_discarded():
             turn(
                 "Searching.",
                 symptoms=["rash"],
+                location="Dhaka",
                 candidate_specialty_names=["Dermatology", "cardiology"],
                 ready_to_search=True,
             )
@@ -151,7 +153,10 @@ def test_invented_specialties_are_discarded():
 
 
 def test_no_usable_specialty_searches_all_of_them():
-    result = say(ScriptedLLM(turn("Searching.", symptoms=["rash"], ready_to_search=True)), "rash")
+    result = say(
+        ScriptedLLM(turn("Searching.", symptoms=["rash"], location="Dhaka", ready_to_search=True)),
+        "rash",
+    )
     assert result["search_criteria"]["candidate_specialties"] == [
         "Neurology",
         "Cardiology",
@@ -159,9 +164,57 @@ def test_no_usable_specialty_searches_all_of_them():
     ]
 
 
-def test_no_city_searches_everywhere_rather_than_assuming_one():
-    result = say(ScriptedLLM(turn("Searching.", symptoms=["rash"], ready_to_search=True)), "rash")
+def test_no_search_runs_without_a_city():
+    llm = ScriptedLLM(
+        turn("Doctors are below.", symptoms=["rash"], ready_to_search=True),
+        turn("Which city are you in?"),
+    )
+    result = say(llm, "rash")
+    assert result.get("search_criteria") is None
+    assert result["assistant_reply"] == "Which city are you in?"
+    assert result["asking_about"] == "location"
+    assert result["current_step"] == "ask_followup"
+    assert "do not search" in llm.prompts[1]
+
+
+def test_the_follow_up_limit_still_waits_for_a_city():
+    llm = ScriptedLLM(
+        turn("One more thing?", asking_about="severity"),
+        turn("Which city are you in?"),
+    )
+    result = say(llm, "same", symptoms=["headache"], followup_count=MAX_FOLLOW_UPS)
+    assert result.get("search_criteria") is None
+    assert result["asking_about"] == "location"
+
+
+def test_a_city_given_in_the_same_message_is_kept():
+    llm = ScriptedLLM(turn("Noted.", symptoms=["rash"], ready_to_search=True), turn("Which city?"))
+    result = say(llm, "rash", location="Sylhet")
+    assert len(llm.prompts) == 1
+    assert result["search_criteria"]["city"] == "Sylhet"
+
+
+def test_a_patient_can_choose_any_city():
+    result = say(
+        ScriptedLLM(
+            turn(
+                "Any doctors who match are below.",
+                symptoms=["rash"],
+                location=graph_module.ANY_CITY,
+                ready_to_search=True,
+            )
+        ),
+        "any city is fine",
+    )
     assert result["search_criteria"]["city"] == graph_module.ANY_CITY
+
+
+def test_the_retry_for_a_city_can_still_raise_an_alert():
+    llm = ScriptedLLM(
+        turn("Doctors are below.", symptoms=["rash"], ready_to_search=True),
+        turn("Which city?", possible_emergency=True),
+    )
+    assert say(llm, "rash")["current_step"] == "emergency_escalated"
 
 
 def test_specialties_and_cities_come_from_the_database(monkeypatch):

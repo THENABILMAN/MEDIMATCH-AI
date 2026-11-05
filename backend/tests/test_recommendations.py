@@ -150,6 +150,7 @@ def test_pinecone_failure_triggers_graceful_sql_fallback():
         assert d.match_score > 0
         assert d.available_slots_count > 0
         assert "Specializes in" in d.match_explanation
+        assert "BDT" not in d.match_explanation and "Earliest" not in d.match_explanation
 
 
 def test_budget_max_fee_filter_enforced():

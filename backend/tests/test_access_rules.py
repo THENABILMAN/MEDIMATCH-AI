@@ -27,13 +27,6 @@ def test_test_environment_is_not_a_valid_setting():
         Settings(ENVIRONMENT="test", _env_file=None)
 
 
-def test_free_models_are_allowed_in_production():
-    settings = Settings(
-        ENVIRONMENT="production", OPENROUTER_MODEL="vendor/model:free", _env_file=None
-    )
-    assert settings.OPENROUTER_MODEL.endswith(":free")
-
-
 def test_admin_cannot_read_a_patient_conversation(client, admin_token, conversation_id):
     res = client.get(f"/chat/conversations/{conversation_id}", headers=headers(admin_token))
     assert res.status_code == 403
