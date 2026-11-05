@@ -1,60 +1,66 @@
 /* The only place colours and scale values are defined. See docs/DESIGN.md. */
 :root {
-  --ink: #0f2444;
-  --muted: #47526a;
-  --surface: #fbf7ef;
-  --canvas: #efe6d6;
-  --sand: #e4d8c2;
-  --border: #d9ccb4;
-  --border-control: #7c7361;
+  --ink: #14122b;
+  --muted: #5c5a73;
+  --surface: #ffffff;
+  --canvas: #f6f6fa;
+  --border: #e3e1f0;
+  --border-control: #8582a0;
 
-  --navy: #0f2444;
-  --navy-raised: #1b3560;
-  --on-navy: #f4ecdd;
-  --on-navy-muted: #c3cad6;
+  --ink-field: #14122b;
+  --ink-raised: #211f3d;
+  --ink-line: #3a3859;
+  --on-ink: #ffffff;
+  --on-ink-muted: #c8c6d9;
 
-  --primary: #12305c;
-  --primary-hover: #0c2343;
-  --primary-pressed: #081830;
-  --primary-tint: #dfe3e6;
-  --on-primary: #fbf7ef;
+  --primary: #00806c;
+  --primary-hover: #00695a;
+  --primary-pressed: #005247;
+  --primary-tint: #e6f4f1;
 
-  --ai: #2a4b7c;
-  --ai-tint: #e3e5e4;
+  --ai: #5a4bd1;
+  --ai-tint: #eeecfb;
 
-  --danger: #a8231c;
-  --danger-pressed: #861a15;
-  --danger-tint: #f8e4dc;
-  --warning: #7a4a00;
-  --warning-tint: #f6e7c8;
-  --success: #1c6638;
-  --success-tint: #dfe9d3;
+  --danger: #b3261e;
+  --danger-pressed: #8c1d18;
+  --danger-tint: #fcebea;
+  --warning: #8a5300;
+  --warning-tint: #fdf3e3;
+  --success: #1e7a3c;
+  --success-tint: #e8f5ec;
 
-  --font-ui: 'DM Sans', 'Noto Sans Bengali', system-ui, sans-serif;
-  --font-display: 'DM Sans', 'Noto Sans Bengali', system-ui, sans-serif;
+  --font-ui: 'Instrument Sans', 'Noto Sans Bengali', system-ui, sans-serif;
+  --font-display: 'Source Serif', 'Noto Sans Bengali', Georgia, serif;
 
   --radius-small: 4px;
   --radius-medium: 8px;
-  --overlay-shadow: 0 8px 24px rgb(15 36 68 / 0.16);
-  --scrim: rgb(15 36 68 / 0.5);
+  --overlay-shadow: 0 8px 24px rgb(20 18 43 / 0.12);
+  --scrim: rgb(20 18 43 / 0.4);
 
-  --header-height: 64px;
-  --sidebar-width: 256px;
+  --header-height: 56px;
   --ease-state: cubic-bezier(0, 0, 0.2, 1);
 }
 
-/* A navy field. Everything inside reads the same tokens, so components need no dark variant. */
-.on-navy {
-  --ink: #f4ecdd;
-  --muted: #c3cad6;
-  --surface: #1b3560;
-  --canvas: #16294a;
-  --border: #2d4770;
-  --border-control: #8b9ab3;
-  --primary: #f4ecdd;
-  --primary-hover: #ffffff;
-  --primary-pressed: #e4d8c2;
-  --primary-tint: #2d4770;
-  --on-primary: #0f2444;
+/* An ink field. Children read the same tokens, so components need no dark variant. */
+.on-ink {
+  --ink: #ffffff;
+  --muted: #c8c6d9;
+  --surface: #211f3d;
+  --canvas: #14122b;
+  --border: #3a3859;
+  --border-control: #8582a0;
+  --primary-tint: #2c2a4a;
+  color: var(--ink);
+}
+
+/* Paper inside an ink field: the real product, in its real colours. */
+.on-paper {
+  --ink: #14122b;
+  --muted: #5c5a73;
+  --surface: #ffffff;
+  --canvas: #f6f6fa;
+  --border: #e3e1f0;
+  --border-control: #8582a0;
+  --primary-tint: #e6f4f1;
   color: var(--ink);
 }

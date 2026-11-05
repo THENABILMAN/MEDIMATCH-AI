@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useDoctorSearch, useSpecialties } from '../../api/hooks'
-import { DoctorSlip } from '../../components/domain/doctor-card'
+import { DoctorCardCompact } from '../../components/domain/doctor-card'
 import { FilterBar } from '../../components/domain/filter-bar'
 import { PageHeader } from '../../components/layout/page-header'
 import { Combobox } from '../../components/ui/combobox'
@@ -154,10 +154,10 @@ export default function DoctorSearchPage() {
             <p className="mb-2 text-sm text-muted" aria-live="polite">
               {t('search.resultCount', { count: search.data.total })}
             </p>
-            <ul className="flex flex-col gap-3">
+            <ul className="rounded-md border border-border bg-surface">
               {search.data.items.map((doctor) => (
-                <li key={doctor.id}>
-                  <DoctorSlip doctor={doctor} headingLevel="h2" />
+                <li key={doctor.id} className="border-b border-border last:border-b-0">
+                  <DoctorCardCompact doctor={doctor} />
                 </li>
               ))}
             </ul>

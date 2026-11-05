@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { z } from 'zod'
 import { ROLE_HOME } from '../../components/common/ProtectedRoute'
-import { AuthFrame } from '../../components/layout/auth-frame'
 import { Banner } from '../../components/ui/banner'
 import { Button } from '../../components/ui/button'
 import { Field } from '../../components/ui/field'
@@ -64,49 +63,51 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthFrame>
-      <h1 className="display-2">{t('auth.signInTitle')}</h1>
-      <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate className="mt-6 flex flex-col gap-4">
-        {failed && <Banner tone="warning">{t('auth.signInFailed')}</Banner>}
-        <Field label={t('auth.email')} error={errors.email?.message}>
-          {(control) => (
-            <Input {...control} type="email" autoComplete="email" spellCheck={false} {...register('email')} />
-          )}
-        </Field>
-        <Field label={t('auth.password')} error={errors.password?.message}>
-          {(control) => (
-            <Input {...control} type="password" autoComplete="current-password" {...register('password')} />
-          )}
-        </Field>
-        <Button type="submit" loading={isSubmitting}>
-          {isSubmitting ? t('auth.signingIn') : t('nav.signIn')}
-        </Button>
-      </form>
-      <p className="mt-6 text-muted">
-        {t('auth.noAccount')}{' '}
-        <Link to="/register" className="text-primary underline underline-offset-4">
-          {t('nav.createAccount')}
-        </Link>
-      </p>
+    <div className="page-gutter py-8 md:py-16">
+      <div className="mx-auto w-full max-w-md">
+        <h1 className="font-serif text-2xl">{t('auth.signInTitle')}</h1>
+        <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate className="mt-6 flex flex-col gap-4">
+          {failed && <Banner tone="warning">{t('auth.signInFailed')}</Banner>}
+          <Field label={t('auth.email')} error={errors.email?.message}>
+            {(control) => (
+              <Input {...control} type="email" autoComplete="email" spellCheck={false} {...register('email')} />
+            )}
+          </Field>
+          <Field label={t('auth.password')} error={errors.password?.message}>
+            {(control) => (
+              <Input {...control} type="password" autoComplete="current-password" {...register('password')} />
+            )}
+          </Field>
+          <Button type="submit" loading={isSubmitting}>
+            {isSubmitting ? t('auth.signingIn') : t('nav.signIn')}
+          </Button>
+        </form>
+        <p className="mt-6 text-muted">
+          {t('auth.noAccount')}{' '}
+          <Link to="/register" className="text-primary underline underline-offset-4">
+            {t('nav.createAccount')}
+          </Link>
+        </p>
 
-      {import.meta.env.DEV && (
-        <div className="mt-8 flex flex-wrap items-center gap-2 border-t border-border pt-4">
-          <span className="text-sm text-muted">{t('auth.demoAccounts')}</span>
-          {DEMO_ACCOUNTS.map(([label, email, password]) => (
-            <Button
-              key={label}
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setValue('email', email)
-                setValue('password', password)
-              }}
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
-      )}
-    </AuthFrame>
+        {import.meta.env.DEV && (
+          <div className="mt-8 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+            <span className="text-sm text-muted">{t('auth.demoAccounts')}</span>
+            {DEMO_ACCOUNTS.map(([label, email, password]) => (
+              <Button
+                key={label}
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setValue('email', email)
+                  setValue('password', password)
+                }}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }

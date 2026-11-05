@@ -35,7 +35,7 @@ export function TableBody(props: ComponentProps<'tbody'>) {
 export function TableRow({ className, ...props }: ComponentProps<'tr'>) {
   return (
     <tr
-      className={cn('border-b border-border transition-colors hover:bg-canvas', className)}
+      className={cn('border-b border-border transition-colors hover:bg-primary-tint', className)}
       {...props}
     />
   )
