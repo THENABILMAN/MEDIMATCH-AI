@@ -31,7 +31,9 @@ class MockChatLLMClient(LLMClient):
         self.reply = reply
         self.analysis = analysis or TurnAnalysis()
 
-    def generate_structured(self, messages, response_model, system_prompt=None, temperature=None):
+    def generate_structured(
+        self, messages, response_model, system_prompt=None, temperature=None, **_options
+    ):
         return self.analysis if response_model is TurnAnalysis else WriterTurn(reply=self.reply)
 
 
@@ -246,7 +248,7 @@ def test_a_model_outage_says_so_and_saves_nothing(client: TestClient, chat_patie
 
     class Down(MockChatLLMClient):
         def generate_structured(
-            self, messages, response_model, system_prompt=None, temperature=None
+            self, messages, response_model, system_prompt=None, temperature=None, **_options
         ):
             raise LLMUnavailableError("HTTP 429")
 

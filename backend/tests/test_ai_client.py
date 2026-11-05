@@ -1,5 +1,6 @@
 """LLM client behaviour and exactly what leaves the server. Offline: transport is mocked."""
 
+import json
 import time
 from collections.abc import Callable
 
@@ -7,9 +8,9 @@ import httpx
 import pytest
 
 from app.ai.graph import _recent_messages, build_symptom_graph
-from app.ai.llm import LLMClient, LLMUnavailableError, set_llm_client
+from app.ai.llm import LLMClient, LLMUnavailableError, response_shape, set_llm_client
 from app.ai.privacy import redact_pii
-from app.ai.state import WriterTurn
+from app.ai.state import TurnAnalysis, WriterTurn
 from app.core.config import settings
 
 
@@ -239,3 +240,30 @@ def test_a_long_rate_limit_fails_at_once_rather_than_holding_the_patient(monkeyp
     with pytest.raises(LLMUnavailableError, match="429"):
         client_with(lambda request: limited).generate(MESSAGES)
     assert waits == []
+
+
+def test_the_response_shape_is_far_smaller_than_a_json_schema():
+    shape = json.dumps(response_shape(TurnAnalysis))
+    assert len(shape) < len(json.dumps(TurnAnalysis.model_json_schema())) / 2
+    assert '"language": "en|bn|banglish"' in shape
+
+
+def test_the_shape_describes_nested_models_and_optional_fields():
+    assert response_shape(WriterTurn)["chips"] == [
+        {"label": "str", "meaning": "physical|emotional|both|any_city|other"}
+    ]
+    assert response_shape(TurnAnalysis)["duration"] == "str or null"
+
+
+def test_reasoning_effort_is_sent_only_when_asked_for():
+    bodies: list[dict] = []
+
+    def handler(request):
+        bodies.append(json.loads(request.content))
+        return reply("ok")
+
+    client = client_with(handler)
+    client.generate(MESSAGES)
+    client.generate(MESSAGES, reasoning_effort="low")
+    assert "reasoning_effort" not in bodies[0]
+    assert bodies[1]["reasoning_effort"] == "low"

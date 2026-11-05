@@ -25,7 +25,7 @@ class ScriptedLLM(LLMClient):
         self.temperatures: list[float | None] = []
 
     def generate_structured(
-        self, messages, response_model, system_prompt=None, temperature=None
+        self, messages, response_model, system_prompt=None, temperature=None, **_options
     ) -> Any:
         self.prompts.append(system_prompt or "")
         self.sent.append(messages)
@@ -47,7 +47,7 @@ class NoModel(LLMClient):
         super().__init__(api_key="mock", model="mock")
 
     def generate_structured(
-        self, messages, response_model, system_prompt=None, temperature=None
+        self, messages, response_model, system_prompt=None, temperature=None, **_options
     ) -> Any:
         raise AssertionError("This turn must not call a model")
 

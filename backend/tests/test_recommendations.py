@@ -212,7 +212,7 @@ def test_chat_completion_populates_recommendations(client: TestClient):
     # 2. Configure deterministic mock LLM
     class MockNeuroLLM(LLMClient):
         def generate_structured(
-            self, messages, response_model, system_prompt=None, temperature=None
+            self, messages, response_model, system_prompt=None, temperature=None, **_options
         ):
             if response_model is WriterTurn:
                 return WriterTurn(reply="Matching neurologists are listed below.")

@@ -8,7 +8,8 @@ Crucial Rule: Message contents are NEVER logged, and never placed in exceptions.
 import json
 import logging
 import time
-from typing import Any, TypeVar
+from types import UnionType
+from typing import Any, Literal, TypeVar, Union, get_args, get_origin
 
 import httpx
 from pydantic import BaseModel
@@ -34,6 +35,28 @@ def _retry_after(response: httpx.Response) -> float | None:
         return max(float(response.headers.get("retry-after", "")), 0.0)
     except ValueError:
         return None
+
+
+def _type_shape(annotation: Any) -> Any:
+    """Describes one field in as few tokens as possible."""
+    origin = get_origin(annotation)
+    args = get_args(annotation)
+    if origin is Literal:
+        return "|".join(str(arg) for arg in args)
+    if origin in (Union, UnionType):
+        return " or ".join("null" if arg is type(None) else str(_type_shape(arg)) for arg in args)
+    if origin is list:
+        return [_type_shape(args[0])]
+    if origin is dict:
+        return f"object of {_type_shape(args[1])}"
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return response_shape(annotation)
+    return getattr(annotation, "__name__", str(annotation))
+
+
+def response_shape(model: type[BaseModel]) -> dict[str, Any]:
+    """The reply's fields and types. Far smaller than a JSON Schema, which is sent every turn."""
+    return {name: _type_shape(field.annotation) for name, field in model.model_fields.items()}
 
 
 class LLMClient:
@@ -108,6 +131,7 @@ class LLMClient:
         system_prompt: str | None = None,
         temperature: float = 0.2,
         max_tokens: int = 1000,
+        reasoning_effort: str | None = None,
     ) -> str:
         """Sends a chat completion request to Groq and returns the reply text."""
         if not self.api_key:
@@ -126,6 +150,8 @@ class LLMClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        if reasoning_effort:
+            body["reasoning_effort"] = reasoning_effort
 
         raw = self._post(body)
         try:
@@ -145,20 +171,21 @@ class LLMClient:
         response_model: type[T],
         system_prompt: str | None = None,
         temperature: float | None = None,
+        reasoning_effort: str | None = None,
     ) -> T:
         """Generates structured output validated against a Pydantic schema."""
-        schema_json = json.dumps(response_model.model_json_schema())
+        shape = json.dumps(response_shape(response_model), separators=(",", ":"))
         system_instruction = (
             f"{system_prompt or ''}\n\n"
-            "You MUST respond ONLY with a valid JSON object conforming exactly to this JSON Schema:\n"
-            f"{schema_json}\n"
-            "Do not output markdown code blocks (```json), commentary, or any text other than raw JSON."
+            f"Respond ONLY with one JSON object of this shape:\n{shape}\n"
+            "No markdown, commentary or any text other than raw JSON."
         ).strip()
 
         raw_output = self.generate(
             messages=messages,
             system_prompt=system_instruction,
             temperature=settings.LLM_TEMPERATURE if temperature is None else temperature,
+            reasoning_effort=reasoning_effort,
         )
 
         # Clean possible markdown wrapping if the LLM provided it

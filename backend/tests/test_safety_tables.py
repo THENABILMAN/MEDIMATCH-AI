@@ -720,7 +720,9 @@ class EvilLLM(LLMClient):
         self.ready = ready
         self.seen = []
 
-    def generate_structured(self, messages, response_model, system_prompt=None, temperature=None):
+    def generate_structured(
+        self, messages, response_model, system_prompt=None, temperature=None, **_options
+    ):
         self.seen.append(system_prompt or "")
         if response_model is WriterTurn:
             return WriterTurn(reply=DIAGNOSIS)
@@ -783,7 +785,7 @@ def test_system_prompt_tells_the_model_to_treat_patient_text_as_data(run_turn):
 def test_emergency_turn_never_calls_the_llm(run_turn):
     class Forbidden(EvilLLM):
         def generate_structured(
-            self, messages, response_model, system_prompt=None, temperature=None
+            self, messages, response_model, system_prompt=None, temperature=None, **_options
         ):
             raise AssertionError("LLM must not run on an emergency turn")
 
@@ -816,7 +818,9 @@ def test_emergency_alert_arrives_when_there_is_no_database_client(monkeypatch):
 
 
 class FlaggingLLM(EvilLLM):
-    def generate_structured(self, messages, response_model, system_prompt=None, temperature=None):
+    def generate_structured(
+        self, messages, response_model, system_prompt=None, temperature=None, **_options
+    ):
         return TurnAnalysis(possible_emergency="physical")
 
 
@@ -830,7 +834,7 @@ def test_the_model_can_add_an_emergency_alert(run_turn):
 def test_the_model_cannot_cancel_an_emergency(run_turn):
     class Dismissive(EvilLLM):
         def generate_structured(
-            self, messages, response_model, system_prompt=None, temperature=None
+            self, messages, response_model, system_prompt=None, temperature=None, **_options
         ):
             raise AssertionError("rules must escalate before the model is asked")
 

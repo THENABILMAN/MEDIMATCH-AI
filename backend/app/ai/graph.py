@@ -292,7 +292,11 @@ def analyze_node(state: ConversationState) -> dict[str, Any]:
 
     asked = list(state.get("asked_questions") or [])
     question_count = state.get("question_count", state.get("followup_count", 0))
-    if analysis.wants_to_keep_refining:
+    # Only an offer of matches can be accepted, so the model cannot quietly reset the limit
+    if (
+        analysis.wants_to_keep_refining
+        and question_count >= settings.CONVERSATION_SOFT_QUESTION_LIMIT
+    ):
         question_count = 0
     wants_now = bool(chip == ESCAPE or analysis.wants_doctors_now or state.get("escape_pending"))
     known = {field for field in KNOWN_FIELDS if details.get(field)}
@@ -394,7 +398,10 @@ def _search_notes(state: ConversationState) -> dict[str, Any]:
         "kinds_of_specialist": state.get("candidate_specialty_names", []),
     }
     if doctors:
-        notes["do"] = "Say in one short sentence that matching doctors are listed below."
+        notes["do"] = (
+            "Say something kind about what they shared, naming a detail, then say that matching "
+            "doctors are listed below, and what kind of specialist they are. Two sentences."
+        )
     else:
         notes["do"] = (
             "No matching doctors were found. Say so honestly, and offer to look in another city. "
@@ -434,6 +441,8 @@ def _turn_notes(state: ConversationState) -> str:
         if state.get("asking_about") == "clarify_meaning":
             notes["unclear_phrases"] = open_flags(state.get("ambiguity_flags") or {})
             notes["chips_should_offer"] = "emotional, physical, and both"
+        if state.get("asking_about") == "care_preference":
+            notes["chips_should_offer"] = "talking therapy, a medical evaluation, and either"
     elif action == "search":
         notes.update(_search_notes(state))
     elif action == "support":
@@ -500,6 +509,7 @@ def _ask_writer(system_prompt: str, state: ConversationState) -> WriterTurn:
             response_model=WriterTurn,
             system_prompt=system_prompt,
             temperature=settings.LLM_WRITER_TEMPERATURE,
+            reasoning_effort=settings.LLM_WRITER_REASONING_EFFORT or None,
         )
     except ValueError as e:
         raise LLMUnavailableError("The model's reply could not be read") from e

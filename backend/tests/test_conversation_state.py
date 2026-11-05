@@ -19,7 +19,9 @@ class NoDetailsLLM(LLMClient):
     def __init__(self):
         super().__init__(api_key="mock", model="mock")
 
-    def generate_structured(self, messages, response_model, system_prompt=None, temperature=None):
+    def generate_structured(
+        self, messages, response_model, system_prompt=None, temperature=None, **_options
+    ):
         if response_model is WriterTurn:
             return WriterTurn(reply="Tell me a little more.")
         return TurnAnalysis(symptoms=["itchy skin"], location="Dhaka", next_question="severity")

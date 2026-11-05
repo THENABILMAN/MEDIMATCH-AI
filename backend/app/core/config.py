@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     LLM_WRITER_TEMPERATURE: float = Field(
         default=0.7, ge=0, le=2, description="For the reply, so replies do not repeat themselves"
     )
+    # The analysis keeps the model's full reasoning, because it is a safety net. Set this empty for
+    # a model that does not accept it
+    LLM_WRITER_REASONING_EFFORT: str = Field(default="low", description="Saves tokens on replies")
     LLM_MAX_ATTEMPTS: int = Field(default=2, ge=1)
     LLM_HISTORY_MESSAGES: int = Field(
         default=12, ge=1, description="Latest messages sent to the LLM"

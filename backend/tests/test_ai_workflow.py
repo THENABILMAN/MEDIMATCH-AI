@@ -117,6 +117,19 @@ def test_every_normal_turn_runs_the_analysis_then_the_writer():
     assert "MediMatch assistant persona" in llm.prompts[1]
 
 
+def test_only_the_writer_lowers_the_models_reasoning():
+    seen: dict[type, str | None] = {}
+
+    class Recording(ScriptedLLM):
+        def generate_structured(self, messages, response_model, system_prompt=None, **options):
+            seen[response_model] = options.get("reasoning_effort")
+            return super().generate_structured(messages, response_model, system_prompt)
+
+    say(Recording(), "hello")
+    assert seen[TurnAnalysis] is None
+    assert seen[WriterTurn] == "low"
+
+
 def test_the_writer_runs_warmer_than_the_analysis():
     llm = ScriptedLLM()
     say(llm, "hello")
@@ -141,7 +154,7 @@ def test_every_call_is_redacted():
 def test_a_failed_model_in_either_step_is_reported_not_hidden():
     class FailsOnWriter(ScriptedLLM):
         def generate_structured(
-            self, messages, response_model, system_prompt=None, temperature=None
+            self, messages, response_model, system_prompt=None, temperature=None, **_options
         ):
             if response_model is WriterTurn:
                 raise LLMUnavailableError("down")
@@ -154,7 +167,7 @@ def test_a_failed_model_in_either_step_is_reported_not_hidden():
 def test_an_unreadable_analysis_is_reported_not_hidden():
     class Unreadable(ScriptedLLM):
         def generate_structured(
-            self, messages, response_model, system_prompt=None, temperature=None
+            self, messages, response_model, system_prompt=None, temperature=None, **_options
         ):
             raise ValueError("bad json")
 
@@ -360,6 +373,13 @@ def test_a_patient_can_choose_to_keep_refining(doctors):
     result = say(llm, "yes, keep going", question_count=limit)
     assert result["action"] == "ask"
     assert result["question_count"] == 1
+
+
+def test_the_model_cannot_quietly_reset_the_question_count():
+    llm = ScriptedLLM(
+        analysis(symptoms=["x"], next_question="duration", wants_to_keep_refining=True)
+    )
+    assert say(llm, "I think so", question_count=4)["question_count"] == 5
 
 
 def test_an_answered_question_is_never_asked_again():
