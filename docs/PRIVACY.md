@@ -23,12 +23,12 @@ What personal data the backend holds, where it goes, and how long it stays. This
 
 | Provider | What it receives | What it does not receive |
 |---|---|---|
-| **OpenRouter**, and the model provider behind it | The latest 12 chat messages after redaction, on each of two calls per turn, plus the system prompts | Patient ids, account details, stored names |
+| **Groq** | The latest 12 chat messages after redaction, plus the system prompts, on each model call. A turn makes one call, or two if the city is still needed | Patient ids, account details, stored names |
 | **Pinecone**, embedding | Redacted symptom keywords for search. For doctors: specialties, qualifications, years of experience, redacted bio and clinic, city | Doctor names, fees, phone numbers, emails |
 | **Pinecone**, index | Each approved doctor's vector, id, specialty names and ids, city and status | Any patient data |
 | **Supabase** | Everything in the table above, as the database host | Nothing is held back |
 
-Emergency messages caught by the rules go to no third party. Messages the rules do not catch reach OpenRouter, redacted.
+Emergency messages caught by the rules go to no third party. Messages the rules do not catch reach Groq, redacted.
 
 ## Redaction Limits
 
@@ -36,8 +36,8 @@ Emergency messages caught by the rules go to no third party. Messages the rules 
 
 ## Before Real Patients
 
-- **Free model risk:** this project uses a free OpenRouter model by choice. Free endpoints may log or train on prompts, so redacted patient text may be kept by the provider. Check the chosen model's policy, and decide whether that is acceptable before real patients use it.
-- Sign data processing agreements with OpenRouter or the model provider, Pinecone and Supabase, as required.
+- **Model provider terms:** redacted patient text goes to Groq. Check Groq's current data retention and training terms for this account, and decide whether they are acceptable.
+- Sign data processing agreements with Groq, Pinecone and Supabase, as required.
 - Have a lawyer review the consent wording and retention period against Bangladeshi law.
 
 ## Logs

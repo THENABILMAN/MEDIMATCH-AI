@@ -9,7 +9,7 @@ MediMatch AI is an AI-powered doctor recommendation and appointment booking plat
 - **Backend API**: FastAPI (Python 3.12+)
 - **Database & Auth**: Supabase (PostgreSQL, Supabase Auth, Row-Level Security)
 - **Vector Search Index**: Pinecone
-- **AI Orchestration & LLM**: LangGraph, OpenRouter
+- **AI Orchestration & LLM**: LangGraph, Groq
 - **Web Frontend**: React + TypeScript (Vite)
 - **Mobile Frontend**: Flutter (Dart)
 
@@ -47,7 +47,7 @@ MEDIMATCH-AI/
 
 ## Non-Negotiable Rules
 1. **Source of Truth**: Supabase Postgres is the single source of truth. Pinecone is exclusively a search index; always re-fetch current doctor records directly from Supabase before returning results to clients.
-2. **Secret Isolation**: Never expose service-role keys, Pinecone API keys, or OpenRouter keys to any frontend (Web or Mobile). All credentials must be kept strictly on the backend and loaded via environment variables.
+2. **Secret Isolation**: Never expose service-role keys, Pinecone API keys, or Groq keys to any frontend (Web or Mobile). All credentials must be kept strictly on the backend and loaded via environment variables.
 3. **Medical Safety**: The AI assistant must never diagnose, prescribe treatments, or reassure patients that serious symptoms are harmless. It only helps find suitable, qualified doctors.
 4. **Deterministic Emergency Triage**: Emergency detection must be rule-based (deterministic keyword and regex checks backed by comprehensive tests), never delegated solely to an LLM.
 5. **Doctor Verification Enforcement**: Only doctors with `verification_status = 'approved'` may ever be recommended or searchable by patients.
@@ -192,7 +192,7 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
   - Tests: 44 Vitest, 95 Playwright on a mocked API covering every screen at 3 sizes with axe, keyboard paths, offline and slow network, and critical journeys
 - [x] **Phase 5c: Backend Audit and Hardening**
   - `docs/AUDIT.md` records the state before, `docs/SECURITY_REPORT.md` after, and `docs/EVAL_REPORT.md` what was measured
-  - Tests run on local Supabase only: 878 passing at the last full run, before the navy and beige work
+  - Tests run on local Supabase only: 878 passing at the last full run. Since then only the tests that need no database have run
   - Emergency detection is rules plus the model, which can only add alerts. The model writes normal replies
   - All 12 migrations are applied to the live project, and vector search is on with 7 approved doctors indexed
 - [x] **Phase 5d: Web Redesign**
@@ -201,6 +201,7 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
   - The home page is a split stage: `ProductStage` plays the chat on scroll with live doctors and holds no inputs or buttons. The one real message box sends a first message to the chat
   - Language switch added. Most of the interface is still English, because Bangla copy needs a reviewer
   - Tests: 44 Vitest and 97 Playwright passing on a mocked API
+  - The assistant runs on Groq and was tried in real English, Bangla and Banglish conversations. Its emergency score in `docs/EVAL_REPORT.md` was measured on the earlier model
 - [ ] **Phase 6: Mobile App & Production Deployment**
   - Flutter app for Patient and Doctor workflows
   - End-to-end integration test suite & deployment readiness
@@ -208,6 +209,8 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
 ---
 
 ## Decisions Log
+- **2026-11-05**: The assistant must have a city before any search, so patients aren't shown doctors they can't reach. A patient can say any city is fine. If the model tries to search without one, a second call asks for it, so the model still writes the reply.
+- **2026-11-05**: Match reasons state the specialty and experience only. Fee and soonest time are already on the row.
 - **2026-11-05**: Replaced the navy and beige work with the teal, violet and serif system on the owner's instruction, and removed every photograph. The striking look comes from large type and the real product, never from decoration.
 - **2026-11-05**: Dropped the dark ink field on the owner's feedback, because it didn't match the rest of the site. Home and sign-in use the teal tint.
 - **2026-11-05**: The first message from the home page travels in `sessionStorage`, not the URL, so symptoms stay out of browser history and logs.
@@ -233,7 +236,7 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
 - **2026-10-30**: Enforced zero double-booking via database-level pessimistic row locking in PostgreSQL (`SELECT ... FOR UPDATE` inside `book_appointment_atomic`) combined with a partial unique constraint (`idx_appointments_slot_booked WHERE status = 'booked'`).
 - **2026-10-30**: Enforced temporal slot integrity via PostgreSQL exclusion constraint (`no_overlapping_slots` using `btree_gist`) and application-level 15-minute minimum duration and future timestamp checks.
 - **2026-10-30**: Verified booking atomicity under high concurrency with a 20-thread simultaneous race test guaranteeing exactly 1 success (201) and 19 conflicts (409).
-- **2026-10-30**: Enforced strict separation of frontend keys in `web/.env.example`: frontend holds exclusively `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, communicating with backend API using Supabase JWT tokens; backend never exposes service-role, Pinecone, or OpenRouter keys to client code.
+- **2026-10-30**: Enforced strict separation of frontend keys in `web/.env.example`: frontend holds exclusively `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, communicating with backend API using Supabase JWT tokens; backend never exposes service-role, Pinecone, or LLM keys to client code.
 - **2026-10-30**: Designed patient triage chat UI to surface medical safety warnings as permanent prominent disclaimers and render emergency escalations as high-urgency red alerts with direct 999 toll-free dialers.
 - **2026-10-30**: Integrated specialist recommendations directly into chat turns with match explanation snippets, match score percentage badges, and direct links to live slot booking.
 - **2026-11-04**: Tokens are always verified by Supabase Auth, and production code has no test bypass. Tests replace verification from `conftest.py`. Roles always come from `profiles`, never from token metadata.
@@ -245,11 +248,11 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
 - **2026-11-04**: Backend tests ignore `.env` and refuse non-local hosts, because they once wrote fake approved doctors to the real project.
 - **2026-11-04**: Rule-based detection alone missed 61% to 88% of unseen phrases, so the classifier is a second net rather than a replacement. Never report a detection score measured on phrases the rules were tuned on.
 - **2026-11-05**: Reversed the fixed-reply design on the owner's instruction, because it made the assistant robotic. One model call now writes the reply and reads the details. A model failure returns 503 and saves nothing, rather than a canned question. The guard is now the last check on model text, and it is known to be incomplete.
-- **2026-11-05**: Always use a free OpenRouter model, in every environment. Use a paid model only when the owner says so. The free limit is per account, so changing free models does not get past it.
+- **2026-11-05**: Moved the assistant from OpenRouter to Groq on the owner's instruction, using `openai/gpt-oss-120b`. The account limit of 8,000 tokens a minute is shared by every model, and a turn uses about 1,800 tokens, so it handles about 4 messages a minute. The client honours `Retry-After` up to 10 seconds.
 - **2026-11-04**: Assistant state lives on the conversation row, not in a LangGraph checkpointer, so deletion and multiple workers need no extra machinery.
 - **2026-11-04**: Booking, cancelling and completing run in locked stored procedures. Appointments keep their own times, and audit logs are append-only for every writer.
 - **2026-11-04**: Signed-in reads of chats, appointments and credentials use the caller's token, so RLS applies. Writes use the service role behind route checks.
-- **2026-11-04**: LLM calls have a deadline on the whole call, because OpenRouter keep-alive bytes restart httpx read timeouts.
+- **2026-11-04**: LLM calls have a deadline on the whole call, because provider keep-alive bytes restart httpx read timeouts.
 
 
 

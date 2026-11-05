@@ -15,7 +15,7 @@ The backend and the patient, doctor and admin web portals work end to end. The F
 | API | FastAPI, Python 3.12 |
 | Database and auth | Supabase (Postgres, Auth, Row-Level Security, Storage) |
 | Search | Pinecone with `llama-text-embed-v2` |
-| AI | LangGraph, with free OpenRouter models |
+| AI | LangGraph, with Groq |
 | Web | React 19, TypeScript, Vite, Tailwind CSS v4, Radix |
 
 ## Repository
@@ -34,7 +34,7 @@ CLAUDE.md         Project rules, commands, status and decisions
 
 ## Run It Locally
 
-You need Python 3.12, Node, Docker, and accounts with Pinecone and OpenRouter.
+You need Python 3.12, Node, Docker, and accounts with Pinecone and Groq.
 
 **1. Configure.** Copy the example files, then fill them in. Values for local Supabase come from `npx supabase@latest status`.
 
@@ -97,7 +97,7 @@ cd web && npx playwright test             # Browser tests on a mocked API
 ## Project Rules
 
 1. Supabase Postgres is the source of truth. Pinecone is only a search index, so doctor records are always re-read from Postgres.
-2. Service-role, Pinecone and OpenRouter keys stay on the backend.
+2. Service-role, Pinecone and Groq keys stay on the backend.
 3. The assistant never diagnoses, prescribes, or says serious symptoms are harmless.
 4. Emergency detection runs on fixed rules first. The model can add an alert but never remove one.
 5. Only approved doctors can be found or booked.
