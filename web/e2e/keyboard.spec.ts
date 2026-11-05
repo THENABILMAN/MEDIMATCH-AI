@@ -6,6 +6,8 @@ async function tabTo(page: Page, name: RegExp, limit = 40) {
     await page.keyboard.press('Tab')
     const label = await page.evaluate(() => {
       const element = document.activeElement as HTMLElement | null
+      // With nothing focused, the body's text would match any label on the page
+      if (!element || element === document.body) return ''
       const labelled = element?.getAttribute('aria-label')
       const byFor = element?.id ? document.querySelector(`label[for="${element.id}"]`)?.textContent : null
       return labelled ?? byFor ?? element?.textContent ?? ''
