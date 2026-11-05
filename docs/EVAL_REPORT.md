@@ -95,3 +95,10 @@ Rerun with `python backend/scripts/eval_recommendations.py`.
 - The tightened classifier prompt.
 - Recommendation quality through the full assistant flow.
 - Any phrase set reviewed by a clinician. **All emergency phrases here were written without clinical input.**
+
+## Groq Spot Check
+
+On 2026-11-05 the assistant moved to Groq with `openai/gpt-oss-120b`. A short run of the classifier alone, on a random sample of the held-out phrases, flagged 12 of 14 emergencies and wrongly flagged 0 of 8 ordinary messages. All 22 calls answered.
+
+It missed "dan hat narate parchi na" and "কাউকে চিনতে পারছে না". This sample is too small to quote as a detection rate, and the full evaluation has not been repeated on Groq.
+

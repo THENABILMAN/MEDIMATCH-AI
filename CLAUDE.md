@@ -201,7 +201,7 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
   - The home page is a split stage: `ProductStage` plays the chat on scroll with live doctors and holds no inputs or buttons. The one real message box sends a first message to the chat
   - Language switch added. Most of the interface is still English, because Bangla copy needs a reviewer
   - Tests: 44 Vitest and 97 Playwright passing on a mocked API
-  - The assistant runs on Groq and was tried in real English, Bangla and Banglish conversations. Its emergency score in `docs/EVAL_REPORT.md` was measured on the earlier model
+  - The assistant runs on Groq and was tried in real English, Bangla and Banglish conversations. The full emergency evaluation was measured on the earlier model. A spot check on Groq flagged 12 of 14 emergencies and 0 of 8 ordinary messages
 - [ ] **Phase 6: Mobile App & Production Deployment**
   - Flutter app for Patient and Doctor workflows
   - End-to-end integration test suite & deployment readiness
