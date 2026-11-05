@@ -2,7 +2,7 @@
 
 The source of truth for the web UI. Tokens live in `web/src/styles/tokens.css` and map into the Tailwind theme. Components never use raw colours or magic numbers. If this file and the code disagree, fix one of them in the same change.
 
-**Tone:** calm, clinical but human, editorial. Generous on patient screens, dense on admin screens.
+**Tone:** calm, clinical but human, editorial. Striking on the home page through large type and real product, generous on patient screens, dense on admin screens.
 
 ## 1. Reference systems
 
@@ -15,32 +15,62 @@ Two references inform the structure. We borrow no colour, logo, typeface or bran
 
 ## 2. Colour
 
-Navy and beige. The values live in `web/src/styles/tokens.css`, and `web/tests/design-tokens.test.ts` fails if a pairing drops below AA, which is 4.5:1 for text and 3:1 for control boundaries.
+| Token | Value | Use |
+|---|---|---|
+| `--ink` | `#14122B` | Primary text |
+| `--muted` | `#5C5A73` | Secondary text |
+| `--surface` | `#FFFFFF` | Panels and inputs |
+| `--canvas` | `#F6F6FA` | Page background |
+| `--border` | `#E3E1F0` | Dividers and panel edges (decorative) |
+| `--border-control` | `#8582A0` | Boundaries of inputs and controls |
+| `--ink-field`, `--ink-raised`, `--ink-line` | `#14122B`, `#211F3D`, `#3A3859` | Ink fields on the home page and auth panel |
+| `--on-ink`, `--on-ink-muted` | `#FFFFFF`, `#C8C6D9` | Text on ink |
+| `--primary` | `#00806C` | Actions, links, focus |
+| `--primary-hover` | `#00695A` | Hover; text on `--primary-tint` |
+| `--primary-pressed` | `#005247` | Active state |
+| `--primary-tint` | `#E6F4F1` | Selected rows and days |
+| `--ai` | `#5A4BD1` | AI-generated content only |
+| `--ai-tint` | `#EEECFB` | Background of AI content only |
+| `--danger` | `#B3261E` | Emergencies and destructive actions only |
+| `--danger-pressed` | `#8C1D18` | Active destructive button |
+| `--danger-tint` | `#FCEBEA` | Destructive confirmation backgrounds |
+| `--warning` | `#8A5300` | Warning text and icons |
+| `--warning-tint` | `#FDF3E3` | Warning backgrounds |
+| `--success` | `#1E7A3C` | Success text and icons |
+| `--success-tint` | `#E8F5EC` | Success backgrounds |
 
-| Token | Use |
-|---|---|
-| `--ink`, `--muted` | Primary and secondary text |
-| `--surface`, `--canvas`, `--sand` | Panels, page background, filled tiles |
-| `--border`, `--border-control` | Dividers, and the boundaries of inputs and controls |
-| `--navy`, `--navy-raised`, `--on-navy`, `--on-navy-muted` | Navy fields and the text on them |
-| `--primary`, `--primary-hover`, `--primary-pressed`, `--primary-tint`, `--on-primary` | Actions, links, focus, selected rows |
-| `--ai`, `--ai-tint` | AI-generated content only |
-| `--danger`, `--danger-pressed`, `--danger-tint` | Emergencies and destructive actions only |
-| `--warning`, `--warning-tint`, `--success`, `--success-tint` | Status |
+### Contrast matrix
 
-`.on-navy` flips these tokens for everything inside a navy field, so components need no dark variant.
+Measured, not estimated. AA requires 4.5:1 for text and 3:1 for control boundaries. A unit test enforces this table.
 
-**Rules:**
-- Text on `--primary-tint` uses `--primary-hover`.
-- `--border` must never be the only boundary of a control.
+| Foreground | Background | Ratio |
+|---|---|---|
+| ink | surface / canvas | 18.24 / 16.92 |
+| ink | primary-tint / ai-tint | 16.14 / 15.66 |
+| muted | surface / canvas | 6.63 / 6.16 |
+| muted | primary-tint / ai-tint | 5.87 / 5.70 |
+| white | primary / hover / pressed | 4.88 / 6.63 / 9.14 |
+| primary | surface / canvas | 4.88 / 4.53 |
+| primary-hover | primary-tint | 5.86 |
+| ai | surface / ai-tint | 6.25 / 5.36 |
+| white | danger / danger-pressed | 6.54 / 9.11 |
+| danger | surface / danger-tint | 6.54 / 5.67 |
+| warning | surface / warning-tint | 6.33 / 5.76 |
+| success | surface / success-tint | 5.38 / 4.79 |
+| border-control | surface / canvas | 3.69 / 3.42 |
+
+**Two rules these numbers create:**
+- `--primary` as text on `--primary-tint` is only 4.32:1, so text on that tint always uses `--primary-hover`.
+- `--border` is 1.29:1 and must never be the only boundary of a control.
 
 No dark theme in this round.
 
 ## 3. Typography
 
-One family, plus a Bangla fallback, self-hosted as variable woff2 with `font-display: swap`. DM Sans is preloaded. Noto Sans Bengali uses `unicode-range`, so it downloads only when Bangla appears.
+Two families, plus a Bangla fallback, self-hosted as variable woff2 with `font-display: swap`. Instrument Sans is preloaded. Noto Sans Bengali uses `unicode-range`, so it downloads only when Bangla appears.
 
-- DM Sans, then Noto Sans Bengali, then `system-ui`, for everything.
+- **UI:** Instrument Sans, then Noto Sans Bengali, then `system-ui`.
+- **Display:** Source Serif 4, for page titles and big numbers only, then Noto Sans Bengali for Bangla titles.
 
 | Token | Size / line height | Use |
 |---|---|---|
@@ -49,10 +79,12 @@ One family, plus a Bangla fallback, self-hosted as variable woff2 with `font-dis
 | `--text-md` | 16 / 24 | Patient body, inputs (avoids iOS zoom), chat |
 | `--text-lg` | 18 / 28 | Lead text, section titles |
 | `--text-xl` | 24 / 32 | Subpage titles |
-| `--text-2xl` | 32 / 40 | Page titles |
-| `--text-3xl` | 44 / 52 | Big numbers |
+| `--text-2xl` | 32 / 40 | Mobile page titles (serif) |
+| `--text-3xl` | 44 / 52 | Page titles and big numbers (serif) |
+| `--text-4xl` | 64 / 68 | Home section titles (serif) |
+| `--text-5xl` | 88 / 92 | Reserved for display (serif) |
 
-- Weights: 400 for body, 500 for labels, 600 for emphasis.
+- Weights: 400 for body, 500 for labels, 600 for emphasis. The serif stays at 400 so large type reads calm.
 - Fees, times and counts use `font-variant-numeric: tabular-nums`.
 - Prose is capped at 66ch, within the 60 to 75 character range.
 - Headings use `text-wrap: balance`. Headings and buttons use Title Case; body text uses sentence case.
@@ -72,9 +104,17 @@ One family, plus a Bangla fallback, self-hosted as variable woff2 with `font-dis
 ## 5. Motion and Imagery
 
 - Duration 150ms for small state changes and 200ms for overlays, `ease-out`, on `transform` and `opacity` only.
-- No bouncing, parallax or scroll effects. Under reduced motion, changes are immediate.
+- No bouncing or parallax. Scrolling may change the state of the home page panel, but it never animates decoration. Under reduced motion, changes are immediate.
 - Icons: Lucide at stroke width 1.75, in sizes 16, 20 and 24. They support labels and never replace them, except on `IconButton`, which requires an accessible name and a tooltip.
-- Imagery: real product interface, simple palette-only SVG, or typography. No stock photographs of doctors.
+
+### Imagery
+
+This policy exists because irrelevant photographs were added to the product once. Keep them out.
+
+- **Banned:** stock photography, photos of doctors or patients, landmark or street photos, AI-generated art, decorative blobs and gradients.
+- **Allowed:** (a) real product interface, (b) simple custom SVG drawings in our palette with one or two colours and a consistent stroke, used only for empty states and onboarding, (c) Lucide icons, (d) type and space.
+- Doctor avatars are initials on a tint, unless the doctor uploaded a photo.
+- The home page shows the product itself in `ProductStage`, with live data from the API, and marks it as an example.
 
 ## 6. Component Inventory
 
@@ -86,8 +126,10 @@ One family, plus a Bangla fallback, self-hosted as variable woff2 with `font-dis
 | DoctorCard | Compact and detailed variants; no stars, ever |
 | VerificationBadge | States its status in words as well as colour |
 | SlotPicker | Day strip and time grid, arrow-key navigation, Asia/Dhaka shown |
-| AppointmentRow | Time first, tabular |
-| ChatMessage | AI and patient differ by layout and an "AI-generated" label, plus the violet tint |
+| AppointmentRow | Time first, tabular. The next visit is featured with a large serif time |
+| ProductStage | The real chat on the home page, played step by step with live doctors. Inert, and labelled as an example |
+| LanguageSwitch | Switches English and Bangla, and remembers the choice |
+| ChatMessage | AI and patient differ by layout and an "AI-generated" label, on the violet tint |
 | ChatComposer | Suggested-answer chips for follow-ups |
 | EmergencyNotice | Full width, high contrast, verbatim text, `tel:` link, not dismissible, nothing beneath it |
 | AIDisclaimer | Persistent, short, not a modal |

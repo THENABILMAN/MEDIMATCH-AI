@@ -23,7 +23,7 @@ const heading = (text: string | RegExp) => (page: Page) =>
   expect(page.getByRole('heading', { name: text, exact: false }).first()).toBeVisible()
 
 const SCREENS: Screen[] = [
-  { name: 'home', path: '/', options: { signedIn: false }, ready: heading(/The Right Doctor/) },
+  { name: 'home', path: '/', options: { signedIn: false }, ready: heading(/Say how you feel/) },
   { name: 'not-found', path: '/nope', options: { signedIn: false }, ready: heading(/couldn’t find/i) },
   { name: 'sign-in', path: '/login', options: { signedIn: false }, ready: heading(/Sign In to MediMatch/) },
   { name: 'register', path: '/register?role=doctor', options: { signedIn: false }, ready: heading(/Create Your Account/) },
@@ -92,7 +92,7 @@ for (const screen of SCREENS) {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
       expect(overflow, 'page must not scroll sideways').toBeLessThanOrEqual(0)
 
-      await page.screenshot({ path: `screenshots/${screen.name}/${viewport.name}.png`, fullPage: true, animations: 'disabled' })
+      await page.screenshot({ path: `screenshots/after/${screen.name}/${viewport.name}.png`, fullPage: true, animations: 'disabled' })
 
       const results = await new AxeBuilder({ page }).analyze()
       const serious = results.violations
@@ -116,5 +116,5 @@ test('a long Bangla profile fits without overflow at 360px', async ({ page }) =>
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
   expect(overflow).toBeLessThanOrEqual(0)
   expect(await page.evaluate(() => document.fonts.check('16px "Noto Sans Bengali"', 'আ'))).toBe(true)
-  await page.screenshot({ path: 'screenshots/bangla/mobile.png', fullPage: true, animations: 'disabled' })
+  await page.screenshot({ path: 'screenshots/after/bangla/mobile.png', fullPage: true, animations: 'disabled' })
 })

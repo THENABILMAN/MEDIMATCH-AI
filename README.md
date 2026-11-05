@@ -6,7 +6,7 @@ The assistant never diagnoses or prescribes. Possible emergencies get a fixed al
 
 ## Status
 
-The backend and the patient, doctor and admin web portals work end to end. The web design is provisional and will be redone. The Flutter app and production deployment are still to come. See [CLAUDE.md](CLAUDE.md) for details.
+The backend and the patient, doctor and admin web portals work end to end. The Flutter app and production deployment are still to come. See [CLAUDE.md](CLAUDE.md) for details.
 
 ## Stack
 
@@ -112,3 +112,4 @@ cd web && npx playwright test             # Browser tests on a mocked API
 - [docs/EVAL_REPORT.md](docs/EVAL_REPORT.md): emergency detection and recommendation quality
 - [docs/AUDIT.md](docs/AUDIT.md): the backend audit, before the fixes
 - [docs/DESIGN.md](docs/DESIGN.md) and [docs/UI_PRINCIPLES.md](docs/UI_PRINCIPLES.md): web design rules
+- [docs/UI_AUDIT.md](docs/UI_AUDIT.md) and [docs/UI_REVIEW.md](docs/UI_REVIEW.md): the web UI before and after the redesign
