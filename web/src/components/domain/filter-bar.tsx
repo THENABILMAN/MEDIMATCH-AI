@@ -18,7 +18,7 @@ export function FilterBar({ activeCount, onClear, children }: FilterBarProps) {
 
   return (
     <>
-      <div className="hidden items-end gap-3 md:grid md:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
+      <div className="hidden items-end gap-3 md:grid md:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
         {children}
         <Button variant="ghost" disabled={activeCount === 0} onClick={onClear}>
           {t('filters.clear')}

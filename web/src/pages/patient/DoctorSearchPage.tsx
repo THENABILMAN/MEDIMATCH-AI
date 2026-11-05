@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { useDoctorSearch, useSpecialties } from '../../api/hooks'
+import { useDoctorSearch, useSpecialties, useDoctorsSlots } from '../../api/hooks'
+import { nextOpenSlot } from '../../lib/slots'
 import { DoctorCardCompact } from '../../components/domain/doctor-card'
 import { FilterBar } from '../../components/domain/filter-bar'
 import { PageHeader } from '../../components/layout/page-header'
@@ -53,6 +54,7 @@ export default function DoctorSearchPage() {
     page_size: PAGE_SIZE,
   })
 
+  const slots = useDoctorsSlots(search.data?.items.map((doctor) => doctor.id) ?? [])
   const activeCount = [specialty, city, maxFee, sortBy].filter(Boolean).length
 
   function setFilter(changes: Record<string, string>) {
@@ -136,6 +138,7 @@ export default function DoctorSearchPage() {
           <ErrorState error={search.error} onRetry={() => void search.refetch()} />
         ) : search.data.items.length === 0 ? (
           <EmptyState
+            illustration="search"
             title={t('search.emptyTitle')}
             description={t('search.emptyBody')}
             action={
@@ -155,9 +158,9 @@ export default function DoctorSearchPage() {
               {t('search.resultCount', { count: search.data.total })}
             </p>
             <ul className="rounded-md border border-border bg-surface">
-              {search.data.items.map((doctor) => (
+              {search.data.items.map((doctor, index) => (
                 <li key={doctor.id} className="border-b border-border last:border-b-0">
-                  <DoctorCardCompact doctor={doctor} />
+                  <DoctorCardCompact doctor={doctor} soonest={nextOpenSlot(slots[index]?.data)?.start_time} />
                 </li>
               ))}
             </ul>

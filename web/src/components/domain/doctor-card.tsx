@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/cn'
-import { formatCurrency, formatNumber } from '../../lib/format'
+import { formatCurrency, formatDateTime, formatNumber } from '../../lib/format'
 import type { DoctorProfile } from '../../types'
 import { Avatar } from '../ui/avatar'
 import { VerificationBadge } from './verification-badge'
@@ -11,16 +11,24 @@ function specialtyNames(doctor: DoctorProfile): string {
 }
 
 /** A row in the search results. The whole row is the doctor's link. */
-export function DoctorCardCompact({ doctor, searchSuffix = '' }: { doctor: DoctorProfile; searchSuffix?: string }) {
+export function DoctorCardCompact({
+  doctor,
+  soonest,
+  searchSuffix = '',
+}: {
+  doctor: DoctorProfile
+  soonest?: string
+  searchSuffix?: string
+}) {
   const { t, i18n } = useTranslation()
   return (
     <Link
       to={`/doctors/${doctor.id}${searchSuffix}`}
-      className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-sm p-4 transition-colors hover:bg-canvas md:grid-cols-[auto_1fr_auto] md:p-5"
+      className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 p-4 transition-colors hover:bg-primary-tint md:grid-cols-[auto_1fr_auto] md:p-5"
     >
       <Avatar name={doctor.full_name ?? ''} />
       <div className="min-w-0">
-        <h2 className="text-md font-semibold">{doctor.full_name}</h2>
+        <h2 className="font-serif text-xl">{doctor.full_name}</h2>
         <p className="text-muted">{specialtyNames(doctor)}</p>
         <p className="text-sm text-muted">
           {[doctor.clinic_name, doctor.city].filter(Boolean).join(', ')}
@@ -31,10 +39,14 @@ export function DoctorCardCompact({ doctor, searchSuffix = '' }: { doctor: Docto
           })}
         </p>
       </div>
-      <p className="col-start-2 flex items-baseline gap-1 md:col-start-3 md:row-start-1 md:flex-col md:items-end">
-        <span className="font-semibold tabular">{formatCurrency(doctor.consultation_fee, i18n.language)}</span>
-        <span className="text-sm text-muted">{t('doctor.perVisit')}</span>
-      </p>
+      <div className="col-start-2 md:col-start-3 md:row-start-1 md:text-right">
+        <p className="font-semibold tabular">
+          {soonest ? formatDateTime(soonest, i18n.language) : t('home.indexNoTime')}
+        </p>
+        <p className="text-muted tabular">
+          {formatCurrency(doctor.consultation_fee, i18n.language)} {t('doctor.perVisit')}
+        </p>
+      </div>
     </Link>
   )
 }
@@ -62,7 +74,7 @@ export function DoctorCardDetailed({ doctor, className }: { doctor: DoctorProfil
       <div className="flex items-start gap-4">
         <Avatar name={doctor.full_name ?? ''} className="size-14 text-lg" />
         <div className="min-w-0">
-          <h1 className="font-serif text-2xl">{doctor.full_name}</h1>
+          <h1 className="font-serif text-2xl md:text-3xl">{doctor.full_name}</h1>
           <p className="text-lg text-muted">{specialtyNames(doctor)}</p>
           <div className="mt-2">
             <VerificationBadge status={doctor.verification_status} />

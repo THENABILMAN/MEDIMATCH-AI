@@ -167,7 +167,7 @@ export default function AccountPage() {
               <div>
                 <h3 className="font-semibold">{t('account.closeTitle')}</h3>
                 <p className="prose-width text-muted">{t('account.closeBody')}</p>
-                <Button variant="danger" className="mt-2" onClick={() => setDialog('account')}>
+                <Button variant="secondary" className="mt-2 text-danger" onClick={() => setDialog('account')}>
                   {t('account.close')}
                 </Button>
               </div>

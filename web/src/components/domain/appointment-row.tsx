@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '../../lib/cn'
 import { formatDate, formatTime } from '../../lib/format'
 import type { Appointment, AppointmentStatus } from '../../types'
 import { Badge, type BadgeProps } from '../ui/badge'
@@ -15,19 +16,27 @@ interface AppointmentRowProps {
   title: string
   detail: string
   actions?: ReactNode
+  featured?: boolean
 }
 
-export function AppointmentRow({ appointment, title, detail, actions }: AppointmentRowProps) {
+export function AppointmentRow({ appointment, title, detail, actions, featured }: AppointmentRowProps) {
   const { t, i18n } = useTranslation()
   const { start_time: start } = appointment
   return (
-    <li className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[180px_1fr_auto] md:items-center md:p-5">
+    <li
+      className={cn(
+        'grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[220px_1fr_auto] md:items-center md:p-5',
+        featured && 'bg-primary-tint md:py-8'
+      )}
+    >
       <div className="tabular">
-        <p className="font-semibold">{start ? formatTime(start, i18n.language) : t('appointments.noTime')}</p>
+        <p className={cn('font-serif', featured ? 'text-3xl' : 'text-xl')}>
+          {start ? formatTime(start, i18n.language) : t('appointments.noTime')}
+        </p>
         {start && <p className="text-sm text-muted">{formatDate(start, i18n.language)}</p>}
       </div>
       <div className="min-w-0">
-        <p className="font-semibold">{title}</p>
+        <p className={cn('font-semibold', featured && 'font-serif text-xl font-normal')}>{title}</p>
         <p className="text-sm text-muted">{detail}</p>
         <Badge tone={STATUS_TONE[appointment.status]} className="mt-1">
           {t(`appointments.status.${appointment.status}`)}

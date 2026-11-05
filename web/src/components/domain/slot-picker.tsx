@@ -6,7 +6,7 @@ import { dhakaDay, formatDayNumber, formatShortDate, formatTime, formatWeekday }
 import type { AvailabilitySlot } from '../../types'
 
 const itemClasses =
-  'rounded-sm border border-control bg-surface transition-colors hover:border-ink data-[state=checked]:border-primary data-[state=checked]:bg-primary-tint data-[state=checked]:text-primary-hover'
+  'rounded-sm border border-control bg-surface transition-colors hover:border-ink data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-white '
 
 interface SlotPickerProps {
   slots: AvailabilitySlot[]
