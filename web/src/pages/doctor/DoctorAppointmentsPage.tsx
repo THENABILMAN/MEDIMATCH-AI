@@ -68,6 +68,7 @@ export default function DoctorAppointmentsPage() {
           <ErrorState error={appointments.error} onRetry={() => void appointments.refetch()} />
         ) : visible.length === 0 ? (
           <EmptyState
+            illustration="calendar"
             title={t(`appointments.doctorEmpty.${tab}.title`)}
             description={t(`appointments.doctorEmpty.${tab}.body`)}
             action={
@@ -80,11 +81,12 @@ export default function DoctorAppointmentsPage() {
           />
         ) : (
           <AppointmentPanel>
-            {visible.map((appointment) => {
+            {visible.map((appointment, index) => {
               const booked = appointment.status === 'booked'
               return (
                 <AppointmentRow
                   key={appointment.id}
+                  featured={tab === 'upcoming' && index === 0}
                   appointment={appointment}
                   title={appointment.patient?.full_name ?? t('appointments.unknownPatient')}
                   detail={appointment.patient?.phone ?? t('appointments.noPhone')}

@@ -16,17 +16,17 @@ export default function CredentialsPage() {
       <PageHeader title={t('credentials.title')} description={t('credentials.description')} />
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="lg:col-span-5">
-          <h2 className="mb-2 text-lg font-semibold">{t('credentials.uploadTitle')}</h2>
+          <h2 className="mb-2 font-serif text-xl">{t('credentials.uploadTitle')}</h2>
           <CredentialUploader />
         </div>
         <div className="min-w-0 lg:col-span-7">
-          <h2 className="mb-2 text-lg font-semibold">{t('credentials.uploadedTitle')}</h2>
+          <h2 className="mb-2 font-serif text-xl">{t('credentials.uploadedTitle')}</h2>
           {credentials.isPending ? (
             <Skeleton className="h-32" />
           ) : credentials.isError ? (
             <ErrorState error={credentials.error} onRetry={() => void credentials.refetch()} />
           ) : credentials.data.length === 0 ? (
-            <EmptyState title={t('credentials.emptyTitle')} description={t('credentials.emptyBody')} />
+            <EmptyState illustration="document" title={t('credentials.emptyTitle')} description={t('credentials.emptyBody')} />
           ) : (
             <CredentialViewer credentials={credentials.data} />
           )}

@@ -118,28 +118,10 @@ function DoctorReview({ doctor, onDecided }: { doctor: AdminDoctor; onDecided: (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold">{doctor.full_name}</h2>
+          <h2 className="font-serif text-2xl">{doctor.full_name}</h2>
           <p className="text-muted">{doctor.specialties.map((item) => item.name).join(', ') || t('queue.noSpecialties')}</p>
         </div>
         <VerificationBadge status={status} />
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {status !== 'approved' && (
-          <Button size="sm" onClick={() => setDialog('approve')}>
-            {t(status === 'pending' ? 'queue.approve' : 'queue.reinstate')}
-          </Button>
-        )}
-        {status === 'pending' && (
-          <Button variant="danger" size="sm" onClick={() => setDialog('reject')}>
-            {t('queue.reject')}
-          </Button>
-        )}
-        {status === 'approved' && (
-          <Button variant="danger" size="sm" onClick={() => setDialog('suspend')}>
-            {t('queue.suspend')}
-          </Button>
-        )}
       </div>
 
       <section aria-labelledby="documents-title">
@@ -157,11 +139,29 @@ function DoctorReview({ doctor, onDecided }: { doctor: AdminDoctor; onDecided: (
         {facts.map(([label, value]) => (
           <div key={label} className="contents">
             <dt className="pt-2 text-muted">{label}</dt>
-            <dd className="border-b border-border pb-2 md:pt-2 tabular">{value}</dd>
+            <dd className="pb-2 md:pt-2 tabular">{value}</dd>
           </div>
         ))}
       </dl>
       {doctor.bio && <p className="prose-width text-sm">{doctor.bio}</p>}
+
+      <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+        {status !== 'approved' && (
+          <Button size="sm" onClick={() => setDialog('approve')}>
+            {t(status === 'pending' ? 'queue.approve' : 'queue.reinstate')}
+          </Button>
+        )}
+        {status === 'pending' && (
+          <Button variant="danger" size="sm" onClick={() => setDialog('reject')}>
+            {t('queue.reject')}
+          </Button>
+        )}
+        {status === 'approved' && (
+          <Button variant="danger" size="sm" onClick={() => setDialog('suspend')}>
+            {t('queue.suspend')}
+          </Button>
+        )}
+      </div>
 
       <ConfirmDialog
         open={dialog === 'approve'}

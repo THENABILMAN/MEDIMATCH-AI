@@ -1,4 +1,5 @@
 import { Check } from 'lucide-react'
+import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMyCredentials, useMyDoctorProfile, useUpdateDoctorProfile } from '../../api/hooks'
@@ -30,6 +31,11 @@ function firstIncompleteStep(profile: DoctorProfile): Step {
   if (!profile.clinic_name || profile.consultation_fee <= 0) return 'practice'
   if (profile.specialties.length === 0 || !profile.bio) return 'clinical'
   return 'documents'
+}
+
+/** Leaving a field clears its error and moves the button, so a click could land on nothing. */
+function keepFocus(event: MouseEvent) {
+  event.preventDefault()
 }
 
 export default function OnboardingPage() {
@@ -91,12 +97,12 @@ export default function OnboardingPage() {
     <div className="page-gutter py-6 md:py-8">
       <PageHeader title={t('onboarding.title')} description={t('onboarding.description')} />
 
-      <ol className="mb-6 flex flex-col gap-2 md:flex-row md:gap-6">
+      <ol className="mb-8 grid gap-2 md:grid-cols-3 md:gap-4">
         {STEPS.map((item, position) => (
-          <li key={item} aria-current={item === step ? 'step' : undefined} className="flex items-center gap-2 text-sm">
+          <li key={item} aria-current={item === step ? 'step' : undefined} className={cn('flex items-center gap-3 border-t-2 pt-3', position <= index ? 'border-primary' : 'border-border')}>
             <span
               className={cn(
-                'flex size-6 items-center justify-center rounded-full border text-xs tabular',
+                'flex size-8 items-center justify-center rounded-full border font-serif text-lg tabular',
                 position < index && 'border-primary bg-primary text-white',
                 position === index && 'border-primary text-primary-hover',
                 position > index && 'border-control text-muted'
@@ -133,7 +139,7 @@ export default function OnboardingPage() {
               <Banner className="w-full">{t('onboarding.documentsNeeded')}</Banner>
             )
           ) : (
-            <Button loading={save.isPending} onClick={() => void saveAndContinue(STEPS[index + 1])}>
+            <Button loading={save.isPending} onMouseDown={keepFocus} onClick={() => void saveAndContinue(STEPS[index + 1])}>
               {t('onboarding.saveContinue')}
             </Button>
           )}

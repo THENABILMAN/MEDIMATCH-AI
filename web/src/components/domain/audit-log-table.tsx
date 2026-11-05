@@ -9,6 +9,11 @@ function metadataText(metadata: Record<string, unknown>): string {
     .join(', ')
 }
 
+function readableAction(action: string): string {
+  const words = action.toLowerCase().replaceAll('_', ' ')
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
 export function AuditLogTable({ logs }: { logs: AuditLog[] }) {
   const { t, i18n } = useTranslation()
   return (
@@ -25,7 +30,7 @@ export function AuditLogTable({ logs }: { logs: AuditLog[] }) {
         {logs.map((log) => (
           <TableRow key={log.id}>
             <TableCell className="whitespace-nowrap tabular">{formatDateTime(log.created_at, i18n.language)}</TableCell>
-            <TableCell className="whitespace-nowrap font-medium">{log.action}</TableCell>
+            <TableCell className="whitespace-nowrap font-medium">{readableAction(log.action)}</TableCell>
             <TableCell className="whitespace-nowrap text-muted">{log.target_type}</TableCell>
             <TableCell className="min-w-64 text-muted">{metadataText(log.metadata)}</TableCell>
           </TableRow>

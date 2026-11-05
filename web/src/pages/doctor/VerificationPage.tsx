@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { useMyDoctorProfile, useVerificationHistory } from '../../api/hooks'
 import { StatusTimeline } from '../../components/domain/status-timeline'
-import { VerificationBadge } from '../../components/domain/verification-badge'
 import { PageHeader } from '../../components/layout/page-header'
 import { Button } from '../../components/ui/button'
 import { EmptyState } from '../../components/ui/empty-state'
@@ -18,7 +17,6 @@ export default function VerificationPage() {
     <div className="page-gutter py-6 md:py-8">
       <PageHeader
         title={t('verification.title')}
-        actions={profile.data ? <VerificationBadge status={profile.data.verification_status} /> : undefined}
       />
       {profile.isPending || history.isPending ? (
         <Skeleton className="h-40 max-w-2xl" />
@@ -27,7 +25,8 @@ export default function VerificationPage() {
       ) : (
         <div className="grid gap-8 lg:grid-cols-12">
           <div className="lg:col-span-5">
-            <p className="prose-width">{t(`verification.next.${profile.data.verification_status}`)}</p>
+            <h2 className="font-serif text-3xl">{t(`verification.status.${profile.data.verification_status}`)}</h2>
+            <p className="prose-width mt-3 text-lg">{t(`verification.next.${profile.data.verification_status}`)}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               {profile.data.verification_status === 'approved' ? (
                 <Button asChild>
@@ -51,7 +50,7 @@ export default function VerificationPage() {
             </div>
           </div>
           <div className="min-w-0 lg:col-span-7">
-            <h2 className="mb-3 text-lg font-semibold">{t('verification.history')}</h2>
+            <h2 className="mb-3 font-serif text-xl">{t('verification.history')}</h2>
             {history.isError ? (
               <ErrorState error={history.error} onRetry={() => void history.refetch()} />
             ) : history.data?.length ? (

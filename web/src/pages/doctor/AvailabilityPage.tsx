@@ -53,7 +53,7 @@ function SlotBlock({ slot, onDelete }: { slot: AvailabilitySlot; onDelete: () =>
     <li
       className={
         slot.is_booked
-          ? 'flex min-h-11 items-center justify-between gap-1 rounded-sm bg-primary-tint pl-2 text-sm text-primary-hover'
+          ? 'flex min-h-11 items-center justify-between gap-1 rounded-sm bg-primary pl-2 text-sm text-white'
           : 'flex min-h-11 items-center justify-between gap-1 rounded-sm border border-border pl-2 text-sm'
       }
     >
@@ -223,7 +223,7 @@ export default function AvailabilityPage() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-muted">{t('availability.none')}</p>
+                  <p className="text-sm text-muted lg:sr-only">{t('availability.none')}</p>
                 )}
               </section>
             )
