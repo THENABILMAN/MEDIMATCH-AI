@@ -197,10 +197,10 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
   - All 12 migrations are applied to the live project, and vector search is on with 7 approved doctors indexed
 - [x] **Phase 5d: Web Redesign**
   - `docs/UI_AUDIT.md` records the state before, `docs/UI_REVIEW.md` the review, and `docs/DESIGN.md` the system
-  - Ink, teal and violet tokens, Instrument Sans and Source Serif. All photographs are gone, and the Imagery section of `docs/DESIGN.md` keeps them out
-  - The home page is a split stage: `ProductStage` plays the real chat on scroll with live doctors, and a first message typed there reaches the chat
+  - Teal and violet tokens on a light palette, Instrument Sans and Source Serif. All photographs are gone, and the Imagery section of `docs/DESIGN.md` keeps them out
+  - The home page is a split stage: `ProductStage` plays the chat on scroll with live doctors and holds no inputs or buttons. The one real message box sends a first message to the chat
   - Language switch added. Most of the interface is still English, because Bangla copy needs a reviewer
-  - Tests: 46 Vitest and 97 Playwright passing on a mocked API
+  - Tests: 44 Vitest and 97 Playwright passing on a mocked API
 - [ ] **Phase 6: Mobile App & Production Deployment**
   - Flutter app for Patient and Doctor workflows
   - End-to-end integration test suite & deployment readiness
@@ -209,6 +209,7 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
 
 ## Decisions Log
 - **2026-11-05**: Replaced the navy and beige work with the teal, violet and serif system on the owner's instruction, and removed every photograph. The striking look comes from large type and the real product, never from decoration.
+- **2026-11-05**: Dropped the dark ink field on the owner's feedback, because it didn't match the rest of the site. Home and sign-in use the teal tint.
 - **2026-11-05**: The first message from the home page travels in `sessionStorage`, not the URL, so symptoms stay out of browser history and logs.
 - **2026-11-05**: Removed emoji from the emergency alert and the greeting on the owner's instruction. The wording is otherwise unchanged.
 - **2026-11-05**: Removed tracked screenshots, `docs/PLAN.md`, `docs/UI_REVIEW.md`, an empty root lockfile, and the unused `lighthouse` and `user-event` packages.

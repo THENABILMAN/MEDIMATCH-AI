@@ -9,7 +9,7 @@ The review used contact sheets of the after screenshots and live scroll captures
 | Check | Result |
 |---|---|
 | Playwright, including axe, console, network and sideways scroll on every screen | 97 of 97 |
-| Vitest | 46 of 46 |
+| Vitest | 44 of 44 |
 | Type check, oxlint and production build | Pass, with 3 existing lint warnings |
 | Backend tests that need no database | 652 of 653. The other one needs local Supabase, which wasn't running |
 | Backend integration tests | Not run, because local Supabase wasn't running |
@@ -19,7 +19,7 @@ The review used contact sheets of the after screenshots and live scroll captures
 | Bug | Fix |
 |---|---|
 | Doctor onboarding lost clicks on Save and Continue. Leaving a field cleared its error, the layout moved, and the click landed on nothing. | The button keeps focus until the click finishes, in `OnboardingPage.tsx`. |
-| The sign-in panel headline ran across the photo edge. | The panel is now plain type on ink. |
+| The sign-in panel headline ran across the photo edge. | The panel now shows the promise above a real product example, on the teal tint. |
 | Search filters were cut off at tablet width. | They use two columns below `lg`. |
 | The emergency call button wasn't full width on larger screens. | It's now full width at every size. |
 | `rise-in` was defined twice in the CSS. | One definition remains. |
@@ -28,8 +28,8 @@ The review used contact sheets of the after screenshots and live scroll captures
 
 | Screen | What improved | Still weak |
 |---|---|---|
-| **Home** | The first screen is a large serif headline on ink, with a working message box. A real product panel stays fixed while the conversation plays on scroll, with live doctors and times. | The panel is mostly empty on its first step. |
-| **Sign in, register** | The photo is gone. The form sits beside a plain promise, and nothing overlaps. | The ink panel is hidden below `lg`. |
+| **Home** | The first screen is a large serif headline on the teal tint, with one clearly real message box. A real product panel stays fixed while the conversation plays on scroll, with live doctors and times. | The panel changes height between steps. |
+| **Sign in, register** | The photo is gone. The form sits beside a real product example, and nothing overlaps. | The panel is hidden below `lg`. |
 | **Not found** | Larger title. | Still a sparse screen. |
 | **Chat** | AI messages use the violet tint again. Doctor names, rank and soonest time are easier to scan, and View and Book is the primary action. | A long shortlist still fills a phone screen. |
 | **Chat consent** | Calmer without the banner. | Still plain text on an empty page. |

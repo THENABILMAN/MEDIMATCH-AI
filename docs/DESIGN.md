@@ -23,12 +23,10 @@ Two references inform the structure. We borrow no colour, logo, typeface or bran
 | `--canvas` | `#F6F6FA` | Page background |
 | `--border` | `#E3E1F0` | Dividers and panel edges (decorative) |
 | `--border-control` | `#8582A0` | Boundaries of inputs and controls |
-| `--ink-field`, `--ink-raised`, `--ink-line` | `#14122B`, `#211F3D`, `#3A3859` | Ink fields on the home page and auth panel |
-| `--on-ink`, `--on-ink-muted` | `#FFFFFF`, `#C8C6D9` | Text on ink |
 | `--primary` | `#00806C` | Actions, links, focus |
 | `--primary-hover` | `#00695A` | Hover; text on `--primary-tint` |
 | `--primary-pressed` | `#005247` | Active state |
-| `--primary-tint` | `#E6F4F1` | Selected rows and days |
+| `--primary-tint` | `#E6F4F1` | Selected rows and days, and the home and sign-in fields |
 | `--ai` | `#5A4BD1` | AI-generated content only |
 | `--ai-tint` | `#EEECFB` | Background of AI content only |
 | `--danger` | `#B3261E` | Emergencies and destructive actions only |
@@ -115,6 +113,7 @@ This policy exists because irrelevant photographs were added to the product once
 - **Allowed:** (a) real product interface, (b) simple custom SVG drawings in our palette with one or two colours and a consistent stroke, used only for empty states and onboarding, (c) Lucide icons, (d) type and space.
 - Doctor avatars are initials on a tint, unless the doctor uploaded a photo.
 - The home page shows the product itself in `ProductStage`, with live data from the API, and marks it as an example.
+- `ProductStage` holds no inputs or buttons. A visitor must never mistake the example for the real message box.
 
 ## 6. Component Inventory
 
