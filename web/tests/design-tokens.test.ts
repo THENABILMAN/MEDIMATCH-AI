@@ -49,11 +49,6 @@ describe('design tokens meet WCAG AA', () => {
     expect(contrast(token(foreground), token(background))).toBeGreaterThanOrEqual(4.5)
   })
 
-  it.each(['on-ink', 'on-ink-muted'])('%s text on the ink field', (foreground) => {
-    expect(contrast(token(foreground), token('ink-field'))).toBeGreaterThanOrEqual(4.5)
-    expect(contrast(token(foreground), token('ink-raised'))).toBeGreaterThanOrEqual(4.5)
-  })
-
   it.each(['primary', 'primary-hover', 'primary-pressed', 'danger', 'danger-pressed'])('white text on %s', (background) => {
     expect(contrast(WHITE, token(background))).toBeGreaterThanOrEqual(4.5)
   })

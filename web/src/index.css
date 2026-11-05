@@ -17,9 +17,6 @@
   --color-primary-hover: var(--primary-hover);
   --color-primary-pressed: var(--primary-pressed);
   --color-primary-tint: var(--primary-tint);
-  --color-ink-field: var(--ink-field);
-  --color-ink-raised: var(--ink-raised);
-  --color-ink-line: var(--ink-line);
   --color-ai: var(--ai);
   --color-ai-tint: var(--ai-tint);
   --color-danger: var(--danger);
@@ -183,13 +180,13 @@
 
   /* Sized to the column so each sentence of the headline stays on one line */
   .hero-title {
-    font-size: min(9.3vw, 5.25rem);
+    font-size: min(9.3vw, 5rem);
     line-height: 1.08;
   }
 
   @media (min-width: 1024px) {
     .hero-title {
-      font-size: min(5.6vw, 5.5rem);
+      font-size: min(5.4vw, 5rem);
     }
   }
 }

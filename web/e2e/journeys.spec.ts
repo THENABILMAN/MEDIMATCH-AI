@@ -249,7 +249,7 @@ test('the language switch changes the interface and survives a reload', async ({
 test('a first message typed on the home page reaches the chat', async ({ page }) => {
   await setup(page)
   await page.goto('/')
-  await page.getByLabel('Describe your symptoms').first().fill('Headache since yesterday')
+  await page.getByLabel('What are you feeling?').first().fill('Headache since yesterday')
   await page.getByRole('button', { name: 'Start With the Assistant' }).first().click()
   await expect(page.locator('#chat-input')).toHaveValue('Headache since yesterday')
   expect(page.url()).not.toContain('Headache')

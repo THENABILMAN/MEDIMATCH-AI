@@ -32,8 +32,8 @@ function Composer({ id }: { id: string }) {
   }
 
   return (
-    <form onSubmit={submit} className="on-paper rounded-md bg-surface p-3">
-      <label htmlFor={id} className="sr-only">
+    <form onSubmit={submit} className="rounded-md border-2 border-primary bg-surface p-4">
+      <label htmlFor={id} className="font-serif text-xl">
         {t('home.inputLabel')}
       </label>
       <Textarea
@@ -43,7 +43,7 @@ function Composer({ id }: { id: string }) {
         onChange={(event) => setText(event.target.value)}
         placeholder={t('home.inputPlaceholder')}
         autoComplete="off"
-        className="resize-none border-0 text-lg hover:border-0"
+        className="mt-2 resize-none text-lg"
       />
       <div className="mt-2 flex justify-end">
         <Button type="submit" size="lg" className="w-full sm:w-auto">
@@ -82,7 +82,7 @@ function Stage() {
   const { t } = useTranslation()
   const { active, root } = useActiveStep()
   return (
-    <div ref={root} className="on-ink bg-ink-field">
+    <div ref={root} className="bg-primary-tint">
       <div className="home-gutter grid lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-x-8 xl:grid-cols-[minmax(0,1fr)_520px] xl:gap-x-16">
         <div>
           <section
@@ -91,8 +91,8 @@ function Stage() {
             className="flex flex-col justify-center gap-6 py-12 lg:min-h-[calc(100dvh-var(--header-height))]"
           >
             <h1 id="home-title" className="hero-title font-serif">
-              <span className="block">{t('home.titleFirst')}</span>
-              <span className="block">{t('home.titleSecond')}</span>
+              <span className="block sm:whitespace-nowrap">{t('home.titleFirst')}</span>
+              <span className="block sm:whitespace-nowrap">{t('home.titleSecond')}</span>
             </h1>
             <p className="max-w-[56ch] text-lg">{t('home.lead')}</p>
             <div className="max-w-[640px]">
@@ -115,12 +115,15 @@ function Stage() {
                 <li
                   key={step}
                   data-step={index}
-                  className={cn(
-                    'flex flex-col justify-center gap-3 py-8 transition-opacity lg:min-h-[64vh]',
-                    index !== active && 'lg:opacity-50'
-                  )}
+                  className="flex flex-col justify-center gap-3 py-8 lg:min-h-[64vh]"
                 >
-                  <p aria-hidden className="font-serif text-3xl text-muted tabular">
+                  <p
+                    aria-hidden
+                    className={cn(
+                      'font-serif text-3xl tabular transition-colors',
+                      index === active ? 'text-primary-hover' : 'text-muted'
+                    )}
+                  >
                     {index + 1}
                   </p>
                   <h3 className="font-serif text-2xl md:text-3xl">{t(`home.steps.${step}.title`)}</h3>
@@ -134,7 +137,7 @@ function Stage() {
 
         <div className="relative hidden lg:block">
           <div className="sticky top-[var(--header-height)] flex h-[calc(100dvh-var(--header-height))] items-center py-8">
-            <ProductStage step={active} className="h-full max-h-[720px] w-full" />
+            <ProductStage step={active} className="max-h-full w-full" />
           </div>
         </div>
       </div>
@@ -286,7 +289,7 @@ function Questions() {
 function Closing() {
   const { t } = useTranslation()
   return (
-    <section aria-labelledby="start-title" className="on-ink bg-ink-field py-16 md:py-24">
+    <section aria-labelledby="start-title" className="bg-primary-tint py-16 md:py-24">
       <div className="home-gutter grid gap-8 lg:grid-cols-2 lg:items-center">
         <div>
           <h2 id="start-title" className="font-serif text-3xl md:text-4xl">

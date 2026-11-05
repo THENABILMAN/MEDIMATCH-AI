@@ -122,7 +122,7 @@ export function AppShell() {
         <header
           className={cn(
             'sticky top-0 z-30',
-            isHome ? 'on-ink bg-ink-field' : 'border-b border-border bg-surface',
+            'border-b border-border bg-surface',
             isAdmin && 'lg:hidden'
           )}
         >

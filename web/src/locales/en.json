@@ -58,7 +58,7 @@
   },
   "home": {
     "lead": "Tell our AI assistant what’s wrong, in your own words. It asks a few questions, then shortlists verified doctors in your city with times you can book.",
-    "inputLabel": "Describe your symptoms",
+    "inputLabel": "What are you feeling?",
     "inputPlaceholder": "For example: a headache and dizziness since yesterday…",
     "startChat": "Start With the Assistant",
     "browse": "Browse Doctors",
@@ -68,8 +68,7 @@
     "previewPatient": "Headache and dizziness since yesterday morning",
     "previewAssistant": "How long have you been experiencing these symptoms?",
     "previewShortlist": "Based on what you described, here are doctors who may be able to help.",
-    "previewBooked": "Choose a time",
-    "previewBook": "Book This Slot",
+    "previewBooked": "Example of a booked appointment",
     "howTitle": "How It Works",
     "steps": {
       "describe": {
@@ -155,7 +154,8 @@
     "forDoctors": "For Doctors",
     "titleFirst": "Say how you feel.",
     "titleSecond": "Find who can help.",
-    "previewGreeting": "Hello. Tell me what you’re feeling, in your own words."
+    "previewGreeting": "Hello. Tell me what you’re feeling, in your own words.",
+    "exampleScroll": "Example, plays as you scroll"
   },
   "auth": {
     "signInTitle": "Sign In to MediMatch",

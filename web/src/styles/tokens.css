@@ -7,12 +7,6 @@
   --border: #e3e1f0;
   --border-control: #8582a0;
 
-  --ink-field: #14122b;
-  --ink-raised: #211f3d;
-  --ink-line: #3a3859;
-  --on-ink: #ffffff;
-  --on-ink-muted: #c8c6d9;
-
   --primary: #00806c;
   --primary-hover: #00695a;
   --primary-pressed: #005247;
@@ -39,28 +33,4 @@
 
   --header-height: 56px;
   --ease-state: cubic-bezier(0, 0, 0.2, 1);
-}
-
-/* An ink field. Children read the same tokens, so components need no dark variant. */
-.on-ink {
-  --ink: #ffffff;
-  --muted: #c8c6d9;
-  --surface: #211f3d;
-  --canvas: #14122b;
-  --border: #3a3859;
-  --border-control: #8582a0;
-  --primary-tint: #2c2a4a;
-  color: var(--ink);
-}
-
-/* Paper inside an ink field: the real product, in its real colours. */
-.on-paper {
-  --ink: #14122b;
-  --muted: #5c5a73;
-  --surface: #ffffff;
-  --canvas: #f6f6fa;
-  --border: #e3e1f0;
-  --border-control: #8582a0;
-  --primary-tint: #e6f4f1;
-  color: var(--ink);
 }
