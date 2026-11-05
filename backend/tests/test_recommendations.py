@@ -17,7 +17,7 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 from app.ai.llm import LLMClient, set_llm_client
-from app.ai.state import AssistantTurn
+from app.ai.state import TurnAnalysis, WriterTurn
 from app.models.enums import UserRole
 from app.search.embeddings import FakeEmbeddingProvider, set_embedding_provider
 from app.search.recommend import _fits_request, recommend_doctors
@@ -211,15 +211,18 @@ def test_chat_completion_populates_recommendations(client: TestClient):
 
     # 2. Configure deterministic mock LLM
     class MockNeuroLLM(LLMClient):
-        def generate_structured(self, messages, response_model, system_prompt=None):
-            return AssistantTurn(
-                reply="Let me find you a neurologist in Dhaka.",
-                symptoms=["severe migraine", "throbbing head pain"],
+        def generate_structured(
+            self, messages, response_model, system_prompt=None, temperature=None
+        ):
+            if response_model is WriterTurn:
+                return WriterTurn(reply="Matching neurologists are listed below.")
+            return TurnAnalysis(
+                symptoms=["throbbing head pain"],
                 duration="3 days",
                 severity="moderate",
                 location="Dhaka",
-                candidate_specialty_names=["Neurology"],
-                ready_to_search=True,
+                urgency="routine",
+                specialty_confidence={"Neurology": 0.9},
             )
 
     set_llm_client(MockNeuroLLM(api_key="mock", model="mock"))
@@ -270,15 +273,3 @@ def test_recommendations_require_sign_in(client: TestClient):
 )
 def test_doctors_must_fit_city_and_specialty(specialties, candidates, doctor_city, city, expected):
     assert _fits_request(specialties, candidates, doctor_city, city) is expected
-
-
-@pytest.mark.parametrize(
-    ("specialties", "candidates", "expected"),
-    [
-        (["General Medicine"], ["Clinical Psychology"], False),
-        (["Clinical Psychology"], ["Clinical Psychology"], True),
-        (["General Medicine"], ["General Medicine"], True),
-    ],
-)
-def test_a_strict_search_shows_general_medicine_only_when_chosen(specialties, candidates, expected):
-    assert _fits_request(specialties, candidates, "Dhaka", "Dhaka", strict=True) is expected

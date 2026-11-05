@@ -24,9 +24,9 @@ for path in (backend_dir, backend_dir / "tests"):
 
 from test_safety_tables import HELD_OUT_EMERGENCIES, HELD_OUT_ORDINARY
 
-from app.ai.graph import _get_verified_specialty_names, build_system_prompt
+from app.ai.graph import _get_verified_specialty_names, build_analysis_prompt
 from app.ai.llm import LLMUnavailableError, get_llm_client
-from app.ai.state import AssistantTurn
+from app.ai.state import TurnAnalysis
 from app.core.config import settings
 
 
@@ -36,12 +36,12 @@ def classify(text: str) -> bool | None:
     try:
         result = get_llm_client().generate_structured(
             messages=state["messages"],
-            response_model=AssistantTurn,
-            system_prompt=build_system_prompt(state, _get_verified_specialty_names()),
+            response_model=TurnAnalysis,
+            system_prompt=build_analysis_prompt(state, _get_verified_specialty_names()),
         )
     except (LLMUnavailableError, ValueError):
         return None
-    return result.possible_emergency
+    return result.possible_emergency != "none"
 
 
 def main() -> None:

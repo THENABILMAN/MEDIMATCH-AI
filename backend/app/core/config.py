@@ -41,12 +41,30 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = Field(default="", description="Groq API key")
     GROQ_MODEL: str = Field(default="openai/gpt-oss-120b", description="Groq model identifier")
 
-    # A chat turn makes two LLM calls in a worker thread, so these bound how long it can hold one
+    # A chat turn makes two or three LLM calls in a worker thread, so these bound how long it can
+    # hold one
     LLM_TIMEOUT_SECONDS: float = Field(default=15.0, gt=0)
-    LLM_TEMPERATURE: float = Field(default=0.5, ge=0, le=2)
+    LLM_TEMPERATURE: float = Field(default=0.2, ge=0, le=2, description="For the analysis step")
+    LLM_WRITER_TEMPERATURE: float = Field(
+        default=0.7, ge=0, le=2, description="For the reply, so replies do not repeat themselves"
+    )
     LLM_MAX_ATTEMPTS: int = Field(default=2, ge=1)
     LLM_HISTORY_MESSAGES: int = Field(
         default=12, ge=1, description="Latest messages sent to the LLM"
+    )
+    LLM_WRITER_HISTORY_MESSAGES: int = Field(
+        default=8, ge=1, description="Latest messages the reply writer sees"
+    )
+
+    # When the assistant stops asking
+    ROUTING_MIN_CONFIDENCE: float = Field(
+        default=0.7, ge=0, le=1, description="Score the top specialty needs"
+    )
+    ROUTING_MIN_MARGIN: float = Field(
+        default=0.25, ge=0, le=1, description="Lead the top specialty needs over the next"
+    )
+    CONVERSATION_SOFT_QUESTION_LIMIT: int = Field(
+        default=12, ge=1, description="Questions before offering best matches"
     )
 
     # Embedding Settings

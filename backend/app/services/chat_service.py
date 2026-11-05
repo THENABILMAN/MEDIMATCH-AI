@@ -28,7 +28,7 @@ DISCLAIMER_MESSAGE = (
     "Medical Disclaimer: I am an AI assistant designed solely to help you find qualified medical specialists. "
     "I do not provide medical diagnosis, clinical treatment plans, or drug prescriptions. "
     "If you are experiencing a life-threatening medical emergency, please call 999 immediately.\n\n"
-    "Please describe your symptoms, how long you've had them, and your preferred city or location."
+    "What's been going on?"
 )
 
 
@@ -144,14 +144,15 @@ def _emergency_turn(
     Someone else's conversation is still refused, but a database outage only loses the record.
     Without consent the alert is still given, and nothing the patient wrote is stored.
     """
-    if emergency_kind(category) == "self_harm":
-        reply = get_crisis_response(content)
-    else:
-        reply = get_emergency_response()
+    kind = emergency_kind(category)
+    reply = get_crisis_response(content) if kind == "self_harm" else get_emergency_response()
     try:
         client = get_supabase_admin_client()
         conversation = (
-            client.table("conversations").select("patient_id").eq("id", conversation_id).execute()
+            client.table("conversations")
+            .select("patient_id, graph_state")
+            .eq("id", conversation_id)
+            .execute()
         )
         if not conversation.data:
             raise HTTPException(
@@ -163,6 +164,10 @@ def _emergency_turn(
                 detail="Access forbidden: You do not own this conversation",
             )
 
+        state = conversation.data[0].get("graph_state") or {}
+        if kind == "self_harm" and state.get("crisis_active"):
+            reply = get_crisis_response(content, repeat=True)
+
         if consented:
             client.table("messages").insert(
                 {"conversation_id": conversation_id, "sender": "patient", "content": content}
@@ -172,7 +177,11 @@ def _emergency_turn(
                     "conversation_id": conversation_id,
                     "sender": "assistant",
                     "content": reply,
-                    "metadata": {"is_emergency": True, "recommendations": []},
+                    "metadata": {
+                        "is_emergency": True,
+                        "safety_kind": kind,
+                        "recommendations": [],
+                    },
                 }
             ).execute()
             client.table("patient_symptom_sessions").insert(
@@ -183,6 +192,10 @@ def _emergency_turn(
                     "emergency_flag": True,
                 }
             ).execute()
+            if kind == "self_harm":
+                client.table("conversations").update(
+                    {"graph_state": {**state, "crisis_active": True, "pending_chips": []}}
+                ).eq("id", conversation_id).execute()
     except HTTPException:
         raise
     except Exception as e:
@@ -197,6 +210,8 @@ def _emergency_turn(
         "search_criteria": None,
         "recommendations": [],
         "followup_field": None,
+        "chips": [],
+        "safety_kind": kind,
     }
 
 
@@ -286,14 +301,9 @@ def send_patient_message(
         }
     ).execute()
 
-    if result_state.get("safety_status") != "emergency":
-        client.table("conversations").update(
-            {
-                "graph_state": {
-                    k: result_state[k] for k in PERSISTED_STATE_FIELDS if k in result_state
-                }
-            }
-        ).eq("id", conversation_id).execute()
+    client.table("conversations").update(
+        {"graph_state": {k: result_state[k] for k in PERSISTED_STATE_FIELDS if k in result_state}}
+    ).eq("id", conversation_id).execute()
 
     assistant_reply = result_state["assistant_reply"]
     current_step = result_state["current_step"]
@@ -302,26 +312,22 @@ def send_patient_message(
     # The field being asked about lets the UI offer suggested answers
     followup_field = result_state.get("asking_about")
 
-    # 5. If search criteria formed, call hybrid recommender
-    recommendations_list: list[dict[str, Any]] = []
-    if search_criteria:
-        from app.search.recommend import recommend_doctors
-
-        try:
-            rec_res = recommend_doctors(search_criteria, top_k=5)
-            recommendations_list = [r.model_dump() for r in rec_res.recommendations]
-
-        except Exception as e:
-            logger.warning(f"Could not generate recommendations during chat: {type(e).__name__}")
+    # 5. The graph has already searched, so the reply could say what it found
+    recommendations_list: list[dict[str, Any]] = result_state.get("recommendations") or []
 
     # 6. Persist assistant reply, with what the UI needs to redraw it on reload
     is_emergency = result_state.get("safety_status") == "emergency"
+    safety_kind = result_state.get("safety_kind")
     client.table("messages").insert(
         {
             "conversation_id": conversation_id,
             "sender": "assistant",
             "content": assistant_reply,
-            "metadata": {"is_emergency": is_emergency, "recommendations": recommendations_list},
+            "metadata": {
+                "is_emergency": is_emergency,
+                "safety_kind": safety_kind,
+                "recommendations": recommendations_list,
+            },
         }
     ).execute()
 
@@ -345,4 +351,6 @@ def send_patient_message(
         "search_criteria": search_criteria,
         "recommendations": recommendations_list,
         "followup_field": followup_field,
+        "chips": result_state.get("chips") or [],
+        "safety_kind": safety_kind,
     }

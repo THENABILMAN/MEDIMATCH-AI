@@ -18,7 +18,7 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 from app.ai.llm import LLMClient, LLMUnavailableError, set_llm_client
-from app.ai.state import AssistantTurn
+from app.ai.state import TurnAnalysis, WriterTurn
 from app.core.config import settings
 from app.models.enums import UserRole
 
@@ -26,12 +26,13 @@ from app.models.enums import UserRole
 class MockChatLLMClient(LLMClient):
     """Deterministic Mock LLM client for API tests."""
 
-    def __init__(self, reply: AssistantTurn):
+    def __init__(self, reply: str = "Tell me more.", analysis: TurnAnalysis | None = None):
         super().__init__(api_key="mock", model="mock")
         self.reply = reply
+        self.analysis = analysis or TurnAnalysis()
 
-    def generate_structured(self, messages, response_model, system_prompt=None):
-        return self.reply
+    def generate_structured(self, messages, response_model, system_prompt=None, temperature=None):
+        return self.analysis if response_model is TurnAnalysis else WriterTurn(reply=self.reply)
 
 
 @pytest.fixture(scope="module")
@@ -178,15 +179,15 @@ def test_send_patient_message_processes_workflow(client: TestClient, chat_patien
 
     # 2. Configure deterministic mock LLM
     mock_llm = MockChatLLMClient(
-        AssistantTurn(
-            reply="A neurologist is a good place to start. Let me find some in Dhaka.",
-            symptoms=["persistent migraine", "head throbbing"],
+        "A neurologist is a good place to start. Matching doctors are listed below.",
+        TurnAnalysis(
+            symptoms=["head throbbing"],
             duration="3 days",
             severity="moderate",
             location="Dhaka",
-            candidate_specialty_names=["Neurology"],
-            ready_to_search=True,
-        )
+            urgency="routine",
+            specialty_confidence={"Neurology": 0.9},
+        ),
     )
     set_llm_client(mock_llm)
 
@@ -220,7 +221,7 @@ def test_general_conversation_does_not_generate_recommendations(
     conv_id = create_res.json()["id"]
 
     reply = "I'm the MediMatch assistant. I help you find a suitable doctor and book a visit."
-    set_llm_client(MockChatLLMClient(AssistantTurn(reply=reply)))
+    set_llm_client(MockChatLLMClient(reply))
 
     response = client.post(
         f"/chat/conversations/{conv_id}/messages",
@@ -244,10 +245,12 @@ def test_a_model_outage_says_so_and_saves_nothing(client: TestClient, chat_patie
     ).json()["id"]
 
     class Down(MockChatLLMClient):
-        def generate_structured(self, messages, response_model, system_prompt=None):
+        def generate_structured(
+            self, messages, response_model, system_prompt=None, temperature=None
+        ):
             raise LLMUnavailableError("HTTP 429")
 
-    set_llm_client(Down(AssistantTurn(reply="unused")))
+    set_llm_client(Down())
     response = client.post(
         f"/chat/conversations/{conv_id}/messages",
         headers=patient["headers"],

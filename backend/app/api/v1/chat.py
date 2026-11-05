@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Query, status
 from postgrest import SyncPostgrestClient
@@ -49,6 +49,12 @@ class SendMessageRequest(BaseModel):
         return self
 
 
+class Chip(BaseModel):
+    """A tappable answer. Tapping one sends its label as a normal message."""
+
+    label: str
+
+
 class SendMessageResponse(BaseModel):
     conversation_id: str
     assistant_reply: str
@@ -58,6 +64,8 @@ class SendMessageResponse(BaseModel):
     search_criteria: dict[str, Any] | None = None
     recommendations: list[DoctorRecommendation] | None = None
     followup_field: str | None = None
+    chips: list[Chip] = Field(default_factory=list)
+    safety_kind: Literal["physical", "self_harm"] | None = None
 
 
 @router.get(
@@ -117,6 +125,8 @@ def api_send_message(
         search_criteria=result.get("search_criteria"),
         recommendations=result.get("recommendations"),
         followup_field=result.get("followup_field"),
+        chips=[Chip(label=label) for label in result.get("chips") or []],
+        safety_kind=result.get("safety_kind"),
     )
 
 

@@ -3,10 +3,12 @@
 #
 # ambiguous_phrases: wording that can be physical or emotional. Routing waits until the patient says
 # which. These never change what the assistant says, which the model writes. Phrases that should
-# raise an alert belong in emergency_patterns.json, which always runs first.
+# raise an alert belong in emergency_patterns.json, which always runs first. chest: true means a
+# physical answer goes straight to the fixed emergency alert.
 
 specialties:
   Clinical Psychology:
+    emotional: true
     when: talking therapy for emotional pain that is affecting daily life
     groups:
       - heartbreak or a relationship ending
@@ -18,6 +20,7 @@ specialties:
       - sleep problems from stress
       - burnout
   Counselling:
+    emotional: true
     when: someone to talk things through with, for a recent or practical emotional difficulty
     groups:
       - heartbreak or a relationship ending
@@ -27,6 +30,7 @@ specialties:
       - stress at work or at home
       - burnout
   Psychiatry:
+    emotional: true
     when: a medical evaluation is wanted, or emotional difficulties are severe, long-lasting or stopping daily life
     groups:
       - panic episodes
@@ -59,12 +63,15 @@ specialties:
 
 ambiguous_phrases:
   - id: broken_heart
+    chest: true
     meaning: heartbreak, or a physical heart problem
     pattern: '\b(?:broken\s+heart|heart\s*(?:is\s+)?broken|heartbroken|heartbreak)\b|হৃদয়\s*ভাঙ|হৃদয়\s*ভেঙে|মন\s*ভেঙে|মন\s*ভাঙ|\b(?:mon|hridoy)\s*(?:bhenge|venge|bhanga|vanga)\b'
   - id: heart_hurts
+    chest: true
     meaning: emotional pain, or pain in the chest
     pattern: '\bheart\s+(?:\w+\s+)?hurts?\b|\bheart\s+is\s+hurting\b'
   - id: heavy_chest
+    chest: true
     meaning: a heavy feeling from sadness or stress, or physical pressure in the chest
     pattern: '\b(?:heavy\s+chest|chest\s+(?:\w+\s+)?heavy|heaviness\s+in\s+(?:my\s+|the\s+)?chest)\b|বুক\s*(?:\S+\s+)?ভারী|\bbuk(?:e|er)?\s+(?:\w+\s+)?bhari\b'
   - id: feeling_empty

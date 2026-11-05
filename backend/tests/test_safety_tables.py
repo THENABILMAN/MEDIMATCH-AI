@@ -12,7 +12,7 @@ from app.ai.safety import (
     output_guard,
     reply_violation,
 )
-from app.ai.state import AssistantTurn
+from app.ai.state import TurnAnalysis, WriterTurn
 from app.core.config import CrisisHelpline, Settings, settings
 
 MUST_TRIGGER = """
@@ -720,16 +720,18 @@ class EvilLLM(LLMClient):
         self.ready = ready
         self.seen = []
 
-    def generate_structured(self, messages, response_model, system_prompt=None):
+    def generate_structured(self, messages, response_model, system_prompt=None, temperature=None):
         self.seen.append(system_prompt or "")
-        return AssistantTurn(
-            reply=DIAGNOSIS,
+        if response_model is WriterTurn:
+            return WriterTurn(reply=DIAGNOSIS)
+        return TurnAnalysis(
             symptoms=[DIAGNOSIS],
             duration=DIAGNOSIS,
             severity=DIAGNOSIS,
-            location=DIAGNOSIS,
-            candidate_specialty_names=[DIAGNOSIS, "Neurology"],
-            ready_to_search=self.ready,
+            location="Dhaka" if self.ready else None,
+            urgency="routine",
+            specialty_confidence={DIAGNOSIS: 1.0, "Neurology": 0.9},
+            care_preference="either",
         )
 
 
@@ -780,7 +782,9 @@ def test_system_prompt_tells_the_model_to_treat_patient_text_as_data(run_turn):
 
 def test_emergency_turn_never_calls_the_llm(run_turn):
     class Forbidden(EvilLLM):
-        def generate_structured(self, messages, response_model, system_prompt=None):
+        def generate_structured(
+            self, messages, response_model, system_prompt=None, temperature=None
+        ):
             raise AssertionError("LLM must not run on an emergency turn")
 
     result = run_turn(Forbidden(), "drank pesticide")
@@ -812,10 +816,8 @@ def test_emergency_alert_arrives_when_there_is_no_database_client(monkeypatch):
 
 
 class FlaggingLLM(EvilLLM):
-    """The rules saw nothing, but the model recognised an emergency."""
-
-    def generate_structured(self, messages, response_model, system_prompt=None):
-        return AssistantTurn(reply="unused", possible_emergency=True, ready_to_search=True)
+    def generate_structured(self, messages, response_model, system_prompt=None, temperature=None):
+        return TurnAnalysis(possible_emergency="physical")
 
 
 def test_the_model_can_add_an_emergency_alert(run_turn):
@@ -827,7 +829,9 @@ def test_the_model_can_add_an_emergency_alert(run_turn):
 
 def test_the_model_cannot_cancel_an_emergency(run_turn):
     class Dismissive(EvilLLM):
-        def generate_structured(self, messages, response_model, system_prompt=None):
+        def generate_structured(
+            self, messages, response_model, system_prompt=None, temperature=None
+        ):
             raise AssertionError("rules must escalate before the model is asked")
 
     assert run_turn(Dismissive(), "my chest hurts")["safety_status"] == "emergency"

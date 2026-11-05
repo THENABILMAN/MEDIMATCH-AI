@@ -144,9 +144,10 @@ class LLMClient:
         messages: list[dict[str, str]],
         response_model: type[T],
         system_prompt: str | None = None,
+        temperature: float | None = None,
     ) -> T:
         """Generates structured output validated against a Pydantic schema."""
-        schema_json = json.dumps(response_model.model_json_schema(), indent=2)
+        schema_json = json.dumps(response_model.model_json_schema())
         system_instruction = (
             f"{system_prompt or ''}\n\n"
             "You MUST respond ONLY with a valid JSON object conforming exactly to this JSON Schema:\n"
@@ -157,7 +158,7 @@ class LLMClient:
         raw_output = self.generate(
             messages=messages,
             system_prompt=system_instruction,
-            temperature=settings.LLM_TEMPERATURE,
+            temperature=settings.LLM_TEMPERATURE if temperature is None else temperature,
         )
 
         # Clean possible markdown wrapping if the LLM provided it

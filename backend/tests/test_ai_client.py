@@ -9,7 +9,7 @@ import pytest
 from app.ai.graph import _recent_messages, build_symptom_graph
 from app.ai.llm import LLMClient, LLMUnavailableError, set_llm_client
 from app.ai.privacy import redact_pii
-from app.ai.state import AssistantTurn
+from app.ai.state import WriterTurn
 from app.core.config import settings
 
 
@@ -102,7 +102,7 @@ def test_bad_json_is_a_failure_and_stays_out_of_the_error(caplog):
     secret_output = "private patient words"
 
     with caplog.at_level("DEBUG"), pytest.raises(ValueError) as exc:
-        client_with(lambda _r: reply(secret_output)).generate_structured(MESSAGES, AssistantTurn)
+        client_with(lambda _r: reply(secret_output)).generate_structured(MESSAGES, WriterTurn)
     assert secret_output not in str(exc.value)
     assert secret_output not in caplog.text
 
@@ -168,7 +168,7 @@ def test_exact_text_sent_to_the_provider_holds_no_identifiers(monkeypatch):
 
     def handler(request):
         sent.append(request.content.decode())
-        return reply(AssistantTurn(reply="Thanks.", symptoms=["headache"]).model_dump_json())
+        return reply('{"reply": "Thanks.", "symptoms": ["headache"]}')
 
     set_llm_client(client_with(handler))
     try:
@@ -186,7 +186,7 @@ def test_exact_text_sent_to_the_provider_holds_no_identifiers(monkeypatch):
     finally:
         set_llm_client(None)
 
-    assert len(sent) == 1
+    assert len(sent) == 2
     for body in sent:
         for identifier in ("Rahim", "01712345678", "rahim@gmail.com", "patient-uuid-123"):
             assert identifier not in body

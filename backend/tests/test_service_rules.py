@@ -145,7 +145,11 @@ def test_emergency_flag_is_stored_with_the_reply(chat_client, monkeypatch):
     chat_service.send_patient_message("c1", "p1", "chest pain")
 
     saved = [d for t, op, d in chat_client.log if t == "messages" and d["sender"] == "assistant"]
-    assert saved[0]["metadata"] == {"is_emergency": True, "recommendations": []}
+    assert saved[0]["metadata"] == {
+        "is_emergency": True,
+        "safety_kind": "physical",
+        "recommendations": [],
+    }
 
 
 def test_followup_field_is_returned_for_suggested_answers(chat_client, monkeypatch):
@@ -168,13 +172,8 @@ def test_reply_text_does_not_repeat_recommendation_cards(chat_client, monkeypatc
             "assistant_reply": "Here is your search.",
             "current_step": "completed",
             "search_criteria": {"candidate_specialties": ["Neurology"], "city": "Dhaka"},
+            "recommendations": [{"id": "d1", "full_name": "Dr. A"}],
         },
-    )
-    doctor = MagicMock()
-    doctor.model_dump.return_value = {"id": "d1", "full_name": "Dr. A"}
-    monkeypatch.setattr(
-        "app.search.recommend.recommend_doctors",
-        lambda *_args, **_kwargs: SimpleNamespace(recommendations=[doctor]),
     )
 
     result = chat_service.send_patient_message("c1", "p1", "headache in Dhaka")

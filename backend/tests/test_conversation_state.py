@@ -7,7 +7,8 @@ from conftest import create_mock_jwt
 
 from app.ai import graph
 from app.ai.llm import LLMClient, set_llm_client
-from app.ai.state import AssistantTurn
+from app.ai.state import TurnAnalysis, WriterTurn
+from app.core.config import settings
 from app.core.supabase import get_supabase_admin_client
 from app.models.enums import UserRole
 
@@ -18,13 +19,10 @@ class NoDetailsLLM(LLMClient):
     def __init__(self):
         super().__init__(api_key="mock", model="mock")
 
-    def generate_structured(self, messages, response_model, system_prompt=None):
-        return AssistantTurn(
-            reply="How long has this been going on?",
-            symptoms=["itchy skin"],
-            candidate_specialty_names=["General Medicine"],
-            asking_about="duration",
-        )
+    def generate_structured(self, messages, response_model, system_prompt=None, temperature=None):
+        if response_model is WriterTurn:
+            return WriterTurn(reply="Tell me a little more.")
+        return TurnAnalysis(symptoms=["itchy skin"], location="Dhaka", next_question="severity")
 
 
 @pytest.fixture
@@ -53,7 +51,8 @@ def send(client, headers, conversation, text="itchy skin"):
     return res.json()
 
 
-def test_follow_up_limit_survives_a_restart(client, patient_headers, monkeypatch):
+def test_question_progress_survives_a_restart(client, patient_headers, monkeypatch):
+    monkeypatch.setattr(settings, "CONVERSATION_SOFT_QUESTION_LIMIT", 3)
     conversation = client.post("/chat/conversations", headers=patient_headers, json={}).json()["id"]
 
     for _ in range(3):
@@ -75,7 +74,8 @@ def test_saved_state_holds_progress_but_no_messages(client, patient_headers):
         .execute()
     )
     state = row.data[0]["graph_state"]
-    assert state["followup_count"] == 1
+    assert state["question_count"] == 1
+    assert "emotional_state" not in state
     assert "messages" not in state
 
 
