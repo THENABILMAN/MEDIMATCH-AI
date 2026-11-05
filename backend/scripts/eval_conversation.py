@@ -6,8 +6,9 @@ needs no database and cannot touch the live project.
 A scripted patient answers whatever the assistant asks about, so every run has the same patient. An
 LLM judge then scores tone. The judge is a screen only: the transcripts are for a person to read.
 
-Progress is saved after every scenario, because the Groq limit makes a full run slow. Run the same
-command again to carry on. --fresh starts over.
+A full run needs about 700,000 tokens and the Groq account allows 200,000 a day, so it takes several
+days. Progress is saved after every scenario, so run the same command each day to carry on. A run
+uses up the same allowance the assistant needs. --fresh starts over.
 
 Usage:
     python backend/scripts/eval_conversation.py
@@ -64,6 +65,9 @@ BRAIN = {"Neurology", "General Medicine"}
 MOST_TURNS = 10
 MOST_QUESTIONS = 8
 MOST_FAILURES_IN_A_ROW = 3
+# A patient's turn fails fast on a rate limit. An evaluation can afford to wait it out
+RATE_LIMIT_RETRIES = 6
+RATE_LIMIT_WAIT = 60
 WAIT_AFTER_FAILURE = 30
 
 EN_EMOTIONAL = {
@@ -434,7 +438,16 @@ class Pacer:
         original = llm_module.LLMClient._post
 
         def post(client: Any, body: dict[str, Any]) -> bytes:
-            raw = original(client, body)
+            for _ in range(RATE_LIMIT_RETRIES):
+                try:
+                    raw = original(client, body)
+                    break
+                except LLMUnavailableError as e:
+                    if "429" not in str(e):
+                        raise
+                    time.sleep(RATE_LIMIT_WAIT)
+            else:
+                raise LLMUnavailableError("HTTP 429 after waiting")
             try:
                 used = json.loads(raw).get("usage", {}).get("total_tokens", 0)
             except ValueError:
@@ -566,7 +579,7 @@ def tone_total(score: dict[str, Any] | None) -> int:
     return sum(v for v in score.values() if isinstance(v, int))
 
 
-def safety_recall() -> dict[str, Any]:
+def safety_recall(use_model: bool = True) -> dict[str, Any]:
     """Tuned phrases by the rules alone, then unseen phrases by rules plus model."""
     tuned = [*MUST_TRIGGER, *ADDED_SELF_HARM_PHRASES]
     missed_tuned = [phrase for phrase in tuned if not check_emergency(phrase)[0]]
@@ -575,6 +588,8 @@ def safety_recall() -> dict[str, Any]:
         is_emergency, category, _ = check_emergency(phrase)
         if is_emergency:
             return emergency_kind(category) == wanted
+        if not use_model:
+            return None
         messages = [{"role": "user", "content": phrase}]
         try:
             analysis = get_llm_client().generate_structured(
@@ -593,10 +608,15 @@ def safety_recall() -> dict[str, Any]:
             "total": len(phrases),
             "caught": sum(1 for v in outcomes.values() if v),
             "missed": [p for p, v in outcomes.items() if v is False],
-            "unanswered": [p for p, v in outcomes.items() if v is None],
+            "unanswered": [p for p, v in outcomes.items() if v is None] if use_model else [],
             "rules_alone": sum(1 for p in phrases if check_emergency(p)[0]),
         }
-    return {"tuned_total": len(tuned), "tuned_missed": missed_tuned, "unseen": unseen}
+    return {
+        "tuned_total": len(tuned),
+        "tuned_missed": missed_tuned,
+        "unseen": unseen,
+        "model_used": use_model,
+    }
 
 
 def transcript(entry: dict[str, Any]) -> str:
@@ -631,10 +651,17 @@ def write_report(saved: dict[str, Any], model: str) -> None:
         "recommender are stubbed.\n",
         "Tone scores come from an LLM judge, which is a screen only. Read the transcripts.\n",
         "## Result\n",
-        f"{len(passed)} of {len(entries)} scenarios passed every check.\n",
-        f"Conversations that had to be restarted because the model failed after its retries: "
+        f"{len(passed)} of {len(entries)} scenarios run passed every check.\n",
+        f"Conversations interrupted by a model failure or a usage limit: "
         f"{saved.get('model_failures', 0)}.\n",
     ]
+
+    if len(entries) < len(SCENARIOS):
+        out.insert(
+            4,
+            f"**This run is incomplete: {len(entries)} of {len(SCENARIOS)} scenarios ran. Run the "
+            "script again to carry on. Nothing below is a result for the assistant as a whole.**\n",
+        )
 
     if safety:
         tuned = safety["tuned_total"]
@@ -647,10 +674,10 @@ def write_report(saved: dict[str, Any], model: str) -> None:
             "|---|---|---|",
         ]
         for name, row in safety["unseen"].items():
-            out.append(
-                f"| {name} | {row['caught']} of {row['total']} | "
-                f"{row['rules_alone']} of {row['total']} |"
-            )
+            with_model = f"{row['caught']} of {row['total']}"
+            if not safety.get("model_used", True):
+                with_model = "not measured"
+            out.append(f"| {name} | {with_model} | {row['rules_alone']} of {row['total']} |")
         out.append("")
         for name, row in safety["unseen"].items():
             for phrase in row["missed"]:
@@ -693,10 +720,20 @@ def main() -> None:
     parser.add_argument("--no-judge", action="store_true")
     parser.add_argument("--no-safety", action="store_true")
     parser.add_argument("--fresh", action="store_true")
-    parser.add_argument("--tokens-per-minute", type=int, default=7000)
+    parser.add_argument(
+        "--report-only", action="store_true", help="Rebuild the report with no model calls"
+    )
+    parser.add_argument("--tokens-per-minute", type=int, default=6000)
     args = parser.parse_args()
 
     logging.disable(logging.CRITICAL)
+    if args.report_only:
+        saved = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        saved["safety"] = saved["safety"] or safety_recall(use_model=False)
+        write_report(saved, settings.GROQ_MODEL)
+        print(f"Wrote {REPORT}")
+        return
+
     if not settings.GROQ_API_KEY:
         sys.exit("GROQ_API_KEY is not set")
     stub_the_database()
@@ -736,7 +773,7 @@ def main() -> None:
         }
         STATE_FILE.write_text(json.dumps(saved, ensure_ascii=False), encoding="utf-8")
         status = "; ".join(saved["results"][name]["failures"]) or "ok"
-        print(f"{name}: {status}  ({pacer.total} tokens so far)")
+        print(f"{name}: {status}  ({pacer.total} tokens so far)", flush=True)
 
     if not args.no_safety and not wanted and len(saved["results"]) == len(SCENARIOS):
         saved["safety"] = safety_recall()

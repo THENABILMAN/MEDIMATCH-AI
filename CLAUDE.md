@@ -22,7 +22,7 @@ MEDIMATCH-AI/
 │   ├── app/
 │   │   ├── core/           # Config, security, logging
 │   │   ├── api/            # API routes and endpoints
-│   │   ├── ai/             # Safety rules, LangGraph assistant, LLM client, privacy
+│   │   ├── ai/             # Safety rules, LangGraph assistant, routing, prompts, LLM client, privacy
 │   │   ├── models/         # Enums
 │   │   ├── schemas/        # Pydantic request and response models
 │   │   ├── search/         # Embeddings, Pinecone sync, recommendations
@@ -54,7 +54,8 @@ MEDIMATCH-AI/
 6. **Row-Level Security (RLS)**: Every table containing user data must have RLS enabled with strict least-privilege policies.
 7. **Privacy Preservation**: Minimize personal data sent to LLM/embedding providers; never send patient names, phone numbers, email addresses, or identifying credentials.
 8. **Defense in Depth**: Every route enforces auth and role checks, and RLS guards the same data. Rely on neither alone. Clients never write directly: the API is the only writer.
-9. **Model Writes the Conversation**: The LLM writes every normal reply, in the patient's language, with no templates or keyword lists. Emergency alerts stay fixed and rule-checked first, the model can add an alert but never remove one, and every reply passes the output guard.
+9. **Model Writes the Conversation**: The LLM writes every normal reply, in the patient's language, with no templates or keyword lists. Emergency and crisis messages stay fixed and rule-checked first, the model can add an alert but never remove one, and every reply passes the output guard. Stopping, searching and safety are decided in Python, not by the model.
+10. **Honest About Being an AI**: The assistant never claims feelings, a body or a human life. Warmth comes from attention and language. It is a guide to human help, not a therapist or a friend.
 
 ---
 
@@ -109,6 +110,7 @@ cd backend && python -m pytest tests -q -m "not integration"
 # Evaluations. These call real services, so they are opt-in
 python backend/scripts/eval_recommendations.py
 python backend/scripts/eval_emergency.py
+python backend/scripts/eval_conversation.py   # Takes several days on the Groq limit, and resumes
 
 # Whole journey against a running local API, with real Pinecone and LLM
 python backend/scripts/e2e_check.py --api http://127.0.0.1:8010
@@ -202,6 +204,15 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
   - Language switch added. Most of the interface is still English, because Bangla copy needs a reviewer
   - Tests: 44 Vitest and 97 Playwright passing on a mocked API
   - The assistant runs on Groq and was tried in real English, Bangla and Banglish conversations. The full emergency evaluation was measured on the earlier model. A spot check on Groq flagged 12 of 14 emergencies and 0 of 8 ordinary messages
+- [x] **Phase 5e: Assistant Personality and Routing**
+  - Each turn is a hidden analysis, Python decisions in `backend/app/ai/routing.py`, then a reply written from `backend/app/ai/prompts/persona.md`
+  - One question at a time with no fixed cap, a soft limit of 12, and stopping once the top specialty is clearly ahead, urgency is known and the city is known
+  - Ambiguous phrases such as "broken heart" get a clarifying question before routing. A physical answer about the chest gets the fixed alert
+  - Psychiatry, Clinical Psychology and Counselling added in migration `00013`, which is **not applied to the live project**, so live cannot route emotional distress yet
+  - Self-harm has its own fixed message in `prompts/safety_messages.yaml`. It needs review by a mental-health professional and a native Bangla speaker. `CRISIS_HELPLINES` is empty until the owner verifies numbers
+  - API changes are additive: `chips` and `safety_kind`. The web changes for them are awaiting approval, so a crisis message still shows in the red emergency banner
+  - `docs/CONVERSATION_EVAL.md` is incomplete: 2 of 45 scenarios ran before the Groq daily limit stopped it. Rules plus model recall on unseen phrases has not been measured
+  - 824 tests that need no database pass; 1 needs local Supabase. The 224 integration tests were updated but not run, because Docker was not running
 - [ ] **Phase 6: Mobile App & Production Deployment**
   - Flutter app for Patient and Doctor workflows
   - End-to-end integration test suite & deployment readiness
@@ -209,6 +220,12 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
 ---
 
 ## Decisions Log
+- **2026-11-05**: Replaced the 3 follow-up limit with confidence-based stopping and a soft limit of 12, on the owner's instruction.
+- **2026-11-05**: "my heart hurts" and "heavy chest" alone no longer raise the alert, on the owner's decision, against advice, so the assistant can ask whether they are physical or emotional. The 999 instruction is no longer guaranteed on that turn. Any other danger sign, "heart pain", "hurts badly", and every plain chest phrase still alert. A clinician must review this.
+- **2026-11-05**: "Show me doctors now" asks for the city once if it is unknown, then searches all of Bangladesh. Pressed after a clarifying question has been asked once, it searches even if the meaning stays unclear, and the reply must say to call 999 for chest pain.
+- **2026-11-05**: The assistant searches strictly, so General Medicine appears only when routing chose it. `POST /recommendations` keeps general doctors, because that search is not routed.
+- **2026-11-05**: Routing reasons live in `graph_state`, not `audit_logs`, because audit logs outlive chat deletion.
+- **2026-11-05**: The Groq account allows 8,000 tokens a minute, 200,000 tokens a day and 1,000 requests a day. A message uses about 3,300 tokens, so about 60 messages a day. The analysis step keeps full reasoning because it is a safety net; only the writer uses low reasoning.
 - **2026-11-05**: The assistant must have a city before any search, so patients aren't shown doctors they can't reach. A patient can say any city is fine. If the model tries to search without one, a second call asks for it, so the model still writes the reply.
 - **2026-11-05**: Match reasons state the specialty and experience only. Fee and soonest time are already on the row.
 - **2026-11-05**: Replaced the navy and beige work with the teal, violet and serif system on the owner's instruction, and removed every photograph. The striking look comes from large type and the real product, never from decoration.
@@ -226,7 +243,7 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
 - **2026-10-29**: Rule-based emergency detection patterns are externalized in JSON (`backend/app/ai/data/emergency_patterns.json`) rather than hardcoded in Python, enabling clinicians and administrators to review and update triage regexes without code changes.
 - **2026-10-29**: Emergency detection completely bypasses LLM invocation; emergency turns immediately output a deterministic non-LLM message advising 999/hospital contact with zero doctor recommendations.
 - **2026-10-29**: Output guard checks LLM replies against diagnostic phrasing ("you have pneumonia", "diagnosis:") and prescriptive dosing ("take 500mg amoxicillin") and substitutes safe non-diagnostic advisory text.
-- **2026-10-29**: LangGraph `check_missing` logic is implemented in pure Python (deterministic), not LLM, asking at most 3 clarifying follow-up questions before falling back to General Medicine and default city Dhaka.
+- **2026-10-29**: LangGraph `check_missing` logic is implemented in pure Python (deterministic), not LLM, asking at most 3 clarifying follow-up questions before falling back to General Medicine and default city Dhaka. Replaced on 2026-11-05.
 - **2026-10-29**: Privacy redaction runs prior to any LLM prompt serialization, substituting detected names, Bangladeshi/international phone numbers, and emails with redaction tokens.
 - **2026-10-30**: Selected Pinecone Inference API with `llama-text-embed-v2` (1024-dim, cosine similarity) as primary embedding provider, leveraging existing `PINECONE_API_KEY` without requiring additional third-party embedding subscriptions.
 - **2026-10-30**: Designed doctor document builder to index strictly clinical fields (specialties, clinical bio, qualifications, city, clinic) while deliberately omitting personal names, phone numbers, and fees to prevent demographic and fee bias in vector space.
@@ -247,7 +264,7 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
 - **2026-11-04**: AI consent is enforced by the API. An emergency still gets its alert without consent, and nothing the patient wrote is stored.
 - **2026-11-04**: Backend tests ignore `.env` and refuse non-local hosts, because they once wrote fake approved doctors to the real project.
 - **2026-11-04**: Rule-based detection alone missed 61% to 88% of unseen phrases, so the classifier is a second net rather than a replacement. Never report a detection score measured on phrases the rules were tuned on.
-- **2026-11-05**: Reversed the fixed-reply design on the owner's instruction, because it made the assistant robotic. One model call now writes the reply and reads the details. A model failure returns 503 and saves nothing, rather than a canned question. The guard is now the last check on model text, and it is known to be incomplete.
+- **2026-11-05**: Reversed the fixed-reply design on the owner's instruction, because it made the assistant robotic. One model call wrote the reply and read the details, since split into two steps. A model failure returns 503 and saves nothing, rather than a canned question. The guard is now the last check on model text, and it is known to be incomplete.
 - **2026-11-05**: Moved the assistant from OpenRouter to Groq on the owner's instruction, using `openai/gpt-oss-120b`. The account limit of 8,000 tokens a minute is shared by every model, and a turn uses about 1,800 tokens, so it handles about 4 messages a minute. The client honours `Retry-After` up to 10 seconds.
 - **2026-11-04**: Assistant state lives on the conversation row, not in a LangGraph checkpointer, so deletion and multiple workers need no extra machinery.
 - **2026-11-04**: Booking, cancelling and completing run in locked stored procedures. Appointments keep their own times, and audit logs are append-only for every writer.

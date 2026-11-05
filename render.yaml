@@ -34,6 +34,9 @@ services:
         sync: false
       - key: GROQ_MODEL
         value: openai/gpt-oss-120b
+      # Verify every number yourself before launch. See docs/DEPLOYMENT.md
+      - key: CRISIS_HELPLINES
+        sync: false
 
   - type: web
     name: medimatch-web

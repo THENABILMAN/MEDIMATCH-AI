@@ -19,7 +19,9 @@ Set `BACKEND_CORS_ORIGINS` to your web origins. A wildcard is refused at startup
 
 1. In Render, choose New, then Blueprint, and connect this GitHub repository.
 2. Fill in the values it asks for. They stay in Render and are never committed.
-3. Set `GROQ_API_KEY`. At 8,000 tokens a minute and about 1,800 tokens a message, the current Groq account handles about 4 assistant messages a minute across all patients. Raise the account limit before real use.
+3. Set `GROQ_API_KEY`. The current Groq account allows 8,000 tokens a minute, 200,000 tokens a day and 1,000 requests a day. A patient message uses about 3,300 tokens, so that is about 2 messages a minute and about 60 a day across all patients. Raise the account limit before real use.
+4. Set `CRISIS_HELPLINES`, and verify every number yourself by calling it. With it empty, crisis messages show only `EMERGENCY_NUMBER`.
+5. Apply migration `00013`, so the mental-health specialties exist, and approve real providers for them. Until then, patients in emotional distress cannot be matched to the right kind of care.
 4. Set `BACKEND_CORS_ORIGINS` to `["https://your-web-address"]`, and `VITE_API_BASE_URL` to the API address, then redeploy the web app.
 5. Check the whole journey on the hosted API:
 

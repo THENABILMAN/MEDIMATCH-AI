@@ -102,3 +102,6 @@ On 2026-11-05 the assistant moved to Groq with `openai/gpt-oss-120b`. A short ru
 
 It missed "dan hat narate parchi na" and "কাউকে চিনতে পারছে না". This sample is too small to quote as a detection rate, and the full evaluation has not been repeated on Groq.
 
+## Conversation Evaluation
+
+`docs/CONVERSATION_EVAL.md` holds the conversation scenarios and transcripts. It is incomplete: the Groq account allows 200,000 tokens a day and a full run needs about 700,000. The analysis prompt changed since the Groq spot check above, so that check does not describe the current assistant.
