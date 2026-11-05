@@ -1,149 +1,243 @@
-import { ArrowRight, ChevronDown, Phone } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
-import { useDoctorSearch } from '../api/hooks'
-import { DoctorSlip } from '../components/domain/doctor-card'
-import { SerialFinder } from '../components/domain/serial-finder'
+import { Link, useNavigate } from 'react-router-dom'
+import { useDoctorSearch, useDoctorsSlots } from '../api/hooks'
+import { ProductStage } from '../components/domain/product-stage'
 import { Button } from '../components/ui/button'
+import { Textarea } from '../components/ui/input'
 import { Skeleton } from '../components/ui/skeleton'
+import { cn } from '../lib/cn'
 import { EMERGENCY_NUMBER } from '../lib/constants'
-import { formatNumber } from '../lib/format'
-import credits from '../locales/image-credits.json'
+import { saveDraft } from '../lib/draft'
+import { formatCurrency, formatDateTime, formatNumber } from '../lib/format'
+import { nextOpenSlot } from '../lib/slots'
+import type { DoctorProfile } from '../types'
 
-const CHECKS = [
-  ['license', 'BMDC'],
-  ['review', 'Approved'],
-  ['recheck', 'Reviewed'],
-] as const
-const QUESTIONS = ['diagnose', 'emergency', 'language', 'privacy', 'fee', 'cancel', 'join'] as const
-const FOOTER_LINKS = [
-  ['/doctors', 'nav.findDoctors'],
-  ['/chat', 'nav.assistant'],
-  ['/register?role=doctor', 'home.forDoctors'],
-] as const
+const STEPS = ['describe', 'clarify', 'choose', 'book'] as const
+const CHECKS = ['license', 'review', 'recheck'] as const
+const QUESTIONS = ['diagnose', 'emergency', 'language', 'privacy', 'fee', 'join'] as const
+const INDEX_SIZE = 8
+const ALL = ''
 
-function Hero() {
+function Composer({ id }: { id: string }) {
   const { t } = useTranslation()
-  return (
-    <section aria-labelledby="home-title" className="overflow-hidden pt-4 pb-8 pl-4 md:pt-8 md:pb-12 md:pl-8">
-      <div className="hero-slip slip bg-navy lg:grid lg:min-h-[calc(100dvh-var(--header-height)-5rem)] lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        <div className="on-navy rise-in flex flex-col justify-center gap-6 py-10 pr-4 pl-6 md:py-16 md:pr-10 md:pl-14">
-          <h1 id="home-title" className="display">
-            {t('home.title')}
-          </h1>
-          <p className="max-w-[46ch] text-lg">{t('home.lead')}</p>
-          <div className="flex flex-wrap gap-3">
-            <Button asChild size="lg">
-              <Link to="/chat">
-                {t('home.startChat')}
-                <ArrowRight aria-hidden className="size-5" strokeWidth={2} />
-              </Link>
-            </Button>
-            <Button asChild variant="secondary" size="lg">
-              <Link to="/doctors">{t('home.browse')}</Link>
-            </Button>
-          </div>
-          <p className="max-w-[52ch] text-sm text-muted">{t('home.emergency', { number: EMERGENCY_NUMBER })}</p>
-        </div>
+  const navigate = useNavigate()
+  const [text, setText] = useState('')
 
-        <figure className="relative m-0 grid min-w-0 content-center overflow-hidden p-4 pt-0 md:p-8 lg:p-12">
-          <img
-            src="/images/dmc-1940s.webp"
-            alt={t('home.images.dmc')}
-            width={1600}
-            height={1089}
-            className="absolute inset-0 hidden size-full object-cover lg:block"
-          />
-          <div className="rise-in relative mx-auto w-full max-w-md [--delay:160ms]">
-            <SerialFinder />
-          </div>
-        </figure>
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    if (text.trim()) saveDraft(text.trim())
+    navigate('/chat')
+  }
+
+  return (
+    <form onSubmit={submit} className="on-paper rounded-md bg-surface p-3">
+      <label htmlFor={id} className="sr-only">
+        {t('home.inputLabel')}
+      </label>
+      <Textarea
+        id={id}
+        rows={2}
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        placeholder={t('home.inputPlaceholder')}
+        autoComplete="off"
+        className="resize-none border-0 text-lg hover:border-0"
+      />
+      <div className="mt-2 flex justify-end">
+        <Button type="submit" size="lg" className="w-full sm:w-auto">
+          {t('home.startChat')}
+          <ArrowRight aria-hidden className="size-4" strokeWidth={1.75} />
+        </Button>
       </div>
-    </section>
+    </form>
   )
 }
 
-function HowItWorks() {
-  const { t } = useTranslation()
-  return (
-    <section aria-labelledby="how-title" className="home-gutter py-14 md:py-24">
-      <h2 id="how-title" className="display-2 max-w-[18ch]">
-        {t('home.howTitle')}
-      </h2>
-      <ol className="mt-10 grid items-end gap-4 lg:grid-cols-3">
-        <li className="reveal flex flex-col rounded-md bg-sand p-6 lg:min-h-[340px]">
-          <p className="rounded-md bg-surface px-4 py-3 text-lg">{t('home.previewPatient')}</p>
-          <h3 className="mt-auto pt-8 text-xl font-semibold">{t('home.steps.describe.title')}</h3>
-          <p className="mt-2">{t('home.steps.describe.body')}</p>
-        </li>
-        <li className="reveal on-navy flex flex-col rounded-md bg-navy-raised p-6 lg:min-h-[460px]">
-          <div className="rounded-md bg-navy px-4 py-3">
-            <p className="text-sm font-medium text-muted">{t('chat.aiLabel')}</p>
-            <p className="mt-1 text-lg">{t('home.previewAssistant')}</p>
-          </div>
-          <div aria-hidden className="mt-3 flex flex-wrap gap-2">
-            {(['chat.suggest.today', 'chat.suggest.fewDays', 'chat.suggest.week'] as const).map((key) => (
-              <span key={key} className="rounded-sm border border-control px-3 py-1 text-sm">
-                {t(key)}
-              </span>
-            ))}
-          </div>
-          <h3 className="mt-auto pt-8 text-xl font-semibold">{t('home.steps.clarify.title')}</h3>
-          <p className="mt-2">{t('home.steps.clarify.body')}</p>
-        </li>
-        <li className="reveal on-navy flex flex-col overflow-hidden rounded-md bg-navy lg:min-h-[580px]">
-          <img
-            src="/images/rickshaws.webp"
-            alt={t('home.images.rickshaws')}
-            loading="lazy"
-            width={1600}
-            height={1067}
-            className="shutter aspect-[4/3] w-full flex-1 object-cover"
-          />
-          <div className="p-6">
-            <h3 className="text-xl font-semibold">{t('home.steps.choose.title')}</h3>
-            <p className="mt-2">{t('home.steps.choose.body')}</p>
-          </div>
-        </li>
-      </ol>
-    </section>
-  )
+/** Tracks which step of the story is in the middle of the screen. */
+function useActiveStep() {
+  const [active, setActive] = useState(0)
+  const root = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const steps = root.current?.querySelectorAll<HTMLElement>('[data-step]')
+    if (!steps?.length) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries
+          .filter((entry) => entry.isIntersecting)
+          .forEach((entry) => setActive(Number((entry.target as HTMLElement).dataset.step)))
+      },
+      { rootMargin: '-45% 0px -45% 0px' }
+    )
+    steps.forEach((step) => observer.observe(step))
+    return () => observer.disconnect()
+  }, [])
+
+  return { active, root }
 }
 
-function Doctors() {
+function Stage() {
   const { t } = useTranslation()
-  const { data, isPending } = useDoctorSearch({ page_size: 50 })
-  const doctors = data?.items.slice(0, 3) ?? []
+  const { active, root } = useActiveStep()
   return (
-    <section aria-labelledby="doctors-title" className="overflow-hidden bg-sand py-14 md:py-24">
-      <div className="home-gutter grid items-center gap-10 lg:grid-cols-2">
-        <div className="relative order-2 mx-auto aspect-square w-full max-w-[640px] lg:order-1">
-          <img
-            src="/images/ahsan-manzil.webp"
-            alt={t('home.images.ahsan')}
-            loading="lazy"
-            width={1600}
-            height={1067}
-            className="shutter size-full rounded-full object-cover"
-          />
+    <div ref={root} className="on-ink bg-ink-field">
+      <div className="home-gutter grid lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-x-8 xl:grid-cols-[minmax(0,1fr)_520px] xl:gap-x-16">
+        <div>
+          <section
+            aria-labelledby="home-title"
+            data-step={0}
+            className="flex flex-col justify-center gap-6 py-12 lg:min-h-[calc(100dvh-var(--header-height))]"
+          >
+            <h1 id="home-title" className="hero-title font-serif">
+              <span className="block">{t('home.titleFirst')}</span>
+              <span className="block">{t('home.titleSecond')}</span>
+            </h1>
+            <p className="max-w-[56ch] text-lg">{t('home.lead')}</p>
+            <div className="max-w-[640px]">
+              <Composer id="home-input" />
+            </div>
+            <p className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted">
+              <Link to="/doctors" className="font-medium text-ink underline underline-offset-4">
+                {t('home.browse')}
+              </Link>
+              {t('home.emergency', { number: EMERGENCY_NUMBER })}
+            </p>
+          </section>
+
+          <section aria-labelledby="how-title" className="pb-16 lg:pb-[30vh]">
+            <h2 id="how-title" className="font-serif text-2xl md:text-3xl">
+              {t('home.howTitle')}
+            </h2>
+            <ol className="mt-4 flex flex-col">
+              {STEPS.map((step, index) => (
+                <li
+                  key={step}
+                  data-step={index}
+                  className={cn(
+                    'flex flex-col justify-center gap-3 py-8 transition-opacity lg:min-h-[64vh]',
+                    index !== active && 'lg:opacity-50'
+                  )}
+                >
+                  <p aria-hidden className="font-serif text-3xl text-muted tabular">
+                    {index + 1}
+                  </p>
+                  <h3 className="font-serif text-2xl md:text-3xl">{t(`home.steps.${step}.title`)}</h3>
+                  <p className="max-w-[46ch] text-lg">{t(`home.steps.${step}.body`)}</p>
+                  <ProductStage step={index} compact className="mt-3 lg:hidden" />
+                </li>
+              ))}
+            </ol>
+          </section>
         </div>
-        <div className="order-1 lg:order-2">
-          <h2 id="doctors-title" className="display-2">
-            {t('home.doctorsTitle')}
-          </h2>
-          <p className="mt-4 max-w-[52ch] text-lg">{t('home.doctorsLead')}</p>
-          <ul className="mt-8 flex flex-col gap-3">
-            {isPending && [0, 1, 2].map((key) => <Skeleton key={key} className="h-28 w-full" />)}
-            {doctors.map((doctor) => (
-              <li key={doctor.id} className="reveal">
-                <DoctorSlip doctor={doctor} />
-              </li>
+
+        <div className="relative hidden lg:block">
+          <div className="sticky top-[var(--header-height)] flex h-[calc(100dvh-var(--header-height))] items-center py-8">
+            <ProductStage step={active} className="h-full max-h-[720px] w-full" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function IndexRow({ doctor, soonest }: { doctor: DoctorProfile; soonest?: string }) {
+  const { t, i18n } = useTranslation()
+  return (
+    <li className="border-b border-border">
+      <Link
+        to={`/doctors/${doctor.id}`}
+        className="group grid gap-x-6 gap-y-1 py-4 transition-colors hover:bg-primary-tint md:grid-cols-[minmax(0,5fr)_minmax(0,3fr)_minmax(0,3fr)_auto] md:items-baseline md:px-3"
+      >
+        <span>
+          <span className="block font-serif text-xl">{doctor.full_name}</span>
+          <span className="block text-muted">
+            {doctor.specialties.map((item) => item.name).join(', ')}
+          </span>
+        </span>
+        <span className="text-muted">{[doctor.clinic_name, doctor.city].filter(Boolean).join(', ')}</span>
+        <span className="tabular">{soonest ? formatDateTime(soonest, i18n.language) : t('home.indexNoTime')}</span>
+        <span className="font-serif text-xl tabular md:text-right">
+          {formatCurrency(doctor.consultation_fee, i18n.language)}
+        </span>
+      </Link>
+    </li>
+  )
+}
+
+function DoctorIndex() {
+  const { t, i18n } = useTranslation()
+  const { data, isPending, isError } = useDoctorSearch({ page_size: 50 })
+  const [specialty, setSpecialty] = useState(ALL)
+
+  const doctors = useMemo(() => data?.items ?? [], [data])
+  const specialties = useMemo(
+    () => [...new Set(doctors.flatMap((doctor) => doctor.specialties.map((item) => item.name)))].sort(),
+    [doctors]
+  )
+  const cities = useMemo(() => new Set(doctors.flatMap((doctor) => doctor.city ?? [])), [doctors])
+  const shown = doctors
+    .filter((doctor) => specialty === ALL || doctor.specialties.some((item) => item.name === specialty))
+    .slice(0, INDEX_SIZE)
+  const slots = useDoctorsSlots(shown.map((doctor) => doctor.id))
+
+  const counts = [
+    [data?.total ?? 0, 'home.countDoctors'],
+    [specialties.length, 'home.countSpecialties'],
+    [cities.size, 'home.countCities'],
+  ] as const
+
+  return (
+    <section aria-labelledby="index-title" className="bg-surface py-16 md:py-24">
+      <div className="home-gutter">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div>
+            <h2 id="index-title" className="font-serif text-3xl md:text-4xl">
+              {t('home.indexTitle')}
+            </h2>
+            <p className="mt-3 max-w-[56ch] text-lg text-muted">{t('home.indexLead')}</p>
+          </div>
+          {data && (
+            <dl className="flex gap-8">
+              {counts.map(([count, label]) => (
+                <div key={label}>
+                  <dd className="font-serif text-3xl tabular">{formatNumber(count, i18n.language)}</dd>
+                  <dt className="text-sm text-muted">{t(label, { count })}</dt>
+                </div>
+              ))}
+            </dl>
+          )}
+        </div>
+
+        <div role="group" aria-label={t('search.specialty')} className="mt-8 flex flex-wrap gap-2">
+          {[ALL, ...specialties].map((name) => (
+            <Button
+              key={name || 'all'}
+              variant={name === specialty ? 'primary' : 'secondary'}
+              size="sm"
+              aria-pressed={name === specialty}
+              onClick={() => setSpecialty(name)}
+            >
+              {name || t('home.indexAll')}
+            </Button>
+          ))}
+        </div>
+
+        <div className="mt-6 border-t-2 border-ink">
+          {isPending && <Skeleton className="mt-4 h-64 w-full" />}
+          {isError && <p className="py-6">{t('home.indexUnavailable')}</p>}
+          {data && doctors.length === 0 && <p className="py-6">{t('home.indexEmpty')}</p>}
+          <ul data-ui>
+            {shown.map((doctor, index) => (
+              <IndexRow key={doctor.id} doctor={doctor} soonest={nextOpenSlot(slots[index]?.data)?.start_time} />
             ))}
           </ul>
-          <Button asChild variant="secondary" className="mt-6">
-            <Link to="/doctors">{t('home.doctorsAll')}</Link>
-          </Button>
         </div>
+
+        <Button asChild variant="secondary" size="lg" className="mt-8">
+          <Link to="/doctors">{t('home.indexMore')}</Link>
+        </Button>
       </div>
     </section>
   )
@@ -152,99 +246,18 @@ function Doctors() {
 function Checks() {
   const { t } = useTranslation()
   return (
-    <section aria-labelledby="checks-title" className="on-navy bg-navy py-14 md:py-24">
-      <div className="home-gutter">
-        <h2 id="checks-title" className="display-2 max-w-[18ch]">
-          {t('home.checksTitle')}
-        </h2>
-        <ul className="mt-10 grid gap-4 md:grid-cols-3">
-          {CHECKS.map(([check, mark]) => (
-            <li key={check} className="reveal slip bg-navy-raised p-6 md:p-8">
-              <p aria-hidden className="mark" translate="no">
-                {mark}
-              </p>
-              <h3 className="mt-10 text-xl font-semibold">{t(`home.checks.${check}.title`)}</h3>
-              <p className="mt-2">{t(`home.checks.${check}.body`)}</p>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
-  )
-}
-
-function tally(names: string[]): [string, number][] {
-  const counts = new Map<string, number>()
-  names.forEach((name) => counts.set(name, (counts.get(name) ?? 0) + 1))
-  return [...counts].sort(([a], [b]) => a.localeCompare(b))
-}
-
-function BrowseList({ title, param, entries }: { title: string; param: string; entries: [string, number][] }) {
-  const { t, i18n } = useTranslation()
-  return (
-    <div>
-      <h3 className="text-xl font-semibold">{title}</h3>
-      <ul className="mt-3 flex flex-col gap-2">
-        {entries.map(([name, count]) => (
-          <li key={name}>
-            <Link
-              to={`/doctors?${param}=${encodeURIComponent(name)}`}
-              className="group flex min-h-14 items-center justify-between gap-3 rounded-md bg-sand px-4 py-2 transition-colors hover:bg-border"
-            >
-              <span className="text-lg font-medium">{name}</span>
-              <span className="flex shrink-0 items-center gap-2 text-sm">
-                {t('home.doctorCount', { count, shown: formatNumber(count, i18n.language) })}
-                <ArrowRight
-                  aria-hidden
-                  className="size-4 transition-transform group-hover:translate-x-1"
-                  strokeWidth={2}
-                />
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-function Browse() {
-  const { t } = useTranslation()
-  const { data, isPending } = useDoctorSearch({ page_size: 50 })
-  const doctors = data?.items ?? []
-  return (
-    <section aria-labelledby="browse-title" className="home-gutter grid gap-10 py-14 md:py-24 lg:grid-cols-[5fr_7fr]">
-      <div className="order-2 lg:order-1">
-        <img
-          src="/images/buriganga.webp"
-          alt={t('home.images.buriganga')}
-          loading="lazy"
-          width={1600}
-          height={1067}
-          className="shutter h-full max-h-[620px] min-h-[280px] w-full rounded-md object-cover"
-        />
-      </div>
-      <div className="order-1 lg:order-2">
-        <h2 id="browse-title" className="display-2">
-          {t('home.browseTitle')}
-        </h2>
-        <p className="mt-4 max-w-[52ch] text-lg">{t('home.browseLead')}</p>
-        {isPending && <Skeleton className="mt-8 h-56 w-full" />}
-        {doctors.length > 0 && (
-          <div className="mt-8 grid gap-8 md:grid-cols-2">
-            <BrowseList
-              title={t('home.bySpecialty')}
-              param="specialty"
-              entries={tally(doctors.flatMap((doctor) => doctor.specialties.map((item) => item.name)))}
-            />
-            <BrowseList
-              title={t('home.byCity')}
-              param="city"
-              entries={tally(doctors.flatMap((doctor) => (doctor.city ? [doctor.city] : [])))}
-            />
+    <section aria-labelledby="checks-title" className="home-gutter py-16 md:py-24">
+      <h2 id="checks-title" className="font-serif text-3xl md:text-4xl">
+        {t('home.checksTitle')}
+      </h2>
+      <dl className="mt-10 grid gap-8 md:grid-cols-3 md:gap-12">
+        {CHECKS.map((check) => (
+          <div key={check}>
+            <dt className="font-serif text-xl">{t(`home.checks.${check}.title`)}</dt>
+            <dd className="mt-2 text-lg text-muted">{t(`home.checks.${check}.body`)}</dd>
           </div>
-        )}
-      </div>
+        ))}
+      </dl>
     </section>
   )
 }
@@ -252,107 +265,55 @@ function Browse() {
 function Questions() {
   const { t } = useTranslation()
   return (
-    <section aria-labelledby="questions-title" className="home-gutter grid gap-8 pb-14 md:pb-24 lg:grid-cols-[5fr_7fr]">
-      <h2 id="questions-title" className="display-2">
+    <section aria-labelledby="questions-title" className="home-gutter pb-16 md:pb-24">
+      <h2 id="questions-title" className="font-serif text-3xl md:text-4xl">
         {t('home.questionsTitle')}
       </h2>
-      <div className="flex flex-col gap-2">
+      <dl className="mt-10 grid gap-x-12 gap-y-8 md:grid-cols-2">
         {QUESTIONS.map((question) => (
-          <details key={question} className="group rounded-md bg-sand">
-            <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-5 py-3 text-lg font-medium">
-              {t(`home.questions.${question}.q`)}
-              <ChevronDown
-                aria-hidden
-                className="size-5 shrink-0 transition-transform group-open:rotate-180"
-                strokeWidth={2}
-              />
-            </summary>
-            <p className="max-w-[60ch] px-5 pb-5">{t(`home.questions.${question}.a`, { number: EMERGENCY_NUMBER })}</p>
-          </details>
+          <div key={question}>
+            <dt className="font-serif text-xl">{t(`home.questions.${question}.q`)}</dt>
+            <dd className="mt-2 text-lg text-muted">
+              {t(`home.questions.${question}.a`, { number: EMERGENCY_NUMBER })}
+            </dd>
+          </div>
         ))}
-      </div>
+      </dl>
     </section>
   )
 }
 
-function FinalCall() {
+function Closing() {
   const { t } = useTranslation()
   return (
-    <section aria-labelledby="start-title" className="overflow-hidden pr-4 pb-14 md:pr-8 md:pb-24">
-      <div className="reveal slip on-navy flex flex-col items-start gap-6 bg-navy py-12 pr-6 pl-4 md:flex-row md:items-center md:justify-between md:py-20 md:pr-14 md:pl-8">
+    <section aria-labelledby="start-title" className="on-ink bg-ink-field py-16 md:py-24">
+      <div className="home-gutter grid gap-8 lg:grid-cols-2 lg:items-center">
         <div>
-          <h2 id="start-title" className="display-2 max-w-[16ch]">
+          <h2 id="start-title" className="font-serif text-3xl md:text-4xl">
             {t('home.startTitle')}
           </h2>
-          <p className="mt-4 max-w-[46ch] text-lg">{t('home.startLead')}</p>
+          <p className="mt-3 max-w-[46ch] text-lg">{t('home.startLead')}</p>
         </div>
-        <Button asChild size="lg" className="shrink-0">
-          <Link to="/chat">
-            {t('home.startChat')}
-            <ArrowRight aria-hidden className="size-5" strokeWidth={2} />
-          </Link>
-        </Button>
+        <Composer id="closing-input" />
       </div>
+      <footer className="home-gutter mt-16 flex flex-col gap-3 text-sm text-muted md:flex-row md:justify-between">
+        <p>{t('home.footer')}</p>
+        <Link to="/register?role=doctor" className="font-medium whitespace-nowrap text-ink underline underline-offset-4">
+          {t('home.forDoctors')}
+        </Link>
+      </footer>
     </section>
-  )
-}
-
-function Footer() {
-  const { t } = useTranslation()
-  return (
-    <footer className="on-navy overflow-hidden bg-navy">
-      <div className="home-gutter grid gap-8 pt-12 pb-8 md:grid-cols-[2fr_1fr_2fr]">
-        <div>
-          <p className="max-w-[44ch]">{t('home.footer')}</p>
-          <a
-            href={`tel:${EMERGENCY_NUMBER}`}
-            className="mt-4 inline-flex min-h-11 items-center gap-2 font-semibold underline underline-offset-4"
-          >
-            <Phone aria-hidden className="size-4" strokeWidth={2} />
-            {t('nav.emergency', { number: EMERGENCY_NUMBER })}
-          </a>
-        </div>
-        <ul className="flex flex-col">
-          {FOOTER_LINKS.map(([to, label]) => (
-            <li key={to}>
-              <Link to={to} className="inline-flex min-h-11 items-center underline-offset-4 hover:underline">
-                {t(label)}
-              </Link>
-            </li>
-          ))}
-        </ul>
-        <div>
-          <p className="text-sm font-semibold">{t('home.creditsTitle')}</p>
-          <ul className="mt-1 text-sm text-muted">
-            {credits.map((credit) => (
-              <li key={credit.page}>
-                <a href={credit.page} rel="noreferrer" target="_blank" className="underline underline-offset-2">
-                  {credit.title}
-                </a>
-                {`, ${credit.creator}, ${credit.license}`}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-      <p aria-hidden className="wordmark" translate="no">
-        MediMatch
-      </p>
-    </footer>
   )
 }
 
 export default function HomePage() {
   return (
     <>
-      <Hero />
-      <HowItWorks />
-      <Doctors />
+      <Stage />
+      <DoctorIndex />
       <Checks />
-      <Browse />
       <Questions />
-      <FinalCall />
-      <Footer />
+      <Closing />
     </>
   )
 }

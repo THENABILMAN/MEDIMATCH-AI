@@ -48,7 +48,8 @@
     "patients": "Patients",
     "specialties": "Specialties",
     "auditLog": "Audit Log",
-    "emergency": "Emergency {{number}}"
+    "emergency": "Emergency {{number}}",
+    "language": "বাংলা"
   },
   "notFound": {
     "title": "We Couldn’t Find That Page",
@@ -56,70 +57,72 @@
     "home": "Go to Home"
   },
   "home": {
-    "title": "The Right Doctor. Your Serial.",
-    "lead": "Tell the MediMatch AI assistant what you feel, in your own words. It asks a few questions, then shows verified doctors in your city with times you can book.",
-    "startChat": "Describe Your Symptoms",
+    "lead": "Tell our AI assistant what’s wrong, in your own words. It asks a few questions, then shortlists verified doctors in your city with times you can book.",
+    "inputLabel": "Describe your symptoms",
+    "inputPlaceholder": "For example: a headache and dizziness since yesterday…",
+    "startChat": "Start With the Assistant",
     "browse": "Browse Doctors",
     "emergency": "In an emergency, don’t use this service. Call {{number}} or go to the nearest hospital.",
+    "exampleLabel": "Example of a conversation with the assistant",
+    "exampleTag": "Example",
     "previewPatient": "Headache and dizziness since yesterday morning",
     "previewAssistant": "How long have you been experiencing these symptoms?",
-    "howTitle": "From One Sentence to a Serial",
+    "previewShortlist": "Based on what you described, here are doctors who may be able to help.",
+    "previewBooked": "Choose a time",
+    "previewBook": "Book This Slot",
+    "howTitle": "How It Works",
     "steps": {
       "describe": {
-        "title": "Describe What You Feel",
+        "title": "Describe what you feel",
         "body": "Write it the way you would tell a relative. Serious warning signs are checked first, before any AI is involved."
       },
       "clarify": {
-        "title": "Answer a Few Questions",
+        "title": "Answer a few questions",
         "body": "The assistant asks up to three short follow-ups. It helps you find a doctor. It does not diagnose or prescribe."
       },
       "choose": {
-        "title": "Choose and Book",
-        "body": "See why each doctor was suggested, compare fees and times, and book a slot directly."
+        "title": "See who suits you",
+        "body": "Get a ranked shortlist of verified doctors, with the reason for each one, the fee and the soonest time."
+      },
+      "book": {
+        "title": "Book a real time",
+        "body": "Pick a time from the doctor’s live schedule. If a slot is taken, nobody else can book it."
       }
     },
+    "indexTitle": "Doctors You Can See Now",
+    "indexLead": "Live from our register. Every doctor here passed our credential review.",
+    "indexAll": "All specialties",
+    "indexDoctor": "Doctor",
+    "indexSpecialty": "Specialty",
+    "indexWhere": "Where",
+    "indexSoonest": "Soonest time",
+    "indexFee": "Fee",
+    "indexNoTime": "No open times",
+    "indexMore": "See All Doctors",
+    "indexUnavailable": "We can’t load doctors right now.",
+    "indexEmpty": "No verified doctors are listed yet.",
+    "countDoctors_one": "verified doctor",
+    "countDoctors_other": "verified doctors",
+    "countSpecialties_one": "specialty",
+    "countSpecialties_other": "specialties",
+    "countCities_one": "city",
+    "countCities_other": "cities",
     "checksTitle": "What Verified Means Here",
     "checks": {
       "license": {
-        "title": "Credentials Are Checked",
+        "title": "Credentials are checked",
         "body": "Doctors submit their BMDC registration and degree certificates, and our team reviews each document."
       },
       "review": {
-        "title": "Approval Comes First",
+        "title": "Approval comes first",
         "body": "Only approved doctors appear in search or in the assistant’s shortlist."
       },
       "recheck": {
-        "title": "Changes Are Reviewed Again",
+        "title": "Changes are reviewed again",
         "body": "When a doctor edits their profile, it goes back for review before patients can see it."
       }
     },
-    "footer": "MediMatch helps you find a doctor. It does not provide medical advice, diagnosis or treatment.",
-    "forDoctors": "For Doctors",
-    "doctorsTitle": "Doctors You Can Book Now",
-    "doctorsLead": "Every name here has passed our credential review. Fees and open times come straight from the live register.",
-    "doctorsAll": "See All Doctors",
     "questionsTitle": "Before You Start",
-    "startTitle": "Start With One Sentence",
-    "startLead": "Say what you feel. The assistant does the asking, and you pick the doctor and the time.",
-    "creditsTitle": "Photographs",
-    "finder": {
-      "title": "Who Has a Serial Open?",
-      "specialty": "Specialty",
-      "city": "City",
-      "anySpecialty": "Any specialty",
-      "anyCity": "Any city",
-      "next": "Next open time",
-      "noTime": "No open times yet",
-      "open": "See This Doctor",
-      "none": "No doctor matches both yet.",
-      "unavailable": "We can’t load doctors right now."
-    },
-    "images": {
-      "dmc": "Dhaka Medical College and Hospital in the 1940s",
-      "rickshaws": "Cycle rickshaws lined up on High Court Street in Dhaka",
-      "ahsan": "Ahsan Manzil, the pink palace on the Buriganga in Dhaka",
-      "buriganga": "Boats on the Buriganga River in Dhaka"
-    },
     "questions": {
       "diagnose": {
         "q": "Will the assistant tell me what I have?",
@@ -141,21 +144,18 @@
         "q": "What does a visit cost?",
         "a": "Each doctor sets their own fee, and you see it before you book. You don’t pay inside MediMatch."
       },
-      "cancel": {
-        "q": "Can I cancel a serial?",
-        "a": "Yes. Cancel it from Appointments and the time opens up for someone else."
-      },
       "join": {
         "q": "I’m a doctor. How do I join?",
         "a": "Create a doctor account and send your BMDC registration and degree certificates. Patients see your profile once it is approved."
       }
     },
-    "browseTitle": "Know Who You Need?",
-    "browseLead": "Skip the assistant and go straight to a specialty or a city.",
-    "bySpecialty": "By Specialty",
-    "byCity": "By City",
-    "doctorCount_one": "{{shown}} doctor",
-    "doctorCount_other": "{{shown}} doctors"
+    "startTitle": "Start with one sentence.",
+    "startLead": "You say what you feel. The assistant does the asking, and you choose the doctor and the time.",
+    "footer": "MediMatch helps you find a doctor. It does not provide medical advice, diagnosis or treatment.",
+    "forDoctors": "For Doctors",
+    "titleFirst": "Say how you feel.",
+    "titleSecond": "Find who can help.",
+    "previewGreeting": "Hello. Tell me what you’re feeling, in your own words."
   },
   "auth": {
     "signInTitle": "Sign In to MediMatch",
@@ -180,13 +180,8 @@
     "typeDoctor": "I’m a doctor",
     "typeDoctorHint": "Your profile is reviewed before patients can see it.",
     "demoAccounts": "Demo accounts:",
-    "panelTitle": "Your Serial, Without the Queue",
-    "panelBody": "Describe what you feel, compare verified doctors, and book a time that suits you.",
-    "panelPoints": {
-      "verified": "Only approved doctors appear",
-      "fees": "Fees shown before you book",
-      "cancel": "Cancel and the time opens up again"
-    }
+    "panelTitle": "A doctor who suits you, and a time that works.",
+    "panelBody": "Only doctors who passed our credential review appear here. You see the fee and the time before you book."
   },
   "doctor": {
     "yearsExperience_one": "{{years}} year of experience",

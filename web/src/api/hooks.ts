@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient, useQueries } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueries, useQueryClient } from '@tanstack/react-query'
 import type { DoctorProfileInput, DoctorSearchParams, TableParams, VerificationStatus } from '../types'
 import { api } from './client'
 
