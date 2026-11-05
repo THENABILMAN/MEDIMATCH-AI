@@ -20,7 +20,7 @@ logger = logging.getLogger("medimatch.chat_service")
 
 DISCLAIMER_MESSAGE = (
     "Hello! I am your MediMatch Assistant.\n\n"
-    "⚠️ Medical Disclaimer: I am an AI assistant designed solely to help you find qualified medical specialists. "
+    "Medical Disclaimer: I am an AI assistant designed solely to help you find qualified medical specialists. "
     "I do not provide medical diagnosis, clinical treatment plans, or drug prescriptions. "
     "If you are experiencing a life-threatening medical emergency, please call 999 immediately.\n\n"
     "Please describe your symptoms, how long you've had them, and your preferred city or location."

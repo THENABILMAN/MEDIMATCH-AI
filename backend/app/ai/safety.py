@@ -149,7 +149,7 @@ def get_emergency_response() -> str:
     """Returns the fixed, non-LLM emergency alert, in English and Bangla."""
     number = settings.EMERGENCY_NUMBER
     return (
-        f"🚨 EMERGENCY ALERT: Based on what you described, this may need emergency medical care now.\n\n"
+        f"EMERGENCY ALERT: Based on what you described, this may need emergency medical care now.\n\n"
         f"Please call {number} immediately or go to the nearest hospital emergency room. "
         f"Do not wait for an appointment. If you may harm yourself, stay with someone you trust.\n\n"
         f"জরুরি সতর্কতা: আপনি যা লিখেছেন তাতে এখনই জরুরি চিকিৎসা দরকার হতে পারে।\n\n"

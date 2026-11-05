@@ -75,12 +75,12 @@ export const USERS: Record<UserRole, UserProfile> = {
 }
 
 export const EMERGENCY_REPLY =
-  '🚨 EMERGENCY ALERT: Based on your symptoms, this may require immediate emergency medical care.\n\n' +
+  'EMERGENCY ALERT: Based on your symptoms, this may require immediate emergency medical care.\n\n' +
   'Please call 999 immediately or proceed directly to the nearest hospital emergency room.\n' +
   'Do not wait for an online doctor appointment. Emergency medical personnel should evaluate you without delay.'
 
 export const DISCLAIMER =
-  'Hello! I am your MediMatch Assistant.\n\n⚠️ Medical Disclaimer: I am an AI assistant designed solely to help you find qualified medical specialists. I do not provide medical diagnosis, clinical treatment plans, or drug prescriptions. If you are experiencing a life-threatening medical emergency, please call 999 immediately.\n\nPlease describe your symptoms, how long you\'ve had them, and your preferred city or location.'
+  'Hello! I am your MediMatch Assistant.\n\nMedical Disclaimer: I am an AI assistant designed solely to help you find qualified medical specialists. I do not provide medical diagnosis, clinical treatment plans, or drug prescriptions. If you are experiencing a life-threatening medical emergency, please call 999 immediately.\n\nPlease describe your symptoms, how long you\'ve had them, and your preferred city or location.'
 
 export function appointmentFor(doctorProfile: DoctorProfile, slot: AvailabilitySlot, patient: UserProfile): Appointment {
   return {
