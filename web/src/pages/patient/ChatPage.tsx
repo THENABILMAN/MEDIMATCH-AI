@@ -8,6 +8,7 @@ import { keys, useConversation, useConversations } from '../../api/hooks'
 import { AIDisclaimer } from '../../components/domain/ai-disclaimer'
 import { ChatComposer } from '../../components/domain/chat-composer'
 import { ChatMessage } from '../../components/domain/chat-message'
+import { clearDraft, readDraft } from '../../lib/draft'
 import { Banner } from '../../components/ui/banner'
 import { Button } from '../../components/ui/button'
 import { ErrorState } from '../../components/ui/query-state'
@@ -110,6 +111,10 @@ export default function ChatPage() {
   const { profile } = useAuth()
   const client = useQueryClient()
   const consented = Boolean(profile?.ai_consent_at)
+  const [draft] = useState(readDraft)
+  useEffect(() => {
+    if (consented) clearDraft()
+  }, [consented])
 
   const { conversations, startNew, createError } = useOpenConversation(conversationId, consented)
   const conversation = useConversation(consented ? conversationId : undefined)
@@ -215,7 +220,7 @@ export default function ChatPage() {
           )}
 
           {sending && (
-            <p role="status" className="border-l-2 border-ai pl-4 text-sm text-muted">
+            <p role="status" className="rounded-md bg-ai-tint px-4 py-3 text-sm text-ai">
               {t('chat.thinking')}
             </p>
           )}
@@ -244,6 +249,7 @@ export default function ChatPage() {
             onSend={(text) => void send(text)}
             sending={sending || !conversation.data}
             followupField={followupField}
+            initialText={draft}
           />
         </div>
       </div>

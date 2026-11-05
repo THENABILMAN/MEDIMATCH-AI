@@ -1,4 +1,3 @@
-import { Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatTime } from '../../lib/format'
 import type { ChatMessage as ChatMessageType } from '../../types'
@@ -12,7 +11,7 @@ export function ChatMessage({ message }: { message: ChatMessageType }) {
   if (message.sender === 'patient') {
     return (
       <article aria-label={t('chat.youSaid')} className="ml-auto max-w-[85%]">
-        <p className="rounded-md border border-border bg-surface px-4 py-3 whitespace-pre-line">{message.content}</p>
+        <p className="rounded-md bg-surface px-4 py-3 whitespace-pre-line">{message.content}</p>
         <p className="mt-1 text-right text-xs text-muted tabular">{time}</p>
       </article>
     )
@@ -23,12 +22,11 @@ export function ChatMessage({ message }: { message: ChatMessageType }) {
   const recommendations = message.metadata?.recommendations ?? []
 
   return (
-    <article aria-label={t('chat.assistantSaid')} className="border-l-2 border-ai pl-4">
-      <p className="flex items-center gap-1 text-xs font-medium text-ai">
-        <Sparkles aria-hidden className="size-3.5" strokeWidth={1.75} />
-        {t('chat.aiLabel')}
-      </p>
-      <p className="mt-1 whitespace-pre-line">{message.content.replaceAll('**', '')}</p>
+    <article aria-label={t('chat.assistantSaid')}>
+      <div className="rounded-md bg-ai-tint px-4 py-3">
+        <p className="text-xs font-medium text-ai">{t('chat.aiLabel')}</p>
+        <p className="mt-1 whitespace-pre-line">{message.content.replaceAll('**', '')}</p>
+      </div>
       {recommendations.length > 0 && <RecommendationList recommendations={recommendations} />}
       <p className="mt-1 text-xs text-muted tabular">{time}</p>
     </article>

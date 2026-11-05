@@ -21,7 +21,7 @@ export function EmergencyNotice({ message }: { message: string }) {
       <p className="mt-3 text-lg whitespace-pre-line">{message}</p>
       <a
         href={`tel:${EMERGENCY_NUMBER}`}
-        className="mt-4 flex h-12 items-center justify-center gap-2 rounded-sm bg-white text-lg font-semibold text-danger transition-colors hover:bg-danger-tint focus-visible:outline-white md:inline-flex md:px-6"
+        className="mt-4 flex h-12 items-center justify-center gap-2 rounded-sm bg-white text-lg font-semibold text-danger transition-colors hover:bg-danger-tint focus-visible:outline-white"
       >
         <Phone aria-hidden className="size-5" strokeWidth={1.75} />
         {t('chat.callEmergency', { number: EMERGENCY_NUMBER })}
