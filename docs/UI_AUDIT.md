@@ -25,7 +25,7 @@ Step 1 of the visual redesign, written 2026-11-05 before any code changed. It co
 Nothing is broken. The problem is that the look is applied on top of the product instead of coming from it.
 
 1. **The photographs have nothing to do with booking a doctor.** I added them in the last redesign. See the inventory below.
-2. **The slip shape is decoration repeated everywhere.** The notched navy banner sits on top of 15 app screens, even when it only holds one word such as "Account". It pushes content down and breaks the rule in `docs/UI_PRINCIPLES.md` against hero headers inside the app.
+2. **The slip shape is decoration repeated everywhere.** The notched navy banner sits on top of 14 app pages, even when it only holds one word such as "Account". It pushes content down and breaks the rule in `docs/UI_PRINCIPLES.md` against hero headers inside the app.
 3. **The app screens are thin.** Below the banner, most screens have a small cluster of content and then empty beige.
 4. **The design rules were broken by the last redesign.** AI content lost its violet, the serif is gone, and the code now uses more than two radius values and motion longer than 200ms.
 5. **Bangla can't be chosen.** There is no language switch, and `bn.json` holds only 3 strings. Bangla text from the API renders well, but the interface is English only.
@@ -93,7 +93,7 @@ Two emoji do appear on screen, and they come from the backend: 🚨 in the emerg
 | **Density** | Admin tables are comfortable but sit under a large banner. Patient screens are sparse rather than calm. |
 | **Consistency** | Selected items use three styles: a filled beige bar in the sidebar, a pale grey tint in lists and slots, and an underline in tabs. Sidebar navigation only appears at desktop width. Below that, it moves into a sheet. |
 | **Icons** | Sparkles marks AI content. It's a cliché and looks generic. |
-| **Motion** | `rise-in` is defined twice in `web/src/index.css`, so the later 600ms style also changes the 200ms toast and sheet motion. Scroll-driven reveals on home break the brief's rule of animating state changes only. |
+| **Motion** | `rise-in` is defined twice in `web/src/index.css`, so the later 16px version also changes how far toasts move, which was meant to be 8px. The home page entrance runs for 600ms, longer than the 200ms limit. Scroll-driven reveals on home break the brief's rule of animating state changes only. |
 | **Radius** | Tokens define 4px and 8px, but circles and pill shapes are also used for avatars, step markers and the home disc. |
 | **Bangla** | API text renders well at every size checked, with no overflow at 360px. Avatar initials also work. The interface itself can't be switched, and the home copy uses "serial", which needs a proper Bangla phrase. |
 | **Empty states** | Written well, but each is a plain box. None has a drawing, and each looks the same as the others. |
