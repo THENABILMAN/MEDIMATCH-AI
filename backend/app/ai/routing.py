@@ -20,6 +20,7 @@ ANY_CITY = "Bangladesh"
 CLARIFY = "clarify_meaning"
 LOCATION = "location"
 GENERAL_MEDICINE = "General Medicine"
+PSYCHIATRY = "Psychiatry"
 # A patient may need to be asked twice, but a third time would be pressure
 MAX_ASKS = 2
 LOWEST_SEARCH_CONFIDENCE = 0.3
@@ -104,8 +105,15 @@ def is_emotional(confidence: dict[str, float]) -> bool:
     return bool(ranked) and ranked[0][0] in EMOTIONAL_SPECIALTIES
 
 
-def specialties_to_search(confidence: dict[str, float], physical_symptoms_too: bool) -> list[str]:
-    """The best-scoring specialties. A general doctor joins emotional care only for the body."""
+def specialties_to_search(
+    confidence: dict[str, float],
+    physical_symptoms_too: bool,
+    care_preference: str | None = None,
+) -> list[str]:
+    """The best-scoring specialties, honouring the kind of help the patient chose.
+
+    A general doctor joins emotional care only for physical symptoms.
+    """
     ranked = ranked_specialties(confidence)
     if not ranked:
         return []
@@ -114,8 +122,14 @@ def specialties_to_search(confidence: dict[str, float], physical_symptoms_too: b
         for name, score in ranked[:MOST_SPECIALTIES_SEARCHED]
         if score >= LOWEST_SEARCH_CONFIDENCE or name == ranked[0][0]
     ]
-    if ranked[0][0] in EMOTIONAL_SPECIALTIES and not physical_symptoms_too:
+    if ranked[0][0] not in EMOTIONAL_SPECIALTIES:
+        return names
+    if not physical_symptoms_too:
         names = [name for name in names if name != GENERAL_MEDICINE]
+    if care_preference == "talking":
+        return [name for name in names if name != PSYCHIATRY] or names
+    if care_preference == "medical" and PSYCHIATRY in confidence:
+        return [PSYCHIATRY] + [name for name in names if name not in EMOTIONAL_SPECIALTIES]
     return names
 
 
@@ -132,6 +146,9 @@ def _next_goal(
 ) -> str | None:
     order = EMOTIONAL_GOALS if emotional else DEFAULT_GOALS
     for goal in ([suggested] if suggested else []) + list(order):
+        # For emotional pain, how it affects daily life is the kinder form of "how severe"
+        if emotional and goal == "severity":
+            continue
         if goal != CLARIFY and goal not in known and goal not in asked:
             return goal
     return None
@@ -176,8 +193,9 @@ def plan_turn(
 
     emotional = is_emotional(confidence)
     if is_confident(confidence):
-        if not urgency_known and "severity" not in asked:
-            return TurnPlan("ask", "severity")
+        impact_goal = "daily_impact" if emotional else "severity"
+        if not urgency_known and impact_goal not in asked and impact_goal not in known:
+            return TurnPlan("ask", impact_goal)
         if emotional and "care_preference" not in known and "care_preference" not in asked:
             return TurnPlan("ask", "care_preference")
         if location:

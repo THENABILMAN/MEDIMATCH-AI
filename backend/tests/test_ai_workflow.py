@@ -548,6 +548,37 @@ def test_emotional_care_asks_about_the_kind_of_help_first(doctors):
     assert doctors == []
 
 
+def test_choosing_talking_therapy_leaves_psychiatry_out(doctors):
+    chosen = {
+        **HEARTBREAK,
+        "specialty_confidence": {"Clinical Psychology": 0.8, "Counselling": 0.5, "Psychiatry": 0.4},
+    }
+    say(ScriptedLLM(analysis(**chosen)), "she left me")
+    assert doctors[0]["candidate_specialties"] == ["Clinical Psychology", "Counselling"]
+
+
+def test_choosing_a_medical_evaluation_goes_to_psychiatry(doctors):
+    chosen = {
+        **HEARTBREAK,
+        "care_preference": "medical",
+        "specialty_confidence": {"Clinical Psychology": 0.8, "Psychiatry": 0.4},
+    }
+    say(ScriptedLLM(analysis(**chosen)), "she left me")
+    assert doctors[0]["candidate_specialties"] == ["Psychiatry"]
+
+
+def test_emotional_pain_is_asked_about_daily_life_not_severity():
+    llm = ScriptedLLM(
+        analysis(
+            symptoms=["breakup"],
+            duration="2 weeks",
+            next_question="severity",
+            specialty_confidence={"Counselling": 0.5},
+        )
+    )
+    assert say(llm, "she left me")["asking_about"] == "daily_impact"
+
+
 def test_general_medicine_is_chosen_only_when_the_information_supports_it(doctors):
     stomach = {**HEADACHE, "specialty_confidence": {"General Medicine": 0.8}}
     say(ScriptedLLM(analysis(**stomach)), "stomach pain for 3 days")
@@ -755,6 +786,16 @@ def test_a_repeated_sentence_that_survives_the_rewrite_is_removed():
     llm = ScriptedLLM(replies=[f"{repeat} How long?"])
     history = [{"role": "assistant", "content": repeat}]
     assert say(llm, "still bad", history=history)["assistant_reply"] == "How long?"
+
+
+def test_a_nearly_repeated_sentence_counts_as_repeated():
+    earlier = ["I'm sorry you're struggling so much and need someone to talk to."]
+    reply = "I'm sorry you're struggling so much and need someone to talk to in Dhaka."
+    assert repeated_sentences(reply, earlier)
+
+
+def test_a_different_sentence_with_shared_words_is_not_repetition():
+    assert repeated_sentences("How long has the pain lasted?", ["How bad is the pain?"]) == []
 
 
 def test_repetition_ignores_case_and_punctuation():

@@ -267,3 +267,22 @@ def test_reasoning_effort_is_sent_only_when_asked_for():
     client.generate(MESSAGES, reasoning_effort="low")
     assert "reasoning_effort" not in bodies[0]
     assert bodies[1]["reasoning_effort"] == "low"
+
+
+def test_a_model_output_the_provider_cannot_parse_is_retried(monkeypatch):
+    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+    failed = httpx.Response(400, json={"error": {"code": "output_parse_failed"}})
+    responses = [failed, reply("ok")]
+    assert client_with(lambda request: responses.pop(0)).generate(MESSAGES) == "ok"
+
+
+def test_any_other_bad_request_is_not_retried():
+    calls: list[int] = []
+
+    def handler(request):
+        calls.append(1)
+        return httpx.Response(400, json={"error": {"code": "invalid_api_key"}})
+
+    with pytest.raises(LLMUnavailableError):
+        client_with(handler).generate(MESSAGES)
+    assert len(calls) == 1

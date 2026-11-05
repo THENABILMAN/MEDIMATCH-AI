@@ -23,6 +23,8 @@ T = TypeVar("T", bound=BaseModel)
 RETRY_WAIT_SECONDS = 1.0
 MAX_RETRY_WAIT_SECONDS = 10.0
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+# Groq answers 400 when the model produces something it cannot parse, which a second try fixes
+RETRYABLE_ERROR = b"output_parse_failed"
 
 
 class LLMUnavailableError(Exception):
@@ -112,7 +114,7 @@ class LLMClient:
                 if status_code < 400:
                     return content
                 last_error = f"HTTP {status_code}"
-                if status_code not in RETRYABLE_STATUS:
+                if status_code not in RETRYABLE_STATUS and RETRYABLE_ERROR not in content:
                     break
                 if retry_after is not None:
                     if retry_after > MAX_RETRY_WAIT_SECONDS:

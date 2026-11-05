@@ -52,6 +52,8 @@ ANALYSIS_PROMPT = (PROMPTS / "analysis.md").read_text(encoding="utf-8")
 MAX_MODEL_CHIPS = 3
 # Sentences this short ("Thank you.") are ordinary speech, not repetition
 SHORTEST_REPEATED_WORDS = 3
+# Share of words two sentences have in common for them to count as the same sentence
+REPEAT_OVERLAP = 0.7
 _SENTENCE_END = re.compile(r"(?<=[.!?।])\s+|\n+")
 _NOT_A_WORD = re.compile(r"[^\w\s]")
 
@@ -324,7 +326,9 @@ def analyze_node(state: ConversationState) -> dict[str, Any]:
         "urgency": urgency,
         "physical_symptoms_too": physical_too,
         "specialty_confidence": confidence,
-        "candidate_specialty_names": specialties_to_search(confidence, physical_too),
+        "candidate_specialty_names": specialties_to_search(
+            confidence, physical_too, details.get("care_preference")
+        ),
         "ambiguity_flags": flags,
         "asked_questions": asked + ([plan.goal] if plan.goal else []),
         "question_count": question_count + (1 if plan.goal else 0),
@@ -399,8 +403,8 @@ def _search_notes(state: ConversationState) -> dict[str, Any]:
     }
     if doctors:
         notes["do"] = (
-            "Say something kind about what they shared, naming a detail, then say that matching "
-            "doctors are listed below, and what kind of specialist they are. Two sentences."
+            "Say something kind about what they shared, naming a detail, then say in plain words "
+            "that people who can help are listed below. Two sentences. Do not list specialties."
         )
     else:
         notes["do"] = (
@@ -463,15 +467,21 @@ def _sentence_key(sentence: str) -> str:
     return " ".join(_NOT_A_WORD.sub("", sentence.casefold()).split())
 
 
+def _overlap(first: set[str], second: set[str]) -> float:
+    return len(first & second) / len(first | second)
+
+
 def repeated_sentences(reply: str, earlier: list[str]) -> list[str]:
-    """Sentences in a reply that the assistant has already said in this conversation."""
-    said = {_sentence_key(sentence) for text in earlier for sentence in _sentences(text)}
-    return [
-        sentence
-        for sentence in _sentences(reply)
-        if _sentence_key(sentence) in said
-        and len(_sentence_key(sentence).split()) >= SHORTEST_REPEATED_WORDS
-    ]
+    """Sentences in a reply that the assistant has already said, or nearly said."""
+    said = [set(_sentence_key(s).split()) for text in earlier for s in _sentences(text)]
+    repeats = []
+    for sentence in _sentences(reply):
+        words = set(_sentence_key(sentence).split())
+        if len(words) >= SHORTEST_REPEATED_WORDS and any(
+            _overlap(words, old) >= REPEAT_OVERLAP for old in said
+        ):
+            repeats.append(sentence)
+    return repeats
 
 
 def _wrong_language(reply: str, language: str) -> bool:
