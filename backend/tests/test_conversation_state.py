@@ -12,6 +12,8 @@ from app.core.config import settings
 from app.core.supabase import get_supabase_admin_client
 from app.models.enums import UserRole
 
+QUESTION_GOALS = ("severity", "duration", "daily_impact", "care_preference")
+
 
 class NoDetailsLLM(LLMClient):
     """Never finds a duration or location, so every turn needs a follow-up."""
@@ -24,7 +26,10 @@ class NoDetailsLLM(LLMClient):
     ):
         if response_model is WriterTurn:
             return WriterTurn(reply="Tell me a little more.")
-        return TurnAnalysis(symptoms=["itchy skin"], location="Dhaka", next_question="severity")
+        # A new goal each turn, because a question already asked is never asked again
+        self.turns = getattr(self, "turns", -1) + 1
+        goal = QUESTION_GOALS[self.turns % len(QUESTION_GOALS)]
+        return TurnAnalysis(symptoms=["itchy skin"], location="Dhaka", next_question=goal)
 
 
 @pytest.fixture

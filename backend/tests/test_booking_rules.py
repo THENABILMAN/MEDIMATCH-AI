@@ -214,12 +214,9 @@ def test_dhaka_offset_is_stored_as_the_same_instant(client, doctor_headers):
     assert stored == start
 
 
-def test_patients_see_times_in_dhaka_not_utc():
-    text = _generate_safe_explanation(
-        ["Neurology"], "Dhaka", 10, 1000.0, "2030-01-01T18:30:00+00:00"
-    )
-    assert "UTC" not in text
-    assert "Jan 02" in text and "12:30 AM" in text and "Dhaka time" in text
+def test_match_reasons_state_the_specialty_and_experience_only():
+    text = _generate_safe_explanation(["Neurology"], 10)
+    assert text == "Specializes in Neurology, with 10 years of clinical experience."
 
 
 def test_short_slots_are_refused_by_the_database():
