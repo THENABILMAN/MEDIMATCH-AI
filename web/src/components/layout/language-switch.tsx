@@ -1,4 +1,4 @@
-import { Languages } from 'lucide-react'
+import { Translate } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 import { LANGUAGE_KEY } from '../../lib/i18n'
 import { Button } from '../ui/button'
@@ -18,7 +18,7 @@ export function LanguageSwitch({ className }: { className?: string }) {
 
   return (
     <Button variant="ghost" size="sm" onClick={change} lang={next} className={className}>
-      <Languages aria-hidden className="size-4" strokeWidth={1.75} />
+      <Translate aria-hidden className="size-4" />
       {t('nav.language')}
     </Button>
   )

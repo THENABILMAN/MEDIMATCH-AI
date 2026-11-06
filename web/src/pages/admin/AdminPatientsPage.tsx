@@ -71,7 +71,7 @@ export default function AdminPatientsPage() {
             <TableBody>
               {patients.data.items.map((patient) => (
                 <TableRow key={patient.id}>
-                  <TableCell className="font-medium">{patient.full_name}</TableCell>
+                  <TableCell className="body-5">{patient.full_name}</TableCell>
                   <TableCell className="tabular">{patient.phone ?? '—'}</TableCell>
                   <TableCell className="hidden text-right tabular md:table-cell">{patient.appointment_count}</TableCell>
                   <TableCell className="hidden whitespace-nowrap tabular md:table-cell">

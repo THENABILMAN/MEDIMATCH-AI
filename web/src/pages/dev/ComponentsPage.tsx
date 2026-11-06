@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { AIDisclaimer } from '../../components/domain/ai-disclaimer'
 import { EmergencyNotice } from '../../components/domain/emergency-notice'
@@ -30,12 +30,12 @@ const OPTIONS = [
   { value: 'b', label: 'Cardiology' },
   { value: 'c', label: 'General Medicine' },
 ]
-const TYPE_SCALE = ['text-xs', 'text-sm', 'text-md', 'text-lg', 'text-xl', 'text-2xl', 'text-3xl']
+const TYPE_SCALE = ['caption-5', 'body-6', 'body-3', 'body-7', 'heading-5', 'heading-4', 'heading-3']
 
 function Specimen({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="border-t border-border py-6">
-      <h2 className="mb-3 text-lg font-semibold">{title}</h2>
+      <h2 className="mb-3 title-2">{title}</h2>
       <div className="flex flex-col items-start gap-3">{children}</div>
     </section>
   )
@@ -53,7 +53,7 @@ export default function ComponentsPage() {
 
   return (
     <div className="page-gutter py-6">
-      <h1 className="font-serif text-2xl">Components</h1>
+      <h1 className="heading-4">Components</h1>
 
       <Specimen title="Type and Bangla">
         {TYPE_SCALE.map((size) => (
@@ -74,10 +74,10 @@ export default function ComponentsPage() {
           <Button loading>Loading</Button>
           <Button size="sm">Small</Button>
           <IconButton label="Add" variant="outline">
-            <Plus aria-hidden className="size-5" strokeWidth={1.75} />
+            <Plus aria-hidden className="size-5" />
           </IconButton>
           <IconButton label="Delete" variant="danger">
-            <Trash2 aria-hidden className="size-5" strokeWidth={1.75} />
+            <Trash aria-hidden className="size-5" />
           </IconButton>
         </div>
       </Specimen>

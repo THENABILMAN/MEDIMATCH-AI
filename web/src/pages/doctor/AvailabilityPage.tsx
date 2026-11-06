@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ChevronLeft, ChevronRight, Lock, Plus, Trash2 } from 'lucide-react'
+import { CaretLeft, CaretRight, Lock, Plus, Trash } from '@phosphor-icons/react'
 import { useEffect, useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -53,8 +53,8 @@ function SlotBlock({ slot, onDelete }: { slot: AvailabilitySlot; onDelete: () =>
     <li
       className={
         slot.is_booked
-          ? 'flex min-h-11 items-center justify-between gap-1 rounded-sm bg-primary pl-2 text-sm text-white'
-          : 'flex min-h-11 items-center justify-between gap-1 rounded-sm border border-border pl-2 text-sm'
+          ? 'flex min-h-11 items-center justify-between gap-1 rounded-lg bg-primary pl-2 body-6 text-white'
+          : 'flex min-h-11 items-center justify-between gap-1 rounded-lg border border-border pl-2 body-6'
       }
     >
       <span className="tabular">
@@ -62,12 +62,12 @@ function SlotBlock({ slot, onDelete }: { slot: AvailabilitySlot; onDelete: () =>
       </span>
       {slot.is_booked ? (
         <span className="flex size-11 items-center justify-center md:size-10" title={t('availability.booked')}>
-          <Lock aria-hidden className="size-4" strokeWidth={1.75} />
+          <Lock aria-hidden className="size-4" />
           <span className="sr-only">{t('availability.booked')}</span>
         </span>
       ) : (
         <IconButton label={t('availability.deleteNamed', { time })} onClick={onDelete}>
-          <Trash2 aria-hidden className="size-4" strokeWidth={1.75} />
+          <Trash aria-hidden className="size-4" />
         </IconButton>
       )}
     </li>
@@ -158,7 +158,7 @@ export default function AvailabilityPage() {
         actions={
           approved ? (
             <Button onClick={() => openForm(days.find((day) => day >= today) ?? week)}>
-              <Plus aria-hidden className="size-4" strokeWidth={1.75} />
+              <Plus aria-hidden className="size-4" />
               {t('availability.add')}
             </Button>
           ) : undefined
@@ -172,18 +172,18 @@ export default function AvailabilityPage() {
       )}
 
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-md font-semibold whitespace-nowrap tabular md:text-lg" aria-live="polite">
+        <h2 className="body-1 whitespace-nowrap tabular md:title-2" aria-live="polite">
           {t('availability.weekOf', { date: formatShortDate(`${week}T12:00:00+06:00`, i18n.language) })}
         </h2>
         <div className="flex gap-2">
           <IconButton variant="outline" label={t('availability.previousWeek')} onClick={() => set({ week: addDays(week, -7) })}>
-            <ChevronLeft aria-hidden className="size-5" strokeWidth={1.75} />
+            <CaretLeft aria-hidden className="size-5" />
           </IconButton>
           <Button variant="secondary" onClick={() => set({ week: undefined })}>
             {t('availability.thisWeek')}
           </Button>
           <IconButton variant="outline" label={t('availability.nextWeek')} onClick={() => set({ week: addDays(week, 7) })}>
-            <ChevronRight aria-hidden className="size-5" strokeWidth={1.75} />
+            <CaretRight aria-hidden className="size-5" />
           </IconButton>
         </div>
       </div>
@@ -193,7 +193,7 @@ export default function AvailabilityPage() {
       ) : slots.isError ? (
         <ErrorState error={slots.error} onRetry={() => void slots.refetch()} />
       ) : (
-        <div className="grid overflow-hidden rounded-md border border-border bg-surface lg:grid-cols-7">
+        <div className="grid overflow-hidden rounded-xl border border-border bg-surface lg:grid-cols-7">
           {days.map((day) => {
             const iso = `${day}T12:00:00+06:00`
             const daySlots = allSlots
@@ -207,12 +207,12 @@ export default function AvailabilityPage() {
                 className="flex min-w-0 flex-col gap-2 border-b border-border p-3 last:border-b-0 lg:min-h-64 lg:border-r lg:border-b-0 lg:last:border-r-0"
               >
                 <div className="flex min-h-11 items-center justify-between gap-2 md:min-h-10">
-                  <p className={day === today ? 'font-semibold text-primary-hover' : 'font-medium'}>
+                  <p className={day === today ? 'body-1 text-primary-hover' : 'body-2'}>
                     {formatWeekday(iso, i18n.language)} <span className="tabular">{formatDayNumber(iso, i18n.language)}</span>
                   </p>
                   {approved && !past && (
                     <IconButton label={t('availability.addOn', { date: formatShortDate(iso, i18n.language) })} onClick={() => openForm(day)}>
-                      <Plus aria-hidden className="size-4" strokeWidth={1.75} />
+                      <Plus aria-hidden className="size-4" />
                     </IconButton>
                   )}
                 </div>
@@ -223,14 +223,14 @@ export default function AvailabilityPage() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-muted lg:sr-only">{t('availability.none')}</p>
+                  <p className="body-6 text-muted lg:sr-only">{t('availability.none')}</p>
                 )}
               </section>
             )
           })}
         </div>
       )}
-      <p className="mt-2 text-sm text-muted">{t('booking.timezone')}</p>
+      <p className="mt-2 body-6 text-muted">{t('booking.timezone')}</p>
       {allSlots.length === 0 && slots.isSuccess && approved && (
         <p className="mt-2 text-muted">{t('availability.emptyHint')}</p>
       )}

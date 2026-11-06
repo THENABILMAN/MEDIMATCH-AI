@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueries, useQueryClient } from '@tanstack/react-query'
-import type { DoctorProfileInput, DoctorSearchParams, TableParams, VerificationStatus } from '../types'
+import type {
+  BillingPricing,
+  ChargeStatus,
+  DoctorProfileInput,
+  DoctorSearchParams,
+  TableParams,
+  VerificationStatus,
+} from '../types'
 import { api } from './client'
 
 export const keys = {
@@ -17,6 +24,9 @@ export const keys = {
   adminDoctors: ['admin', 'doctors'] as const,
   adminPatients: ['admin', 'patients'] as const,
   auditLogs: ['admin', 'audit-logs'] as const,
+  pricing: ['billing', 'pricing'] as const,
+  myBilling: ['billing', 'me'] as const,
+  adminCharges: ['admin', 'charges'] as const,
 }
 
 export function useSpecialties() {
@@ -186,5 +196,41 @@ export function useDeleteSpecialty() {
   return useMutation({
     mutationFn: api.admin.deleteSpecialty,
     onSuccess: () => client.invalidateQueries({ queryKey: keys.specialties }),
+  })
+}
+
+export function usePricing() {
+  return useQuery({ queryKey: keys.pricing, queryFn: api.billing.pricing })
+}
+
+export function useMyBilling() {
+  return useQuery({ queryKey: keys.myBilling, queryFn: api.billing.mine })
+}
+
+export function useChooseBillingPlan() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: api.billing.choosePlan,
+    onSuccess: (billing) => client.setQueryData(keys.myBilling, billing),
+  })
+}
+
+export function useSavePricing() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (data: BillingPricing) => api.admin.savePricing(data),
+    onSuccess: (pricing) => client.setQueryData(keys.pricing, pricing),
+  })
+}
+
+export function useAdminCharges(params: { status?: ChargeStatus; limit: number; offset: number }) {
+  return useQuery({ queryKey: [...keys.adminCharges, params], queryFn: () => api.admin.listCharges(params) })
+}
+
+export function useSettleCharge() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: ChargeStatus }) => api.admin.settleCharge(id, status),
+    onSuccess: () => client.invalidateQueries({ queryKey: keys.adminCharges }),
   })
 }

@@ -13,7 +13,7 @@ A patient may open this product frightened, on a mid-range Android phone, on a s
 ## Make decisions, not defaults (Taste Skill)
 - A screen should show which product it belongs to. If it could be anyone's, it isn't finished.
 - Portals are places people work in: flat surfaces, thin rules, small labels and repeated panels are fine. Numbers are set as type, not tiles. No hero headers inside the app.
-- Banned: gradients, glows, glass, soft shadows under every card, icons in tinted circles, emoji as icons, tiny uppercase labels above headings, pill badges used as decoration, and rows of three identical cards.
+- Banned: background gradients, glows, soft shadows under every card, icons in tinted circles, emoji as icons, tiny uppercase labels above headings, pill badges used as decoration, and rows of three identical cards.
 - Structure follows content: lists, tables, split panes, timelines and definition lists. A ranked shortlist is a list, not a carousel.
 - Removing decoration isn't enough, because thin pages read as empty. Replace it with larger type, real content and real interface.
 - Copy states specifics, and a button names its action.

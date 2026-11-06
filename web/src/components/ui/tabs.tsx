@@ -43,7 +43,7 @@ function TabsTrigger({ className, ...props }: ComponentProps<typeof TabsPrimitiv
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        '-mb-px min-h-11 whitespace-nowrap border-b-2 border-transparent px-3 text-sm font-medium text-muted transition-colors hover:text-ink data-[state=active]:border-primary data-[state=active]:text-ink',
+        '-mb-px min-h-11 whitespace-nowrap border-b-2 border-transparent px-3 body-5 text-muted transition-colors hover:text-ink data-[state=active]:border-primary data-[state=active]:text-ink',
         className
       )}
       {...props}

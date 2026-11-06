@@ -1,10 +1,10 @@
-import { Check } from 'lucide-react'
+import { Check } from '@phosphor-icons/react'
 import { Checkbox as CheckboxPrimitive, RadioGroup as RadioPrimitive, Switch as SwitchPrimitive } from 'radix-ui'
 import type { ComponentProps, ReactNode } from 'react'
 import { useId } from 'react'
 import { cn } from '../../lib/cn'
 
-const rowClasses = 'flex min-h-11 items-start gap-3 py-2 text-md md:min-h-0 md:text-sm'
+const rowClasses = 'flex min-h-11 items-start gap-3 py-2 body-3 md:min-h-0 md:body-6'
 
 interface CheckboxProps extends ComponentProps<typeof CheckboxPrimitive.Root> {
   label: ReactNode
@@ -21,7 +21,7 @@ export function Checkbox({ label, id, className, ...props }: CheckboxProps) {
         {...props}
       >
         <CheckboxPrimitive.Indicator>
-          <Check aria-hidden className="size-4 text-white" strokeWidth={2.5} />
+          <Check aria-hidden className="size-4 text-white" />
         </CheckboxPrimitive.Indicator>
       </CheckboxPrimitive.Root>
       <span>{label}</span>
@@ -56,7 +56,7 @@ export function RadioGroup({ options, className, ...props }: RadioGroupProps) {
             </RadioPrimitive.Item>
             <span>
               <span className="block">{option.label}</span>
-              {option.description && <span className="block text-sm text-muted">{option.description}</span>}
+              {option.description && <span className="block body-6 text-muted">{option.description}</span>}
             </span>
           </label>
         )
@@ -77,7 +77,7 @@ export function Switch({ label, description, id, className, ...props }: SwitchPr
     <label htmlFor={controlId} className={cn(rowClasses, 'cursor-pointer justify-between', className)}>
       <span>
         <span className="block">{label}</span>
-        {description && <span className="block text-sm text-muted">{description}</span>}
+        {description && <span className="block body-6 text-muted">{description}</span>}
       </span>
       <SwitchPrimitive.Root
         id={controlId}

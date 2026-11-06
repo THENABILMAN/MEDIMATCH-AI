@@ -60,17 +60,36 @@ describe('emergency messages', () => {
     expect(screen.getByTestId('emergency-notice')).toBeInTheDocument()
     expect(screen.queryByText('Dr. Sarah Khan')).not.toBeInTheDocument()
   })
+
+  it('shows self-harm as the calm notice, with the text unchanged and no doctors', () => {
+    const crisis = 'Thank you for telling me.\n\nPlease call 999 now.'
+    renderMessage({
+      content: crisis,
+      metadata: { is_emergency: true, safety_kind: 'self_harm', recommendations: [doctor] },
+    })
+    const notice = within(screen.getByTestId('crisis-notice'))
+    expect(notice.getByText(/Thank you for telling me/).textContent).toBe(crisis)
+    expect(notice.getByRole('link', { name: /Call 999/ })).toHaveAttribute('href', 'tel:999')
+    expect(notice.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('emergency-notice')).not.toBeInTheDocument()
+    expect(screen.queryByText('Dr. Sarah Khan')).not.toBeInTheDocument()
+  })
+
+  it('keeps the red alert for an older emergency with no kind saved', () => {
+    renderMessage({ content: text, metadata: { is_emergency: true } })
+    expect(screen.getByTestId('emergency-notice')).toBeInTheDocument()
+  })
 })
 
 describe('chat messages', () => {
-  it('labels assistant replies as AI-generated', () => {
+  it('labels assistant replies as written by AI', () => {
     renderMessage({ content: 'How long have you had this?' })
-    expect(screen.getByText('AI-generated')).toBeInTheDocument()
+    expect(screen.getByText('Written by AI')).toBeInTheDocument()
   })
 
   it('does not label patient messages as AI', () => {
     renderMessage({ sender: 'patient', content: 'Headache' })
-    expect(screen.queryByText('AI-generated')).not.toBeInTheDocument()
+    expect(screen.queryByText('Written by AI')).not.toBeInTheDocument()
   })
 
   it('ranks recommendations with the reason, availability, fee and booking link', () => {
@@ -79,7 +98,7 @@ describe('chat messages', () => {
     expect(item.getByText('Dr. Sarah Khan')).toBeInTheDocument()
     expect(item.getByText(/Specializes in Neurology/)).toBeInTheDocument()
     expect(item.getByText(/Soonest:.*৳1,500/)).toBeInTheDocument()
-    expect(item.getByRole('link', { name: 'View and Book' })).toHaveAttribute('href', '/doctors/d1')
+    expect(item.getByRole('link', { name: 'View and book' })).toHaveAttribute('href', '/doctors/d1')
   })
 })
 
@@ -103,7 +122,7 @@ describe('safety notices', () => {
     )
 
     expect(screen.getByText(/call 999 now/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Reload Page' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reload page' })).toBeInTheDocument()
     silence.mockRestore()
     warn.mockRestore()
   })

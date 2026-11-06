@@ -26,7 +26,7 @@ function Section({ title, description, children }: { title: string; description?
   return (
     <section className="grid gap-4 border-t border-border py-6 lg:grid-cols-12">
       <div className="lg:col-span-4">
-        <h2 className="text-lg font-semibold">{title}</h2>
+        <h2 className="title-2">{title}</h2>
         {description && <p className="text-muted">{description}</p>}
       </div>
       <div className="min-w-0 lg:col-span-8">{children}</div>
@@ -58,7 +58,7 @@ export default function AccountPage() {
     formState: { errors, isSubmitting },
   } = useForm<ProfileValues>({
     resolver: zodResolver(schema),
-    mode: 'onBlur',
+    mode: 'onTouched',
     values: { full_name: profile?.full_name ?? '', phone: profile?.phone ?? '' },
   })
 
@@ -158,14 +158,14 @@ export default function AccountPage() {
           <Section title={t('account.yourData')}>
             <div className="flex max-w-xl flex-col gap-6">
               <div>
-                <h3 className="font-semibold">{t('account.deleteChatTitle')}</h3>
+                <h3 className="heading-6">{t('account.deleteChatTitle')}</h3>
                 <p className="prose-width text-muted">{t('account.deleteChatBody')}</p>
                 <Button variant="secondary" className="mt-2" onClick={() => setDialog('chat')}>
                   {t('account.deleteChat')}
                 </Button>
               </div>
               <div>
-                <h3 className="font-semibold">{t('account.closeTitle')}</h3>
+                <h3 className="heading-6">{t('account.closeTitle')}</h3>
                 <p className="prose-width text-muted">{t('account.closeBody')}</p>
                 <Button variant="secondary" className="mt-2 text-danger" onClick={() => setDialog('account')}>
                   {t('account.close')}

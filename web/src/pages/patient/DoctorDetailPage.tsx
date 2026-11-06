@@ -1,4 +1,4 @@
-import { ChevronLeft } from 'lucide-react'
+import { CaretLeft } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
@@ -99,7 +99,7 @@ function BookingPanel({ doctorId, doctorName, fee }: { doctorId: string; doctorN
       ) : slot ? (
         <Button onClick={() => setConfirming(true)}>{t('booking.bookThisSlot')}</Button>
       ) : (
-        <p aria-live="polite" className="text-sm text-muted">
+        <p aria-live="polite" className="body-6 text-muted">
           {t('booking.pickTime')}
         </p>
       )}
@@ -136,7 +136,7 @@ export default function DoctorDetailPage() {
     <div className="page-gutter py-6 md:py-8">
       <Button asChild variant="link" size="inline" className="mb-4">
         <Link to="/doctors">
-          <ChevronLeft aria-hidden className="size-4" strokeWidth={1.75} />
+          <CaretLeft aria-hidden className="size-4" />
           {t('booking.backToSearch')}
         </Link>
       </Button>
@@ -157,8 +157,8 @@ export default function DoctorDetailPage() {
         <div className="grid gap-8 lg:grid-cols-12">
           <DoctorCardDetailed doctor={doctor.data} className="lg:col-span-7" />
           <aside aria-labelledby="booking-title" className="min-w-0 lg:col-span-5">
-            <div className="rounded-md border border-border bg-surface p-4 md:p-6 lg:sticky lg:top-[72px]">
-              <h2 id="booking-title" className="mb-4 text-lg font-semibold">
+            <div className="rounded-xl border border-border bg-surface p-4 md:p-6 lg:sticky lg:top-[72px]">
+              <h2 id="booking-title" className="mb-4 title-2">
                 {t('booking.title')}
               </h2>
               <BookingPanel

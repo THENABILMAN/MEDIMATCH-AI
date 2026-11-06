@@ -1,4 +1,4 @@
-import { SlidersHorizontal } from 'lucide-react'
+import { SlidersHorizontal } from '@phosphor-icons/react'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../ui/button'
@@ -26,7 +26,7 @@ export function FilterBar({ activeCount, onClear, children }: FilterBarProps) {
       </div>
       <div className="md:hidden">
         <Button variant="secondary" className="w-full" onClick={() => setOpen(true)}>
-          <SlidersHorizontal aria-hidden className="size-4" strokeWidth={1.75} />
+          <SlidersHorizontal aria-hidden className="size-4" />
           {label}
         </Button>
         <Sheet

@@ -47,7 +47,7 @@ export default function LoginPage() {
     handleSubmit,
     setValue,
     formState: { errors, isSubmitting },
-  } = useForm<LoginValues>({ resolver: zodResolver(schema), mode: 'onBlur' })
+  } = useForm<LoginValues>({ resolver: zodResolver(schema), mode: 'onTouched' })
 
   if (role) {
     const from = (location.state as LocationState | null)?.from
@@ -65,7 +65,7 @@ export default function LoginPage() {
 
   return (
     <AuthFrame>
-      <h1 className="font-serif text-3xl">{t('auth.signInTitle')}</h1>
+      <h1 className="heading-3">{t('auth.signInTitle')}</h1>
       <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate className="mt-6 flex flex-col gap-4">
         {failed && <Banner tone="warning">{t('auth.signInFailed')}</Banner>}
         <Field label={t('auth.email')} error={errors.email?.message}>
@@ -91,7 +91,7 @@ export default function LoginPage() {
 
       {import.meta.env.DEV && (
         <div className="mt-8 flex flex-wrap items-center gap-2 border-t border-border pt-4">
-          <span className="text-sm text-muted">{t('auth.demoAccounts')}</span>
+          <span className="body-6 text-muted">{t('auth.demoAccounts')}</span>
           {DEMO_ACCOUNTS.map(([label, email, password]) => (
             <Button
               key={label}

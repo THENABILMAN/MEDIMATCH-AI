@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Trash } from '@phosphor-icons/react'
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -42,7 +42,7 @@ function SpecialtyDialog({ specialty, onClose }: { specialty: Specialty | null; 
     formState: { errors },
   } = useForm<SpecialtyValues>({
     resolver: zodResolver(schema),
-    mode: 'onBlur',
+    mode: 'onTouched',
     defaultValues: { name: specialty?.name ?? '', description: specialty?.description ?? '' },
   })
 
@@ -114,7 +114,7 @@ export default function AdminSpecialtiesPage() {
         title={t('specialties.title')}
         actions={
           <Button onClick={() => setEditing('new')}>
-            <Plus aria-hidden className="size-4" strokeWidth={1.75} />
+            <Plus aria-hidden className="size-4" />
             {t('specialties.add')}
           </Button>
         }
@@ -139,19 +139,19 @@ export default function AdminSpecialtiesPage() {
           <TableBody>
             {specialties.data.map((specialty) => (
               <TableRow key={specialty.id}>
-                <TableCell className="font-medium whitespace-nowrap">{specialty.name}</TableCell>
+                <TableCell className="body-5 whitespace-nowrap">{specialty.name}</TableCell>
                 <TableCell className="hidden min-w-48 text-muted md:table-cell">{specialty.description}</TableCell>
                 <TableCell>
                   <div className="flex justify-end">
                     <IconButton label={t('specialties.editNamed', { name: specialty.name })} onClick={() => setEditing(specialty)}>
-                      <Pencil aria-hidden className="size-4" strokeWidth={1.75} />
+                      <Pencil aria-hidden className="size-4" />
                     </IconButton>
                     <IconButton
                       variant="danger"
                       label={t('specialties.deleteNamed', { name: specialty.name })}
                       onClick={() => setDeleting(specialty)}
                     >
-                      <Trash2 aria-hidden className="size-4" strokeWidth={1.75} />
+                      <Trash aria-hidden className="size-4" />
                     </IconButton>
                   </div>
                 </TableCell>

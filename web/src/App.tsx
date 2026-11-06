@@ -12,6 +12,8 @@ import type { UserRole } from './types'
 
 const HomePage = lazy(() => import('./pages/HomePage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
+const LegalPage = lazy(() => import('./pages/LegalPage'))
+const ForDoctorsPage = lazy(() => import('./pages/ForDoctorsPage'))
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'))
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'))
 const ChatPage = lazy(() => import('./pages/patient/ChatPage'))
@@ -23,11 +25,13 @@ const OnboardingPage = lazy(() => import('./pages/doctor/OnboardingPage'))
 const DoctorProfilePage = lazy(() => import('./pages/doctor/DoctorProfilePage'))
 const CredentialsPage = lazy(() => import('./pages/doctor/CredentialsPage'))
 const VerificationPage = lazy(() => import('./pages/doctor/VerificationPage'))
+const DoctorBillingPage = lazy(() => import('./pages/doctor/DoctorBillingPage'))
 const AvailabilityPage = lazy(() => import('./pages/doctor/AvailabilityPage'))
 const DoctorAppointmentsPage = lazy(() => import('./pages/doctor/DoctorAppointmentsPage'))
 const AdminQueuePage = lazy(() => import('./pages/admin/AdminQueuePage'))
 const AdminDoctorsPage = lazy(() => import('./pages/admin/AdminDoctorsPage'))
 const AdminPatientsPage = lazy(() => import('./pages/admin/AdminPatientsPage'))
+const AdminBillingPage = lazy(() => import('./pages/admin/AdminBillingPage'))
 const AdminSpecialtiesPage = lazy(() => import('./pages/admin/AdminSpecialtiesPage'))
 const AdminAuditLogsPage = lazy(() => import('./pages/admin/AdminAuditLogsPage'))
 // Referencing import.meta.env.DEV here removes the page from production bundles
@@ -75,6 +79,9 @@ export function App() {
                     <Route path="/register" element={<RegisterPage />} />
                     <Route path="/doctors" element={<DoctorSearchPage />} />
                     <Route path="/doctors/:id" element={<DoctorDetailPage />} />
+                    <Route path="/for-doctors" element={<ForDoctorsPage />} />
+                    <Route path="/privacy" element={<LegalPage page="privacy" />} />
+                    <Route path="/terms" element={<LegalPage page="terms" />} />
 
                     <Route path="/chat/:conversationId?" element={guarded(ChatPage, ['patient', 'admin'])} />
                     <Route path="/appointments" element={guarded(MyAppointmentsPage, ['patient', 'admin'])} />
@@ -85,11 +92,13 @@ export function App() {
                     <Route path="/doctor/credentials" element={guarded(CredentialsPage, ['doctor'])} />
                     <Route path="/doctor/verification" element={guarded(VerificationPage, ['doctor'])} />
                     <Route path="/doctor/availability" element={guarded(AvailabilityPage, ['doctor'])} />
+                    <Route path="/doctor/billing" element={guarded(DoctorBillingPage, ['doctor'])} />
                     <Route path="/doctor/appointments" element={guarded(DoctorAppointmentsPage, ['doctor'])} />
 
                     <Route path="/admin/queue" element={guarded(AdminQueuePage, ['admin'])} />
                     <Route path="/admin/doctors" element={guarded(AdminDoctorsPage, ['admin'])} />
                     <Route path="/admin/patients" element={guarded(AdminPatientsPage, ['admin'])} />
+                    <Route path="/admin/billing" element={guarded(AdminBillingPage, ['admin'])} />
                     <Route path="/admin/specialties" element={guarded(AdminSpecialtiesPage, ['admin'])} />
                     <Route path="/admin/audit-logs" element={guarded(AdminAuditLogsPage, ['admin'])} />
 

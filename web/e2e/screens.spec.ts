@@ -22,47 +22,62 @@ interface Screen {
 const heading = (text: string | RegExp) => (page: Page) =>
   expect(page.getByRole('heading', { name: text, exact: false }).first()).toBeVisible()
 
+/** Reveals run once on the way down, so the page is checked in its finished state. */
+async function scrollThrough(page: Page) {
+  const height = await page.evaluate(() => document.documentElement.scrollHeight)
+  for (let top = 0; top < height; top += 400) {
+    await page.evaluate((y) => window.scrollTo(0, y), top)
+    await page.waitForTimeout(60)
+  }
+  await page.waitForTimeout(800)
+}
+
 const SCREENS: Screen[] = [
-  { name: 'home', path: '/', options: { signedIn: false }, ready: heading(/Say how you feel/) },
+  { name: 'home', path: '/', options: { signedIn: false }, ready: heading(/Say how you feel/i), act: scrollThrough },
+  { name: 'for-doctors', path: '/for-doctors', options: { signedIn: false }, ready: heading(/Reach patients/i) },
+  { name: 'doctor-billing', path: '/doctor/billing', options: { role: 'doctor' }, ready: heading(/No charges yet/i) },
+  { name: 'admin-billing', path: '/admin/billing', options: { role: 'admin' }, ready: heading(/No charges found/i) },
+  { name: 'privacy', path: '/privacy', options: { signedIn: false }, ready: heading(/Privacy policy/i) },
+  { name: 'terms', path: '/terms', options: { signedIn: false }, ready: heading(/Terms of use/i) },
   { name: 'not-found', path: '/nope', options: { signedIn: false }, ready: heading(/couldn’t find/i) },
-  { name: 'sign-in', path: '/login', options: { signedIn: false }, ready: heading(/Sign In to MediMatch/) },
-  { name: 'register', path: '/register?role=doctor', options: { signedIn: false }, ready: heading(/Create Your Account/) },
-  { name: 'chat-consent', path: '/chat', options: { consent: false }, ready: heading(/Before You Start/) },
-  { name: 'chat', path: '/chat', ready: heading(/Symptom Assistant/), act: async (page) => {
+  { name: 'sign-in', path: '/login', options: { signedIn: false }, ready: heading(/Sign In to MediMatch/i) },
+  { name: 'register', path: '/register?role=doctor', options: { signedIn: false }, ready: heading(/Create Your Account/i) },
+  { name: 'chat-consent', path: '/chat', options: { consent: false }, ready: heading(/Before You Start/i) },
+  { name: 'chat', path: '/chat', ready: heading(/Symptom Assistant/i), act: async (page) => {
     await expect(page.getByTestId('ai-disclaimer')).toBeVisible()
     await page.getByLabel('Describe your symptoms').fill('Headache and dizziness')
     await page.getByRole('button', { name: 'Send' }).click()
     await page.getByRole('button', { name: '2 to 3 days' }).click()
     await expect(page.getByTestId('recommendation').first()).toBeVisible()
   } },
-  { name: 'chat-emergency', path: '/chat', ready: heading(/Symptom Assistant/), act: async (page) => {
+  { name: 'chat-emergency', path: '/chat', ready: heading(/Symptom Assistant/i), act: async (page) => {
     await page.getByLabel('Describe your symptoms').fill('I have chest pain')
     await page.getByRole('button', { name: 'Send' }).click()
     await expect(page.getByTestId('emergency-notice')).toBeVisible()
   } },
-  { name: 'doctor-search', path: '/doctors', ready: heading(/Dr. Kazi Ahmed/) },
-  { name: 'doctor-search-empty', path: '/doctors?city=Khulna', ready: heading(/No Doctors Match/) },
-  { name: 'doctor-detail', path: '/doctors/d1', ready: heading(/Book an Appointment/), act: async (page) => {
+  { name: 'doctor-search', path: '/doctors', ready: heading(/Dr. Kazi Ahmed/i) },
+  { name: 'doctor-search-empty', path: '/doctors?city=Khulna', ready: heading(/No Doctors Match/i) },
+  { name: 'doctor-detail', path: '/doctors/d1', ready: heading(/Book an Appointment/i), act: async (page) => {
     await expect(page.getByRole('radiogroup', { name: 'Choose a time' })).toBeVisible()
     await page.getByRole('radio').nth(5).click()
   } },
   { name: 'appointments', path: '/appointments', ready: heading('My Appointments'), act: async (page) => {
     await expect(page.getByText('Dr. Kazi Ahmed')).toBeVisible()
   } },
-  { name: 'appointments-empty', path: '/appointments', options: { empty: true }, ready: heading(/No Upcoming Appointments/) },
-  { name: 'account', path: '/account', ready: heading(/Your Details/) },
-  { name: 'doctor-onboarding', path: '/doctor/onboarding', options: { role: 'doctor', emptyDoctorProfile: true, doctorStatus: 'pending' }, ready: heading(/Set Up Your Profile/) },
+  { name: 'appointments-empty', path: '/appointments', options: { empty: true }, ready: heading(/No Upcoming Appointments/i) },
+  { name: 'account', path: '/account', ready: heading(/Your Details/i) },
+  { name: 'doctor-onboarding', path: '/doctor/onboarding', options: { role: 'doctor', emptyDoctorProfile: true, doctorStatus: 'pending' }, ready: heading(/Set Up Your Profile/i) },
   { name: 'doctor-profile', path: '/doctor/profile', options: { role: 'doctor' }, ready: heading('Your Profile'), act: async (page) => {
     await expect(page.getByLabel('Neurology')).toBeVisible()
   } },
-  { name: 'doctor-credentials', path: '/doctor/credentials', options: { role: 'doctor' }, ready: heading(/No Documents Yet/) },
+  { name: 'doctor-credentials', path: '/doctor/credentials', options: { role: 'doctor' }, ready: heading(/No Documents Yet/i) },
   { name: 'doctor-verification', path: '/doctor/verification', options: { role: 'doctor' }, ready: heading('History') },
-  { name: 'doctor-availability', path: '/doctor/availability', options: { role: 'doctor' }, ready: heading(/Week of/) },
-  { name: 'doctor-appointments', path: '/doctor/appointments', options: { role: 'doctor' }, ready: heading(/^Appointments$/), act: async (page) => {
+  { name: 'doctor-availability', path: '/doctor/availability', options: { role: 'doctor' }, ready: heading(/Week of/i) },
+  { name: 'doctor-appointments', path: '/doctor/appointments', options: { role: 'doctor' }, ready: heading(/^Appointments$/i), act: async (page) => {
     await expect(page.getByText('Demo Patient Karim')).toBeVisible()
   } },
-  { name: 'admin-queue', path: '/admin/queue?doctor=p1', options: { role: 'admin' }, ready: heading(/Dr. Jamil Pending/) },
-  { name: 'admin-doctors', path: '/admin/doctors', options: { role: 'admin' }, ready: heading(/^Doctors$/), act: async (page) => {
+  { name: 'admin-queue', path: '/admin/queue?doctor=p1', options: { role: 'admin' }, ready: heading(/Dr. Jamil Pending/i) },
+  { name: 'admin-doctors', path: '/admin/doctors', options: { role: 'admin' }, ready: heading(/^Doctors$/i), act: async (page) => {
     await expect(page.getByRole('table')).toBeVisible()
   } },
   { name: 'admin-patients', path: '/admin/patients', options: { role: 'admin' }, ready: heading('Patients'), act: async (page) => {

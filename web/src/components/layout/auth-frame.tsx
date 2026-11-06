@@ -10,8 +10,8 @@ export function AuthFrame({ children }: { children: ReactNode }) {
       <aside className="hidden items-center justify-center bg-primary-tint p-12 lg:flex">
         <div className="flex w-full max-w-[520px] flex-col gap-8">
           <div>
-            <p className="font-serif text-3xl">{t('auth.panelTitle')}</p>
-            <p className="mt-3 text-lg">{t('auth.panelBody')}</p>
+            <p className="heading-3">{t('auth.panelTitle')}</p>
+            <p className="mt-3 body-7">{t('auth.panelBody')}</p>
           </div>
           <ProductStage step={2} compact />
         </div>

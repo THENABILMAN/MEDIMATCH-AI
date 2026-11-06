@@ -16,11 +16,11 @@ export default function CredentialsPage() {
       <PageHeader title={t('credentials.title')} description={t('credentials.description')} />
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="lg:col-span-5">
-          <h2 className="mb-2 font-serif text-xl">{t('credentials.uploadTitle')}</h2>
+          <h2 className="mb-2 heading-5">{t('credentials.uploadTitle')}</h2>
           <CredentialUploader />
         </div>
         <div className="min-w-0 lg:col-span-7">
-          <h2 className="mb-2 font-serif text-xl">{t('credentials.uploadedTitle')}</h2>
+          <h2 className="mb-2 heading-5">{t('credentials.uploadedTitle')}</h2>
           {credentials.isPending ? (
             <Skeleton className="h-32" />
           ) : credentials.isError ? (

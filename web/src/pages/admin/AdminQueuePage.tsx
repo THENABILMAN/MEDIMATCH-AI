@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ChevronLeft } from 'lucide-react'
+import { CaretLeft } from '@phosphor-icons/react'
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -49,7 +49,7 @@ function ReasonDialog({
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<{ reason: string }>({ resolver: zodResolver(schema), mode: 'onBlur' })
+  } = useForm<{ reason: string }>({ resolver: zodResolver(schema), mode: 'onTouched' })
 
   async function onSubmit({ reason }: { reason: string }) {
     try {
@@ -118,14 +118,14 @@ function DoctorReview({ doctor, onDecided }: { doctor: AdminDoctor; onDecided: (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="font-serif text-2xl">{doctor.full_name}</h2>
+          <h2 className="heading-4">{doctor.full_name}</h2>
           <p className="text-muted">{doctor.specialties.map((item) => item.name).join(', ') || t('queue.noSpecialties')}</p>
         </div>
         <VerificationBadge status={status} />
       </div>
 
       <section aria-labelledby="documents-title">
-        <h3 id="documents-title" className="mb-2 text-sm font-semibold">
+        <h3 id="documents-title" className="mb-2 body-4">
           {t('queue.documents')}
         </h3>
         {doctor.credentials.length > 0 ? (
@@ -135,7 +135,7 @@ function DoctorReview({ doctor, onDecided }: { doctor: AdminDoctor; onDecided: (
         )}
       </section>
 
-      <dl className="grid gap-x-6 text-sm md:grid-cols-[auto_1fr]">
+      <dl className="grid gap-x-6 body-6 md:grid-cols-[auto_1fr]">
         {facts.map(([label, value]) => (
           <div key={label} className="contents">
             <dt className="pt-2 text-muted">{label}</dt>
@@ -143,7 +143,7 @@ function DoctorReview({ doctor, onDecided }: { doctor: AdminDoctor; onDecided: (
           </div>
         ))}
       </dl>
-      {doctor.bio && <p className="prose-width text-sm">{doctor.bio}</p>}
+      {doctor.bio && <p className="prose-width body-6">{doctor.bio}</p>}
 
       <div className="flex flex-wrap gap-2 border-t border-border pt-4">
         {status !== 'approved' && (
@@ -221,19 +221,19 @@ export default function AdminQueuePage() {
                 selected && 'hidden'
               )}
             >
-              <ul className="max-h-[70dvh] overflow-y-auto rounded-md border border-border bg-surface">
+              <ul className="max-h-[70dvh] overflow-y-auto rounded-xl border border-border bg-surface">
                 {items.map((doctor) => (
                   <li key={doctor.id} className="border-b border-border last:border-b-0">
                     <Link
                       to={linkFor(doctor.id)}
                       aria-current={doctor.id === selectedId ? 'true' : undefined}
-                      className="block p-3 transition-colors hover:bg-canvas aria-[current=true]:bg-primary-tint"
+                      className="block p-3 transition-colors hover:bg-canvas aria-[current=true]:bg-border"
                     >
-                      <span className="block font-medium">{doctor.full_name}</span>
-                      <span className="block text-sm text-muted">
+                      <span className="block body-5">{doctor.full_name}</span>
+                      <span className="block body-6 text-muted">
                         {doctor.specialties.map((item) => item.name).join(', ') || t('queue.noSpecialties')}
                       </span>
-                      <span className="block text-sm text-muted">
+                      <span className="block body-6 text-muted">
                         {t('queue.documentCount', { count: doctor.credentials.length })}
                       </span>
                     </Link>
@@ -243,14 +243,14 @@ export default function AdminQueuePage() {
             </nav>
             <section aria-label={t('queue.review')} className={cn('min-w-0 lg:col-span-8', !selected && 'hidden lg:block')}>
               {selected ? (
-                <div className="rounded-md border border-border bg-surface p-4 md:p-6">
+                <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
                   <Button
                     variant="link"
                     size="inline"
                     className="mb-3 lg:hidden"
                     onClick={() => set({ doctor: undefined })}
                   >
-                    <ChevronLeft aria-hidden className="size-4" strokeWidth={1.75} />
+                    <CaretLeft aria-hidden className="size-4" />
                     {t('queue.backToList')}
                   </Button>
                   <DoctorReview key={selected.id} doctor={selected} onDecided={() => set({ doctor: undefined })} />

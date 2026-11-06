@@ -6,7 +6,7 @@ import { dhakaDay, formatDayNumber, formatShortDate, formatTime, formatWeekday }
 import type { AvailabilitySlot } from '../../types'
 
 const itemClasses =
-  'rounded-sm border border-control bg-surface transition-colors hover:border-ink data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-white '
+  'rounded-lg border border-control bg-surface transition-colors hover:border-ink data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-white '
 
 interface SlotPickerProps {
   slots: AvailabilitySlot[]
@@ -48,8 +48,8 @@ export function SlotPicker({ slots, selectedDay, selectedSlotId, onDayChange, on
             aria-label={formatShortDate(daySlots[0].start_time, i18n.language)}
             className={cn(itemClasses, 'flex min-h-16 w-14 shrink-0 flex-col items-center justify-center')}
           >
-            <span className="text-xs">{formatWeekday(daySlots[0].start_time, i18n.language)}</span>
-            <span className="text-lg font-semibold tabular">
+            <span className="caption-5">{formatWeekday(daySlots[0].start_time, i18n.language)}</span>
+            <span className="title-2 tabular">
               {formatDayNumber(daySlots[0].start_time, i18n.language)}
             </span>
           </RadioPrimitive.Item>
@@ -66,14 +66,14 @@ export function SlotPicker({ slots, selectedDay, selectedSlotId, onDayChange, on
           <RadioPrimitive.Item
             key={slot.id}
             value={slot.id}
-            className={cn(itemClasses, 'h-11 px-1 text-sm font-medium tabular')}
+            className={cn(itemClasses, 'h-11 px-1 body-5 tabular')}
           >
             {formatTime(slot.start_time, i18n.language)}
           </RadioPrimitive.Item>
         ))}
       </RadioPrimitive.Root>
 
-      <p className="text-sm text-muted">{t('booking.timezone')}</p>
+      <p className="body-6 text-muted">{t('booking.timezone')}</p>
     </div>
   )
 }

@@ -6,7 +6,7 @@ export default function NotFoundPage() {
   const { t } = useTranslation()
   return (
     <div className="page-gutter py-16">
-      <h1 className="font-serif text-3xl md:text-4xl">{t('notFound.title')}</h1>
+      <h1 className="heading-3 md:heading-1">{t('notFound.title')}</h1>
       <p className="prose-width mt-2 text-muted">{t('notFound.body')}</p>
       <div className="mt-6 flex flex-wrap gap-2">
         <Button asChild>

@@ -1,9 +1,9 @@
 import { cva, type VariantProps } from 'class-variance-authority'
-import { AlertTriangle, Info, Siren } from 'lucide-react'
+import { Info, Siren, Warning } from '@phosphor-icons/react'
 import type { ReactNode } from 'react'
 import { cn } from '../../lib/cn'
 
-const bannerVariants = cva('flex items-start gap-3 rounded-md p-4 text-md', {
+const bannerVariants = cva('flex items-start gap-3 rounded-xl p-4 body-3', {
   variants: {
     tone: {
       info: 'border border-border bg-surface text-ink',
@@ -14,7 +14,7 @@ const bannerVariants = cva('flex items-start gap-3 rounded-md p-4 text-md', {
   defaultVariants: { tone: 'info' },
 })
 
-const ICONS = { info: Info, warning: AlertTriangle, emergency: Siren }
+const ICONS = { info: Info, warning: Warning, emergency: Siren }
 
 interface BannerProps extends VariantProps<typeof bannerVariants> {
   title?: string
@@ -30,10 +30,9 @@ export function Banner({ tone = 'info', title, children, action, className }: Ba
       <Icon
         aria-hidden
         className={cn('mt-0.5 size-5 shrink-0', tone === 'warning' && 'text-warning')}
-        strokeWidth={1.75}
       />
       <div className="min-w-0 flex-1">
-        {title && <p className="font-semibold">{title}</p>}
+        {title && <p className="body-1">{title}</p>}
         {children}
         {action && <div className="mt-3">{action}</div>}
       </div>

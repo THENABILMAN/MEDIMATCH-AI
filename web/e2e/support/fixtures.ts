@@ -103,3 +103,5 @@ export function appointmentFor(doctorProfile: DoctorProfile, slot: AvailabilityS
     patient: { id: patient.id, full_name: patient.full_name, phone: patient.phone },
   }
 }
+
+export const CRISIS_REPLY = 'Thank you for telling me.\n\nPlease call 999 now, or reach out to someone you trust.'

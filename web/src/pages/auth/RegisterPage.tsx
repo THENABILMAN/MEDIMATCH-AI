@@ -44,7 +44,7 @@ export default function RegisterPage() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<RegisterValues>({ resolver: zodResolver(schema), mode: 'onBlur', defaultValues: { phone: '' } })
+  } = useForm<RegisterValues>({ resolver: zodResolver(schema), mode: 'onTouched', defaultValues: { phone: '' } })
 
   if (role) return <Navigate to={role === 'doctor' ? '/doctor/onboarding' : ROLE_HOME[role]} replace />
 
@@ -60,7 +60,7 @@ export default function RegisterPage() {
 
   return (
     <AuthFrame>
-      <h1 className="font-serif text-3xl">{t('auth.registerTitle')}</h1>
+      <h1 className="heading-3">{t('auth.registerTitle')}</h1>
       <form onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate className="mt-6 flex flex-col gap-4">
         {failure && <Banner tone="warning">{failure}</Banner>}
         <RadioGroup

@@ -1,4 +1,4 @@
-import { Phone, Siren } from 'lucide-react'
+import { Phone, Siren } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
 import { EMERGENCY_NUMBER } from '../../lib/constants'
 
@@ -12,18 +12,18 @@ export function EmergencyNotice({ message }: { message: string }) {
     <section
       role="alert"
       data-testid="emergency-notice"
-      className="rounded-md bg-danger p-4 text-white md:p-6"
+      className="rounded-xl bg-danger p-4 text-white md:p-6"
     >
-      <p className="flex items-center gap-2 text-lg font-semibold">
-        <Siren aria-hidden className="size-6 shrink-0" strokeWidth={1.75} />
+      <p className="flex items-center gap-2 title-2">
+        <Siren aria-hidden className="size-6 shrink-0" />
         {t('chat.emergencyHeading')}
       </p>
-      <p className="mt-3 text-lg whitespace-pre-line">{message}</p>
+      <p className="mt-3 body-7 whitespace-pre-line">{message}</p>
       <a
         href={`tel:${EMERGENCY_NUMBER}`}
-        className="mt-4 flex h-12 items-center justify-center gap-2 rounded-sm bg-white text-lg font-semibold text-danger transition-colors hover:bg-danger-tint focus-visible:outline-white"
+        className="mt-4 flex h-12 items-center justify-center gap-2 rounded-full bg-white title-2 text-danger transition-colors hover:bg-danger-tint focus-visible:outline-white"
       >
-        <Phone aria-hidden className="size-5" strokeWidth={1.75} />
+        <Phone aria-hidden className="size-5" />
         {t('chat.callEmergency', { number: EMERGENCY_NUMBER })}
       </a>
     </section>

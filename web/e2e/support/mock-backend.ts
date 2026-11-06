@@ -1,9 +1,12 @@
 import type { Page, Route } from '@playwright/test'
 import type {
+  AdminBillingCharge,
   AdminDoctor,
   Appointment,
   AuditLog,
   AvailabilitySlot,
+  BillingPlan,
+  BillingPricing,
   ChatMessage,
   DoctorCredential,
   DoctorProfile,
@@ -12,7 +15,7 @@ import type {
   UserRole,
   VerificationEvent,
 } from '../../src/types'
-import { appointmentFor, buildSlots, DISCLAIMER, DOCTORS, EMERGENCY_REPLY, SPECIALTIES, USERS } from './fixtures'
+import { appointmentFor, buildSlots, CRISIS_REPLY, DISCLAIMER, DOCTORS, EMERGENCY_REPLY, SPECIALTIES, USERS } from './fixtures'
 
 const API = 'http://api.test'
 const AUTH = 'http://supabase.test/auth/v1'
@@ -53,6 +56,10 @@ export class MockBackend {
   history: VerificationEvent[] = []
   mine: DoctorProfile
   pending: AdminDoctor[]
+  pricing: BillingPricing = { booking_fee_bdt: null, subscription_monthly_bdt: null }
+  billingPlan: BillingPlan | null = null
+  charges: AdminBillingCharge[] = []
+  chips: { label: string }[] = []
   turn = 0
   delayMs = 0
 
@@ -254,6 +261,46 @@ export class MockBackend {
       if (method === 'DELETE') this.specialties = this.specialties.filter((item) => item.id !== id)
       return reply({ ok: true })
     }
+    if (path === '/billing/pricing') return reply(this.pricing)
+    if (path === '/billing/me/plan') {
+      this.billingPlan = body.plan as BillingPlan
+      if (body.plan === 'subscription' && this.pricing.subscription_monthly_bdt) {
+        this.charges.push({
+          id: 'c1',
+          kind: 'subscription',
+          billing_month: '2026-11-01',
+          amount_bdt: this.pricing.subscription_monthly_bdt,
+          status: 'owed',
+          created_at: '2026-11-06T06:00:00Z',
+          settled_at: null,
+          doctor_id: 'd1',
+          doctor_name: 'Dr. Kazi Ahmed',
+        })
+      }
+    }
+    if (path.startsWith('/billing/me')) {
+      const owed = this.charges.filter((item) => item.status === 'owed')
+      return reply({
+        plan: this.billingPlan,
+        chosen_at: this.billingPlan ? '2026-11-06T06:00:00Z' : null,
+        pricing: this.pricing,
+        total_owed_bdt: owed.reduce((sum, item) => sum + item.amount_bdt, 0),
+        charges: this.charges,
+      })
+    }
+    if (path === '/admin/billing/pricing') {
+      this.pricing = body as unknown as BillingPricing
+      return reply(this.pricing)
+    }
+    if (path === '/admin/billing/charges') {
+      return reply({ items: this.charges, total: this.charges.length, limit: 25, offset: 0 })
+    }
+    if (path.startsWith('/admin/billing/charges/')) {
+      const charge = this.charges.find((item) => item.id === path.split('/')[4])
+      if (!charge) return reply({ detail: 'Charge not found' }, 404)
+      charge.status = body.status as AdminBillingCharge['status']
+      return reply(charge)
+    }
     if (path === '/admin/audit-logs') {
       return reply({ items: this.auditLogs, total: this.auditLogs.length, limit: 25, offset: 0 })
     }
@@ -282,13 +329,16 @@ export class MockBackend {
     const now = new Date().toISOString()
     this.messages.push({ id: `u${this.messages.length}`, conversation_id: 'conv-1', sender: 'patient', content, created_at: now })
 
+    if (/end my life/i.test(content)) {
+      return { conversation_id: 'conv-1', assistant_reply: CRISIS_REPLY, current_step: 'emergency_escalated', safety_status: 'emergency', is_emergency: true, recommendations: [], chips: [], safety_kind: 'self_harm' }
+    }
     if (/chest pain|can't breathe/i.test(content)) {
-      return { conversation_id: 'conv-1', assistant_reply: EMERGENCY_REPLY, current_step: 'emergency_escalated', safety_status: 'emergency', is_emergency: true, recommendations: [] }
+      return { conversation_id: 'conv-1', assistant_reply: EMERGENCY_REPLY, current_step: 'emergency_escalated', safety_status: 'emergency', is_emergency: true, recommendations: [], chips: [], safety_kind: 'physical' }
     }
 
     this.turn += 1
     if (this.turn === 1) {
-      return { conversation_id: 'conv-1', assistant_reply: 'How long have you been experiencing these symptoms (e.g. hours, days, weeks)?', current_step: 'ask_followup', safety_status: 'safe', is_emergency: false, recommendations: [], followup_field: 'duration' }
+      return { conversation_id: 'conv-1', assistant_reply: 'How long have you been experiencing these symptoms (e.g. hours, days, weeks)?', current_step: 'ask_followup', safety_status: 'safe', is_emergency: false, recommendations: [], followup_field: 'duration', chips: this.chips }
     }
     const [first, second] = this.doctors
     const recommendations = [first, second].map((item, index) => ({

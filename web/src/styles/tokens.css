@@ -1,19 +1,19 @@
 /* The only place colours and scale values are defined. See docs/DESIGN.md. */
 :root {
-  --ink: #14122b;
-  --muted: #5c5a73;
+  --ink: #000000;
+  --muted: #494949;
   --surface: #ffffff;
-  --canvas: #f6f6fa;
-  --border: #e3e1f0;
-  --border-control: #8582a0;
+  --canvas: #eaeaea;
+  --border: #d8d8d8;
+  --border-control: #595959;
 
-  --primary: #00806c;
-  --primary-hover: #00695a;
-  --primary-pressed: #005247;
-  --primary-tint: #e6f4f1;
+  --primary: #161616;
+  --primary-hover: #333333;
+  --primary-pressed: #000000;
+  --primary-tint: #f4f4f4;
 
-  --ai: #5a4bd1;
-  --ai-tint: #eeecfb;
+  --ai: #805090;
+  --ai-tint: #f3ecf6;
 
   --danger: #b3261e;
   --danger-pressed: #8c1d18;
@@ -23,14 +23,11 @@
   --success: #1e7a3c;
   --success-tint: #e8f5ec;
 
-  --font-ui: 'Instrument Sans', 'Noto Sans Bengali', system-ui, sans-serif;
-  --font-display: 'Source Serif', 'Noto Sans Bengali', Georgia, serif;
+  --font-ui: 'Manrope', 'Noto Sans Bengali', system-ui, sans-serif;
 
-  --radius-small: 4px;
-  --radius-medium: 8px;
-  --overlay-shadow: 0 8px 24px rgb(20 18 43 / 0.12);
-  --scrim: rgb(20 18 43 / 0.4);
+  --overlay-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+  --scrim: rgb(0 0 0 / 0.4);
 
-  --header-height: 56px;
-  --ease-state: cubic-bezier(0, 0, 0.2, 1);
+  --header-height: 80px;
+  --ease-state: cubic-bezier(0.22, 1, 0.36, 1);
 }

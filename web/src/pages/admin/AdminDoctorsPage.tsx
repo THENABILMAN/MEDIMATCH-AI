@@ -97,7 +97,7 @@ export default function AdminDoctorsPage() {
             <TableBody>
               {doctors.data.items.map((doctor) => (
                 <TableRow key={doctor.id}>
-                  <TableCell className="font-medium">{doctor.full_name}</TableCell>
+                  <TableCell className="body-5">{doctor.full_name}</TableCell>
                   <TableCell className="hidden min-w-40 text-muted lg:table-cell">
                     {doctor.specialties.map((item) => item.name).join(', ')}
                   </TableCell>

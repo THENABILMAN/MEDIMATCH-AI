@@ -1,4 +1,4 @@
-import { Check, ChevronDown } from 'lucide-react'
+import { CaretDown, Check } from '@phosphor-icons/react'
 import { Select as SelectPrimitive } from 'radix-ui'
 import { cn } from '../../lib/cn'
 import { controlClasses } from './input'
@@ -46,25 +46,25 @@ export function Select({
           <SelectPrimitive.Value placeholder={placeholder} />
         </span>
         <SelectPrimitive.Icon>
-          <ChevronDown aria-hidden className="size-4 text-muted" strokeWidth={1.75} />
+          <CaretDown aria-hidden className="size-4 text-muted" />
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal>
         <SelectPrimitive.Content
           position="popper"
           sideOffset={4}
-          className="z-50 max-h-72 w-(--radix-select-trigger-width) min-w-40 overflow-hidden rounded-md border border-border bg-surface shadow-overlay"
+          className="z-50 max-h-72 w-(--radix-select-trigger-width) min-w-40 overflow-hidden rounded-xl border border-border bg-surface shadow-overlay"
         >
           <SelectPrimitive.Viewport className="p-1">
             {options.map((option) => (
               <SelectPrimitive.Item
                 key={option.value}
                 value={option.value}
-                className="flex min-h-11 items-center justify-between gap-2 rounded-sm px-3 text-md outline-none data-highlighted:bg-primary-tint md:min-h-9 md:text-sm"
+                className="flex min-h-11 items-center justify-between gap-2 rounded-lg px-3 body-3 outline-none data-highlighted:bg-primary-tint md:min-h-9 md:body-6"
               >
                 <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
                 <SelectPrimitive.ItemIndicator>
-                  <Check aria-hidden className="size-4 text-primary-hover" strokeWidth={1.75} />
+                  <Check aria-hidden className="size-4 text-primary-hover" />
                 </SelectPrimitive.ItemIndicator>
               </SelectPrimitive.Item>
             ))}

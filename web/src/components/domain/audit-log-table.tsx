@@ -30,7 +30,7 @@ export function AuditLogTable({ logs }: { logs: AuditLog[] }) {
         {logs.map((log) => (
           <TableRow key={log.id}>
             <TableCell className="whitespace-nowrap tabular">{formatDateTime(log.created_at, i18n.language)}</TableCell>
-            <TableCell className="whitespace-nowrap font-medium">{readableAction(log.action)}</TableCell>
+            <TableCell className="whitespace-nowrap body-5">{readableAction(log.action)}</TableCell>
             <TableCell className="whitespace-nowrap text-muted">{log.target_type}</TableCell>
             <TableCell className="min-w-64 text-muted">{metadataText(log.metadata)}</TableCell>
           </TableRow>

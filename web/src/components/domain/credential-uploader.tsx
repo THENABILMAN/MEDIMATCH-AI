@@ -45,7 +45,7 @@ export function CredentialUploader() {
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-border bg-surface p-4">
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
       <Field label={t('credentials.documentType')}>
         {(control) => (
           <Select
@@ -70,11 +70,11 @@ export function CredentialUploader() {
         <Button variant="secondary" loading={progress !== null} onClick={() => inputRef.current?.click()}>
           {t('credentials.chooseFile')}
         </Button>
-        <p className="mt-1 text-sm text-muted">{t('credentials.requirements')}</p>
+        <p className="mt-1 body-6 text-muted">{t('credentials.requirements')}</p>
       </div>
       {progress !== null && (
         <div>
-          <p className="text-sm tabular" aria-live="polite">
+          <p className="body-6 tabular" aria-live="polite">
             {t('credentials.uploading', { percent: progress })}
           </p>
           <progress value={progress} max={100} aria-label={t('credentials.progress')} className="mt-1 h-1 w-full accent-(--primary)" />

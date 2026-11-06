@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 export function AIDisclaimer() {
   const { t } = useTranslation()
   return (
-    <p data-testid="ai-disclaimer" className="text-sm text-ai">
+    <p data-testid="ai-disclaimer" className="body-6 text-ai">
       {t('chat.disclaimer')}
     </p>
   )

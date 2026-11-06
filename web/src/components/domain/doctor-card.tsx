@@ -24,13 +24,13 @@ export function DoctorCardCompact({
   return (
     <Link
       to={`/doctors/${doctor.id}${searchSuffix}`}
-      className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 p-4 transition-colors hover:bg-primary-tint md:grid-cols-[auto_1fr_auto] md:p-5"
+      className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 p-4 transition-colors hover:bg-primary-tint md:grid-cols-[auto_1fr_auto] md:p-4"
     >
       <Avatar name={doctor.full_name ?? ''} />
       <div className="min-w-0">
-        <h2 className="font-serif text-xl">{doctor.full_name}</h2>
+        <h2 className="heading-5">{doctor.full_name}</h2>
         <p className="text-muted">{specialtyNames(doctor)}</p>
-        <p className="text-sm text-muted">
+        <p className="body-6 text-muted">
           {[doctor.clinic_name, doctor.city].filter(Boolean).join(', ')}
           {' · '}
           {t('doctor.yearsExperience', {
@@ -40,7 +40,7 @@ export function DoctorCardCompact({
         </p>
       </div>
       <div className="col-start-2 md:col-start-3 md:row-start-1 md:text-right">
-        <p className="font-semibold tabular">
+        <p className="body-1 tabular">
           {soonest ? formatDateTime(soonest, i18n.language) : t('home.indexNoTime')}
         </p>
         <p className="text-muted tabular">
@@ -72,22 +72,22 @@ export function DoctorCardDetailed({ doctor, className }: { doctor: DoctorProfil
   return (
     <article className={cn('min-w-0', className)}>
       <div className="flex items-start gap-4">
-        <Avatar name={doctor.full_name ?? ''} className="size-14 text-lg" />
+        <Avatar name={doctor.full_name ?? ''} className="size-14 body-7" />
         <div className="min-w-0">
-          <h1 className="font-serif text-2xl md:text-3xl">{doctor.full_name}</h1>
-          <p className="text-lg text-muted">{specialtyNames(doctor)}</p>
+          <h1 className="heading-4 md:heading-3">{doctor.full_name}</h1>
+          <p className="body-7 text-muted">{specialtyNames(doctor)}</p>
           <div className="mt-2">
             <VerificationBadge status={doctor.verification_status} />
           </div>
         </div>
       </div>
 
-      {doctor.bio && <p className="prose-width mt-6 text-md">{doctor.bio}</p>}
+      {doctor.bio && <p className="prose-width mt-6 body-3">{doctor.bio}</p>}
 
       <dl className="mt-6 border-t border-border">
         {facts.map(([label, value]) => (
           <div key={label} className="grid gap-x-6 border-b border-border py-3 sm:grid-cols-[180px_1fr]">
-            <dt className="text-sm text-muted">{label}</dt>
+            <dt className="body-6 text-muted">{label}</dt>
             <dd className="tabular">{value}</dd>
           </div>
         ))}

@@ -1,10 +1,14 @@
 import { supabase } from '../lib/supabase'
 import type {
+  AdminBillingCharge,
   AdminDoctor,
   AdminPatient,
   Appointment,
   AuditLog,
   AvailabilitySlot,
+  BillingPlan,
+  BillingPricing,
+  ChargeStatus,
   ChatReply,
   Conversation,
   ConversationDetail,
@@ -13,6 +17,7 @@ import type {
   DoctorProfileInput,
   DoctorSearchParams,
   DoctorSearchResult,
+  MyBilling,
   Page,
   Specialty,
   TableParams,
@@ -149,7 +154,17 @@ export const api = {
     complete: (id: string) => request<Appointment>(`/appointments/${id}/complete`, json('POST')),
   },
 
+  billing: {
+    pricing: () => request<BillingPricing>('/billing/pricing'),
+    mine: () => request<MyBilling>('/billing/me'),
+    choosePlan: (plan: BillingPlan) => request<MyBilling>('/billing/me/plan', json('PUT', { plan })),
+  },
   admin: {
+    savePricing: (data: BillingPricing) => request<BillingPricing>('/admin/billing/pricing', json('PUT', data)),
+    listCharges: (params: { status?: ChargeStatus; limit: number; offset: number }) =>
+      request<Page<AdminBillingCharge>>(`/admin/billing/charges${query(params)}`),
+    settleCharge: (id: string, status: ChargeStatus) =>
+      request<AdminBillingCharge>(`/admin/billing/charges/${id}/settle`, json('POST', { status })),
     listDoctors: (params: TableParams & { status?: VerificationStatus }) =>
       request<Page<AdminDoctor>>(`/admin/doctors${query(params)}`),
     listPatients: (params: TableParams & { search?: string }) =>

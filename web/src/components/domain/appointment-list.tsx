@@ -14,10 +14,10 @@ export function appointmentTab(appointment: Appointment, now: number): Appointme
 export function AppointmentsSkeleton() {
   const { t } = useTranslation()
   return (
-    <div role="status" className="rounded-md border border-border bg-surface">
+    <div role="status" className="rounded-xl border border-border bg-surface">
       <span className="sr-only">{t('common.loading')}</span>
       {[0, 1, 2].map((row) => (
-        <div key={row} className="flex gap-6 border-b border-border p-4 last:border-b-0 md:p-5">
+        <div key={row} className="flex gap-6 border-b border-border p-4 last:border-b-0 md:p-4">
           <Skeleton className="h-10 w-32" />
           <Skeleton className="h-10 flex-1" />
         </div>
@@ -27,5 +27,5 @@ export function AppointmentsSkeleton() {
 }
 
 export function AppointmentPanel({ children }: { children: ReactNode }) {
-  return <ul className="rounded-md border border-border bg-surface">{children}</ul>
+  return <ul className="rounded-xl border border-border bg-surface">{children}</ul>
 }

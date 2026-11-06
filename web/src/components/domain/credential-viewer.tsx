@@ -1,4 +1,4 @@
-import { ExternalLink, FileText } from 'lucide-react'
+import { ArrowSquareOut, FileText } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../api/client'
@@ -38,18 +38,18 @@ export function CredentialViewer({ credentials }: { credentials: DoctorCredentia
   }
 
   return (
-    <ul className="rounded-md border border-border bg-surface">
+    <ul className="rounded-xl border border-border bg-surface">
       {credentials.map((credential) => (
         <li
           key={credential.id}
           className="flex items-center gap-3 border-b border-border p-3 last:border-b-0"
         >
-          <FileText aria-hidden className="size-5 shrink-0 text-muted" strokeWidth={1.75} />
+          <FileText aria-hidden className="size-5 shrink-0 text-muted" />
           <div className="min-w-0 flex-1">
-            <p className="font-medium">
+            <p className="body-2">
               {t(`credentials.type.${credential.document_type}`, { defaultValue: credential.document_type })}
             </p>
-            <p className="truncate text-sm text-muted">
+            <p className="truncate body-6 text-muted">
               {fileName(credential.file_path)} · {formatDate(credential.uploaded_at, i18n.language)}
             </p>
           </div>
@@ -62,7 +62,7 @@ export function CredentialViewer({ credentials }: { credentials: DoctorCredentia
               name: t(`credentials.type.${credential.document_type}`, { defaultValue: credential.document_type }),
             })}
           >
-            {openingId !== credential.id && <ExternalLink aria-hidden className="size-4" strokeWidth={1.75} />}
+            {openingId !== credential.id && <ArrowSquareOut aria-hidden className="size-4" />}
             {t('credentials.open')}
           </Button>
         </li>

@@ -101,6 +101,9 @@ python backend/scripts/reindex_all.py --unsynced
 # Erase chats past the retention period. Run daily
 python backend/scripts/purge_expired.py
 
+# Charge this month's doctor subscriptions. Run daily, each month is charged once
+python backend/scripts/bill_subscriptions.py
+
 # Run all tests. They use local Supabase only and refuse any other host
 cd backend && python -m pytest tests -q
 
@@ -194,9 +197,9 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
   - Tests: 44 Vitest, 95 Playwright on a mocked API covering every screen at 3 sizes with axe, keyboard paths, offline and slow network, and critical journeys
 - [x] **Phase 5c: Backend Audit and Hardening**
   - `docs/AUDIT.md` records the state before, `docs/SECURITY_REPORT.md` after, and `docs/EVAL_REPORT.md` what was measured
-  - Tests run on local Supabase only: 878 passing at the last full run. Since then only the tests that need no database have run
+  - Tests run on local Supabase only
   - Emergency detection is rules plus the model, which can only add alerts. The model writes normal replies
-  - All 12 migrations are applied to the live project, and vector search is on with 7 approved doctors indexed
+  - All 14 migrations are applied to the live project, and vector search is on with 7 approved doctors indexed
 - [x] **Phase 5d: Web Redesign**
   - `docs/UI_AUDIT.md` records the state before, `docs/UI_REVIEW.md` the review, and `docs/DESIGN.md` the system
   - Teal and violet tokens on a light palette, Instrument Sans and Source Serif. All photographs are gone, and the Imagery section of `docs/DESIGN.md` keeps them out
@@ -204,15 +207,26 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
   - Language switch added. Most of the interface is still English, because Bangla copy needs a reviewer
   - Tests: 44 Vitest and 97 Playwright passing on a mocked API
   - The assistant runs on Groq and was tried in real English, Bangla and Banglish conversations. The full emergency evaluation was measured on the earlier model. A spot check on Groq flagged 12 of 14 emergencies and 0 of 8 ordinary messages
+- [x] **Phase 5g: Business Model**
+  - Free for patients, paid by doctors. Each doctor chooses a fee per completed appointment or a monthly subscription
+  - Migration `00014` adds `billing_settings`, `doctor_billing_plans` and `billing_charges`. It is applied to the live project
+  - Prices are unset, so nothing is charged. An admin sets them at `/admin/billing`. This records what is owed: no money moves through the app
+  - Routes: `GET /billing/pricing`, `GET /billing/me`, `PUT /billing/me/plan`, and `/admin/billing/pricing` and `/admin/billing/charges`. Web: `/for-doctors`, `/doctor/billing`, `/admin/billing`
+  - The hospitals plan and go-to-market steps stay off the site, on the owner's decision
+  - All 1066 backend tests pass on local Supabase, the first full run since Phase 5e. 53 Vitest and 128 Playwright pass on a mocked API
+- [x] **Phase 5f: Landing Page Design System**
+  - The whole web app follows the landing page design skill: Manrope only, named text styles, the fixed spacing table, Tailwind radii, Phosphor icons, one motion curve, sentence case and no hyphens in copy. `web/tests/design-rules.test.ts` enforces this
+  - The home page was rebuilt: hero, problem, benefits, tagline reveal, how it works, live doctor register, FAQ with schema, risk reversal, final CTA, footer
+  - Floating translucent navigation, full height mobile menu, `/privacy` and `/terms`. The legal wording needs a lawyer's review
+  - Black and white palette, pill buttons and a white hero card. See `design-system/source/report.md`
 - [x] **Phase 5e: Assistant Personality and Routing**
   - Each turn is a hidden analysis, Python decisions in `backend/app/ai/routing.py`, then a reply written from `backend/app/ai/prompts/persona.md`
   - One question at a time with no fixed cap, a soft limit of 12, and stopping once the top specialty is clearly ahead, urgency is known and the city is known
   - Ambiguous phrases such as "broken heart" get a clarifying question before routing. A physical answer about the chest gets the fixed alert
-  - Psychiatry, Clinical Psychology and Counselling added in migration `00013`, which is **not applied to the live project**, so live cannot route emotional distress yet
+  - Psychiatry, Clinical Psychology and Counselling added in migration `00013`, applied to the live project on 2026-11-06. No approved provider exists for them there yet, so those patients are told none were found
   - Self-harm has its own fixed message in `prompts/safety_messages.yaml`. It needs review by a mental-health professional and a native Bangla speaker. `CRISIS_HELPLINES` is empty until the owner verifies numbers
-  - API changes are additive: `chips` and `safety_kind`. The web changes for them are awaiting approval, so a crisis message still shows in the red emergency banner
+  - API changes are additive: `chips` and `safety_kind`. The web shows the assistant's chips, a calm `CrisisNotice` for self-harm, and "Show me doctors now"
   - `docs/CONVERSATION_EVAL.md` is incomplete: 2 of 45 scenarios ran before the Groq daily limit stopped it. Rules plus model recall on unseen phrases has not been measured
-  - 824 tests that need no database pass; 1 needs local Supabase. The 224 integration tests were updated but not run, because Docker was not running
 - [ ] **Phase 6: Mobile App & Production Deployment**
   - Flutter app for Patient and Doctor workflows
   - End-to-end integration test suite & deployment readiness
@@ -220,6 +234,14 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
 ---
 
 ## Decisions Log
+- **2026-11-06**: "Show me doctors now" is never offered after an alert or in a conversation that touched self-harm, so the app does not push a search at someone in crisis. The patient can still ask in words.
+- **2026-11-06**: Form errors clear as they are corrected (`mode: 'onTouched'`). Clearing on blur moved the submit button under the click, and the click was lost.
+- **2026-11-06**: Booking fees are charged when an appointment is completed, because booking has no confirmed step. A database trigger does it, so no path can skip it, and an appointment is charged once. Cancelled appointments cost nothing.
+- **2026-11-06**: Choosing the subscription charges the current month at once, in full, so a doctor cannot leave the booking fee mid-month and pay nothing until the next run. Only approved doctors are charged a subscription. Not paying does not delist a doctor.
+- **2026-11-06**: A charge keeps its amount, so a price change never rewrites what is owed. Marking a charge paid or waived cannot be undone in the app.
+- **2026-11-06**: Replaced teal and violet with black and white on a grey page, pill buttons and a white hero card, on the owner's instruction. Colours were sampled from an image of the MyDNA concept by Levi Wilson, because it is not a live site. Its art is not used. Violet stays on AI content, sampled from that art, and red stays for emergencies.
+- **2026-11-06**: Adopted the landing page design skill for all web UI on the owner's instruction. It replaces Instrument Sans and Source Serif with Manrope, Lucide with Phosphor, Title Case with sentence case, and lifts the old ban on glass for the navigation bar. Teal and violet stay, because the skill sets no light palette.
+- **2026-11-06**: No testimonials or logos on the home page, because none exist and they are never invented. The live doctor register is the proof.
 - **2026-11-05**: Replaced the 3 follow-up limit with confidence-based stopping and a soft limit of 12, on the owner's instruction.
 - **2026-11-05**: "my heart hurts" and "heavy chest" alone no longer raise the alert, on the owner's decision, against advice, so the assistant can ask whether they are physical or emotional. The 999 instruction is no longer guaranteed on that turn. Any other danger sign, "heart pain", "hurts badly", and every plain chest phrase still alert. A clinician must review this.
 - **2026-11-05**: "Show me doctors now" asks for the city once if it is unknown, then searches all of Bangladesh. Pressed after a clarifying question has been asked once, it searches even if the meaning stays unclear, and the reply must say to call 999 for chest pain.

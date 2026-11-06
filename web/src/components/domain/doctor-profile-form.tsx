@@ -49,7 +49,7 @@ export function toProfileInput(values: DoctorProfileValues): DoctorProfileInput 
 export function useDoctorProfileForm(profile: DoctorProfile | undefined) {
   const { t } = useTranslation()
   const schema = useMemo(() => buildSchema(t), [t])
-  const form = useForm<DoctorProfileValues>({ resolver: zodResolver(schema), mode: 'onBlur' })
+  const form = useForm<DoctorProfileValues>({ resolver: zodResolver(schema), mode: 'onTouched' })
   const { reset } = form
 
   useEffect(() => {
@@ -123,7 +123,7 @@ export function ClinicalFields({ form }: { form: UseFormReturn<DoctorProfileValu
   return (
     <div className="flex flex-col gap-4">
       <fieldset aria-describedby={errors.specialty_ids ? 'specialty-error' : undefined}>
-        <legend className="text-sm font-medium">{t('profile.specialties')}</legend>
+        <legend className="body-5">{t('profile.specialties')}</legend>
         {specialties.isPending ? (
           <Skeleton className="mt-2 h-24" />
         ) : (
@@ -151,7 +151,7 @@ export function ClinicalFields({ form }: { form: UseFormReturn<DoctorProfileValu
           />
         )}
         {errors.specialty_ids && (
-          <p id="specialty-error" className="text-sm text-danger">
+          <p id="specialty-error" className="body-6 text-danger">
             {errors.specialty_ids.message}
           </p>
         )}

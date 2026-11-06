@@ -1,4 +1,4 @@
-import { Check, ChevronDown, X } from 'lucide-react'
+import { CaretDown, Check, X } from '@phosphor-icons/react'
 import { Popover as PopoverPrimitive } from 'radix-ui'
 import { useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { cn } from '../../lib/cn'
@@ -93,13 +93,13 @@ export function Combobox({
                 type="button"
                 aria-label={clearLabel}
                 onClick={() => onValueChange('')}
-                className="flex size-10 items-center justify-center rounded-sm text-muted hover:text-ink"
+                className="flex size-10 items-center justify-center rounded-lg text-muted hover:text-ink"
               >
-                <X aria-hidden className="size-4" strokeWidth={1.75} />
+                <X aria-hidden className="size-4" />
               </button>
             )}
             {!selected && (
-              <ChevronDown aria-hidden className="mr-3 size-4 text-muted" strokeWidth={1.75} />
+              <CaretDown aria-hidden className="mr-3 size-4 text-muted" />
             )}
           </div>
         </div>
@@ -112,7 +112,7 @@ export function Combobox({
           onInteractOutside={(event) => {
             if (anchorRef.current?.contains(event.target as Node)) event.preventDefault()
           }}
-          className="z-50 max-h-72 w-(--radix-popover-trigger-width) overflow-y-auto rounded-md border border-border bg-surface p-1 shadow-overlay"
+          className="z-50 max-h-72 w-(--radix-popover-trigger-width) overflow-y-auto rounded-xl border border-border bg-surface p-1 shadow-overlay"
         >
           <ul id={listId} role="listbox" aria-label={inputProps['aria-label'] ?? placeholder}>
             {visible.map((option, index) => (
@@ -124,17 +124,17 @@ export function Combobox({
                 onPointerEnter={() => setActiveIndex(index)}
                 onClick={() => choose(option)}
                 className={cn(
-                  'flex min-h-11 cursor-pointer items-center justify-between gap-2 rounded-sm px-3 text-md md:min-h-9 md:text-sm',
-                  index === activeIndex && 'bg-primary-tint'
+                  'flex min-h-11 cursor-pointer items-center justify-between gap-2 rounded-lg px-3 body-3 md:min-h-9 md:body-6',
+                  index === activeIndex && 'bg-canvas'
                 )}
               >
                 {option.label}
                 {option.value === value && (
-                  <Check aria-hidden className="size-4 text-primary-hover" strokeWidth={1.75} />
+                  <Check aria-hidden className="size-4 text-primary-hover" />
                 )}
               </li>
             ))}
-            {visible.length === 0 && <li className="px-3 py-2 text-sm text-muted">{emptyMessage}</li>}
+            {visible.length === 0 && <li className="px-3 py-2 body-6 text-muted">{emptyMessage}</li>}
           </ul>
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>

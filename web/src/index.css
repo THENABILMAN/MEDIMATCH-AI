@@ -28,43 +28,18 @@
   --color-success-tint: var(--success-tint);
 
   --font-sans: var(--font-ui);
-  --font-serif: var(--font-display);
-
-  --text-*: initial;
-  --text-xs: 0.75rem;
-  --text-xs--line-height: 1rem;
-  --text-sm: 0.875rem;
-  --text-sm--line-height: 1.25rem;
-  --text-md: 1rem;
-  --text-md--line-height: 1.5rem;
-  --text-lg: 1.125rem;
-  --text-lg--line-height: 1.75rem;
-  --text-xl: 1.5rem;
-  --text-xl--line-height: 2rem;
-  --text-2xl: 2rem;
-  --text-2xl--line-height: 2.5rem;
-  --text-3xl: 2.75rem;
-  --text-3xl--line-height: 3.25rem;
-  --text-4xl: 4rem;
-  --text-4xl--line-height: 4.25rem;
-  --text-5xl: 5.5rem;
-  --text-5xl--line-height: 5.75rem;
-
-  --radius-*: initial;
-  --radius-sm: var(--radius-small);
-  --radius-md: var(--radius-medium);
-  --radius-full: 9999px;
 
   --shadow-*: initial;
   --shadow-overlay: var(--overlay-shadow);
 
-  --default-transition-duration: 150ms;
+  --default-transition-duration: 300ms;
   --default-transition-timing-function: var(--ease-state);
 
   --animate-pulse-soft: pulse-soft 1.6s var(--ease-state) infinite;
-  --animate-fade-in: fade-in 200ms var(--ease-state);
-  --animate-rise-in: rise-in 200ms var(--ease-state);
-  --animate-slide-in: slide-in 200ms var(--ease-state);
+  --animate-fade-in: fade-in 300ms var(--ease-state);
+  --animate-rise-in: rise-in 500ms var(--ease-state);
+  --animate-slide-in: slide-in 500ms var(--ease-state);
+  --animate-link-in: link-in 500ms var(--ease-state) backwards;
 
   @keyframes pulse-soft {
     50% {
@@ -82,11 +57,163 @@
       transform: translateY(8px);
     }
   }
+  @keyframes link-in {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+  }
   @keyframes slide-in {
     from {
       transform: translateX(100%);
     }
   }
+}
+
+/* Every piece of text uses one of these. Sizes are Tailwind scale steps. See docs/DESIGN.md */
+@utility heading-1 {
+  font-size: var(--text-6xl);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+@utility heading-2 {
+  font-size: var(--text-5xl);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+@utility heading-3 {
+  font-size: var(--text-4xl);
+  line-height: 2.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+@utility heading-4 {
+  font-size: var(--text-3xl);
+  line-height: 2.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+@utility heading-5 {
+  font-size: var(--text-2xl);
+  line-height: 2rem;
+  font-weight: 600;
+}
+@utility heading-6 {
+  font-size: var(--text-xl);
+  line-height: 1.75rem;
+  font-weight: 600;
+}
+@utility title-1 {
+  font-size: var(--text-xl);
+  line-height: 1.75rem;
+  font-weight: 500;
+}
+@utility title-2 {
+  font-size: var(--text-lg);
+  line-height: 1.75rem;
+  font-weight: 500;
+}
+@utility title-3 {
+  font-size: var(--text-base);
+  line-height: 1.5rem;
+  font-weight: 500;
+}
+@utility title-4 {
+  font-size: var(--text-sm);
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+@utility title-5 {
+  font-size: var(--text-xs);
+  line-height: 1rem;
+  font-weight: 500;
+}
+@utility body-1 {
+  font-size: var(--text-base);
+  line-height: 1.5rem;
+  font-weight: 600;
+}
+@utility body-2 {
+  font-size: var(--text-base);
+  line-height: 1.5rem;
+  font-weight: 500;
+}
+@utility body-3 {
+  font-size: var(--text-base);
+  line-height: 1.5rem;
+  font-weight: 400;
+}
+@utility body-4 {
+  font-size: var(--text-sm);
+  line-height: 1.25rem;
+  font-weight: 600;
+}
+@utility body-5 {
+  font-size: var(--text-sm);
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+@utility body-6 {
+  font-size: var(--text-sm);
+  line-height: 1.25rem;
+  font-weight: 400;
+}
+@utility body-7 {
+  font-size: var(--text-lg);
+  line-height: 1.75rem;
+  font-weight: 400;
+}
+@utility body-8 {
+  font-size: var(--text-xl);
+  line-height: 1.75rem;
+  font-weight: 400;
+}
+@utility button-lg {
+  font-size: var(--text-lg);
+  line-height: 1.75rem;
+  font-weight: 600;
+}
+@utility button-md {
+  font-size: var(--text-base);
+  line-height: 1.5rem;
+  font-weight: 600;
+}
+@utility button-sm {
+  font-size: var(--text-sm);
+  line-height: 1.25rem;
+  font-weight: 600;
+}
+@utility button-xsm {
+  font-size: var(--text-xs);
+  line-height: 1rem;
+  font-weight: 600;
+}
+@utility caption-1 {
+  font-size: var(--text-sm);
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+@utility caption-2 {
+  font-size: var(--text-sm);
+  line-height: 1.25rem;
+  font-weight: 400;
+}
+@utility caption-3 {
+  font-size: var(--text-xs);
+  line-height: 1rem;
+  font-weight: 600;
+}
+@utility caption-4 {
+  font-size: var(--text-xs);
+  line-height: 1rem;
+  font-weight: 500;
+}
+@utility caption-5 {
+  font-size: var(--text-xs);
+  line-height: 1rem;
+  font-weight: 400;
 }
 
 @layer base {
@@ -110,8 +237,17 @@
 
   h1,
   h2,
-  h3 {
+  h3,
+  h4,
+  h5,
+  h6 {
     text-wrap: balance;
+  }
+
+  p,
+  li,
+  dd {
+    text-wrap: pretty;
   }
 
   summary::-webkit-details-marker {
@@ -121,7 +257,6 @@
   :focus-visible {
     outline: 2px solid var(--primary);
     outline-offset: 2px;
-    border-radius: var(--radius-small);
   }
 
   /* Keeps focused elements clear of the sticky header */
@@ -178,17 +313,69 @@
     animation: var(--animate-rise-in);
   }
 
-  /* Sized to the column so each sentence of the headline stays on one line */
-  .hero-title {
-    font-size: min(9.3vw, 5rem);
-    line-height: 1.08;
+  /* The one gradient allowed: hero heading text, black to grey, never a background */
+  .hero-gradient {
+    background-image: linear-gradient(to right, #000000, #666666);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
   }
 
-  @media (min-width: 1024px) {
-    .hero-title {
-      font-size: min(5.4vw, 5rem);
+  @media (forced-colors: active) {
+    .hero-gradient {
+      background-image: none;
+      color: CanvasText;
     }
   }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(32px);
+    transition:
+      opacity 700ms var(--ease-state),
+      transform 700ms var(--ease-state);
+  }
+
+  .reveal[data-shown] {
+    opacity: 1;
+    transform: none;
+  }
+
+  .tagline-word {
+    opacity: 0.3;
+    transition: opacity 500ms var(--ease-state);
+  }
+
+  .tagline-word[data-on] {
+    opacity: 1;
+  }
+
+  /* --hero runs from 0 to 1 as the first screen leaves. The card sinks back as the page moves on */
+  .hero-scroll {
+    transform: translateY(calc(var(--hero, 0) * 64px)) scale(calc(1 - var(--hero, 0) * 0.08));
+    transform-origin: top center;
+    opacity: calc(1 - var(--hero, 0) * 0.5);
+    will-change: transform;
+  }
+
+  .reveal .reveal-item {
+    opacity: 0;
+    transform: translateY(24px);
+    transition:
+      opacity 700ms var(--ease-state),
+      transform 700ms var(--ease-state);
+    transition-delay: calc(var(--order, 0) * 60ms);
+  }
+
+  .reveal[data-shown] .reveal-item {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Bangla conjuncts need room that a line height of 1 does not give them */
+html:lang(bn) :is(h1, h2, h3) {
+  line-height: 1.25;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -199,5 +386,22 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Movement becomes a plain opacity change */
+  .hero-scroll {
+    transform: none;
+    opacity: 1;
+  }
+
+  .reveal .reveal-item,
+  .reveal {
+    transform: none;
+    transition: opacity 300ms var(--ease-state);
+    transition-duration: 300ms !important;
+  }
+
+  .tagline-word {
+    opacity: 1;
   }
 }

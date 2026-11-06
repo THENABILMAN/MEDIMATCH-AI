@@ -20,9 +20,9 @@ const SORT_DEFAULT = 'relevance'
 
 function ResultsSkeleton() {
   return (
-    <div role="status" className="rounded-md border border-border bg-surface">
+    <div role="status" className="rounded-xl border border-border bg-surface">
       {[0, 1, 2, 3].map((row) => (
-        <div key={row} className="flex gap-3 border-b border-border p-4 last:border-b-0 md:p-5">
+        <div key={row} className="flex gap-3 border-b border-border p-4 last:border-b-0 md:p-4">
           <Skeleton className="size-10 rounded-full" />
           <div className="flex-1">
             <Skeleton className="h-5 w-48" />
@@ -154,10 +154,10 @@ export default function DoctorSearchPage() {
           />
         ) : (
           <>
-            <p className="mb-2 text-sm text-muted" aria-live="polite">
+            <p className="mb-2 body-6 text-muted" aria-live="polite">
               {t('search.resultCount', { count: search.data.total })}
             </p>
-            <ul className="rounded-md border border-border bg-surface">
+            <ul className="rounded-xl border border-border bg-surface">
               {search.data.items.map((doctor, index) => (
                 <li key={doctor.id} className="border-b border-border last:border-b-0">
                   <DoctorCardCompact doctor={doctor} soonest={nextOpenSlot(slots[index]?.data)?.start_time} />

@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react'
+import { Check } from '@phosphor-icons/react'
 import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
@@ -102,15 +102,15 @@ export default function OnboardingPage() {
           <li key={item} aria-current={item === step ? 'step' : undefined} className={cn('flex items-center gap-3 border-t-2 pt-3', position <= index ? 'border-primary' : 'border-border')}>
             <span
               className={cn(
-                'flex size-8 items-center justify-center rounded-full border font-serif text-lg tabular',
+                'flex size-8 items-center justify-center rounded-full border title-2 tabular',
                 position < index && 'border-primary bg-primary text-white',
                 position === index && 'border-primary text-primary-hover',
                 position > index && 'border-control text-muted'
               )}
             >
-              {position < index ? <Check aria-hidden className="size-3.5" strokeWidth={2.5} /> : position + 1}
+              {position < index ? <Check aria-hidden className="size-3.5" /> : position + 1}
             </span>
-            <span className={cn(position === index ? 'font-medium' : 'text-muted')}>{t(`onboarding.step.${item}`)}</span>
+            <span className={cn(position === index ? 'body-2' : 'text-muted')}>{t(`onboarding.step.${item}`)}</span>
           </li>
         ))}
       </ol>

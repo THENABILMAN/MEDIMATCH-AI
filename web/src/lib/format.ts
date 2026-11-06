@@ -27,6 +27,10 @@ export function formatDate(iso: string, language = 'en'): string {
   return format(iso, language, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+export function formatMonth(iso: string, language = 'en'): string {
+  return format(iso, language, { month: 'long', year: 'numeric' })
+}
+
 export function formatShortDate(iso: string, language = 'en'): string {
   return format(iso, language, { day: 'numeric', month: 'short' })
 }

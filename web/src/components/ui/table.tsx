@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowsDownUp } from '@phosphor-icons/react'
 import type { ComponentProps } from 'react'
 import { cn } from '../../lib/cn'
 
@@ -11,12 +11,12 @@ interface TableProps extends ComponentProps<'table'> {
 export function Table({ caption, scrollLabel, className, children, ...props }: TableProps) {
   return (
     <div
-      className="max-h-[70dvh] overflow-auto rounded-md border border-border bg-surface"
+      className="max-h-[70dvh] overflow-auto rounded-xl border border-border bg-surface"
       tabIndex={0}
       role="region"
       aria-label={scrollLabel ?? caption}
     >
-      <table className={cn('w-full border-collapse text-left text-sm', className)} {...props}>
+      <table className={cn('w-full border-collapse text-left body-6', className)} {...props}>
         <caption className="sr-only">{caption}</caption>
         {children}
       </table>
@@ -49,7 +49,7 @@ export function TableHeader({ className, ...props }: ComponentProps<'th'>) {
   return (
     <th
       scope="col"
-      className={cn('h-10 px-3 text-xs font-medium whitespace-nowrap text-muted', className)}
+      className={cn('h-10 px-3 caption-4 whitespace-nowrap text-muted', className)}
       {...props}
     />
   )
@@ -64,20 +64,20 @@ interface SortableHeaderProps extends Omit<ComponentProps<'th'>, 'onClick'> {
 }
 
 export function SortableHeader({ direction, onSort, numeric, children, className, ...props }: SortableHeaderProps) {
-  const Icon = direction === 'ascending' ? ArrowUp : direction === 'descending' ? ArrowDown : ArrowUpDown
+  const Icon = direction === 'ascending' ? ArrowUp : direction === 'descending' ? ArrowDown : ArrowsDownUp
   return (
     <TableHeader aria-sort={direction ?? 'none'} className={cn('p-0', className)} {...props}>
       <button
         type="button"
         onClick={onSort}
         className={cn(
-          'flex h-10 w-full items-center gap-1 px-3 font-medium hover:text-ink',
+          'flex h-10 w-full items-center gap-1 px-3 body-5 hover:text-ink',
           numeric && 'justify-end',
           direction && 'text-ink'
         )}
       >
         {children}
-        <Icon aria-hidden className="size-3.5" strokeWidth={1.75} />
+        <Icon aria-hidden className="size-3.5" />
       </button>
     </TableHeader>
   )

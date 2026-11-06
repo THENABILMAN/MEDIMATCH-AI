@@ -25,8 +25,8 @@ export default function VerificationPage() {
       ) : (
         <div className="grid gap-8 lg:grid-cols-12">
           <div className="lg:col-span-5">
-            <h2 className="font-serif text-3xl">{t(`verification.status.${profile.data.verification_status}`)}</h2>
-            <p className="prose-width mt-3 text-lg">{t(`verification.next.${profile.data.verification_status}`)}</p>
+            <h2 className="heading-3">{t(`verification.status.${profile.data.verification_status}`)}</h2>
+            <p className="prose-width mt-3 body-7">{t(`verification.next.${profile.data.verification_status}`)}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               {profile.data.verification_status === 'approved' ? (
                 <Button asChild>
@@ -50,7 +50,7 @@ export default function VerificationPage() {
             </div>
           </div>
           <div className="min-w-0 lg:col-span-7">
-            <h2 className="mb-3 font-serif text-xl">{t('verification.history')}</h2>
+            <h2 className="mb-3 heading-5">{t('verification.history')}</h2>
             {history.isError ? (
               <ErrorState error={history.error} onRetry={() => void history.refetch()} />
             ) : history.data?.length ? (

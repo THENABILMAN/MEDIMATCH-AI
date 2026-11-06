@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { History, Plus } from 'lucide-react'
+import { ClockCounterClockwise, Plus } from '@phosphor-icons/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -41,7 +41,7 @@ function ConsentPanel() {
   return (
     <div className="page-gutter py-8">
       <div className="mx-auto w-full max-w-[720px]">
-        <h1 className="font-serif text-2xl">{t('chat.consentTitle')}</h1>
+        <h1 className="heading-4">{t('chat.consentTitle')}</h1>
         <p className="prose-width mt-3 text-muted">{t('chat.consentBody')}</p>
         <p className="prose-width mt-3 text-muted">{t('chat.consentPrivacy')}</p>
         {failure && (
@@ -57,7 +57,7 @@ function ConsentPanel() {
             <Link to="/doctors">{t('home.browse')}</Link>
           </Button>
         </div>
-        <p className="prose-width mt-6 text-sm text-muted">{t('home.emergency', { number: EMERGENCY_NUMBER })}</p>
+        <p className="prose-width mt-6 body-6 text-muted">{t('home.emergency', { number: EMERGENCY_NUMBER })}</p>
       </div>
     </div>
   )
@@ -121,11 +121,25 @@ export default function ChatPage() {
 
   const [sending, setSending] = useState(false)
   const [followupField, setFollowupField] = useState<string | null>(null)
+  const [chips, setChips] = useState<{ label: string }[]>([])
   const [unsent, setUnsent] = useState<{ text: string; reason: string } | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
 
   const messages = conversation.data?.messages
+  const lastReply = messages?.findLast((message) => message.sender === 'assistant')
+  // Never offered after an alert or in a conversation that touched self-harm. The patient can still ask
+  const showDoctorsNow =
+    Boolean(messages?.some((message) => message.sender === 'patient')) &&
+    !messages?.some((message) => message.metadata?.safety_kind === 'self_harm') &&
+    !lastReply?.metadata?.is_emergency &&
+    !lastReply?.metadata?.recommendations?.length
+
+  useEffect(() => {
+    setChips([])
+    setFollowupField(null)
+  }, [conversationId])
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' })
   }, [messages, sending, unsent])
@@ -143,6 +157,7 @@ export default function ChatPage() {
     if (!conversationId) return
     setUnsent(null)
     setFollowupField(null)
+    setChips([])
     if (!alreadyShown) {
       append(conversationId, {
         id: `local-${Date.now()}`,
@@ -162,9 +177,14 @@ export default function ChatPage() {
         sender: 'assistant',
         content: reply.assistant_reply,
         created_at: new Date().toISOString(),
-        metadata: { is_emergency: reply.is_emergency, recommendations: reply.recommendations ?? [] },
+        metadata: {
+          is_emergency: reply.is_emergency,
+          safety_kind: reply.safety_kind ?? null,
+          recommendations: reply.recommendations ?? [],
+        },
       })
       setFollowupField(reply.followup_field ?? null)
+      setChips(reply.chips ?? [])
     } catch (error) {
       setUnsent({ text, reason: errorMessage(error, t) })
     } finally {
@@ -181,14 +201,14 @@ export default function ChatPage() {
       <div className="border-b border-border bg-surface">
         <div className="mx-auto flex w-full max-w-[752px] flex-col gap-2 px-4 py-3">
           <div className="flex items-center justify-between gap-2">
-            <h1 className="font-serif text-lg whitespace-nowrap md:text-xl">{t('chat.title')}</h1>
+            <h1 className="title-2 whitespace-nowrap md:heading-5">{t('chat.title')}</h1>
             <div className="flex gap-2">
               <Button variant="ghost" size="sm" onClick={() => setHistoryOpen(true)}>
-                <History aria-hidden className="hidden size-4 md:block" strokeWidth={1.75} />
+                <ClockCounterClockwise aria-hidden className="hidden size-4 md:block" />
                 {t('chat.history')}
               </Button>
               <Button variant="secondary" size="sm" onClick={() => void startNew()}>
-                <Plus aria-hidden className="hidden size-4 md:block" strokeWidth={1.75} />
+                <Plus aria-hidden className="hidden size-4 md:block" />
                 {t('chat.new')}
               </Button>
             </div>
@@ -220,7 +240,7 @@ export default function ChatPage() {
           )}
 
           {sending && (
-            <p role="status" className="rounded-md bg-ai-tint px-4 py-3 text-sm text-ai">
+            <p role="status" className="rounded-xl bg-ai-tint px-4 py-3 body-6 text-ai">
               {t('chat.thinking')}
             </p>
           )}
@@ -249,6 +269,8 @@ export default function ChatPage() {
             onSend={(text) => void send(text)}
             sending={sending || !conversation.data}
             followupField={followupField}
+            chips={chips}
+            showDoctorsNow={showDoctorsNow}
             initialText={draft}
           />
         </div>
@@ -263,10 +285,10 @@ export default function ChatPage() {
                   to={`/chat/${item.id}`}
                   onClick={() => setHistoryOpen(false)}
                   aria-current={item.id === conversationId ? 'page' : undefined}
-                  className="block rounded-sm p-3 hover:bg-canvas aria-[current=page]:bg-primary-tint"
+                  className="block rounded-lg p-3 hover:bg-canvas aria-[current=page]:bg-border"
                 >
-                  <span className="block font-medium">{item.title}</span>
-                  <span className="block text-sm text-muted tabular">
+                  <span className="block body-2">{item.title}</span>
+                  <span className="block body-6 text-muted tabular">
                     {formatDateTime(item.created_at, i18n.language)}
                   </span>
                 </Link>

@@ -8,7 +8,8 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : 4,
+  // Four browsers next to local Supabase ran this machine out of memory and killed the dev server
+  workers: process.env.CI ? 1 : 2,
   reporter: 'line',
   use: {
     baseURL: `http://localhost:${PORT}`,

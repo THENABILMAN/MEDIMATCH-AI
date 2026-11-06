@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { setup, trackProblems } from './support/mock-backend'
-import { EMERGENCY_REPLY } from './support/fixtures'
+import { CRISIS_REPLY, EMERGENCY_REPLY } from './support/fixtures'
 
 test('patient goes from chat to recommendations to a booking', async ({ page }) => {
   const problems = trackProblems(page)
@@ -72,7 +72,7 @@ test('admin approves a doctor and rejection requires a reason', async ({ page })
   const backend = await setup(page, { role: 'admin' })
   await page.goto('/admin/queue')
 
-  await page.getByRole('link', { name: /Dr. Zubaida Pending/ }).click()
+  await page.getByRole('link', { name: /Dr. Zubaida Pending/i }).click()
   await expect(page).toHaveURL(/doctor=p2/)
   await page.getByRole('button', { name: 'Reject' }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Reject' }).click()
@@ -81,7 +81,7 @@ test('admin approves a doctor and rejection requires a reason', async ({ page })
   await page.getByRole('dialog').getByRole('button', { name: 'Reject' }).click()
   await expect(page.getByText('Dr. Zubaida Pending was rejected.').first()).toBeVisible()
 
-  await page.getByRole('link', { name: /Dr. Jamil Pending/ }).click()
+  await page.getByRole('link', { name: /Dr. Jamil Pending/i }).click()
   await page.getByRole('button', { name: 'Approve' }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Approve' }).click()
   await expect(page.getByText('Dr. Jamil Pending was approved.').first()).toBeVisible()
@@ -250,7 +250,122 @@ test('a first message typed on the home page reaches the chat', async ({ page })
   await setup(page)
   await page.goto('/')
   await page.getByLabel('What are you feeling?').first().fill('Headache since yesterday')
-  await page.getByRole('button', { name: 'Start With the Assistant' }).first().click()
+  await page.getByRole('button', { name: 'Find my doctor' }).first().click()
   await expect(page.locator('#chat-input')).toHaveValue('Headache since yesterday')
   expect(page.url()).not.toContain('Headache')
 })
+
+test('a doctor sees no invented price, chooses a plan and sees what is owed', async ({ page }) => {
+  const backend = await setup(page, { role: 'doctor' })
+  await page.goto('/doctor/billing')
+  await expect(page.getByText('Pricing is shared during onboarding.').first()).toBeVisible()
+
+  backend.pricing = { booking_fee_bdt: 150, subscription_monthly_bdt: 2000 }
+  await page.reload()
+  await page.getByRole('radio', { name: /Monthly subscription/ }).click()
+  await expect(page.getByRole('dialog')).toContainText('2,000')
+  await page.getByRole('button', { name: 'Confirm plan' }).click()
+
+  await expect(page.getByRole('radio', { name: /Monthly subscription/ })).toBeChecked()
+  await expect(page.getByRole('cell', { name: 'Subscription for November 2026' })).toBeVisible()
+  await expect(page.getByRole('table')).toContainText('2,000')
+})
+
+test('an admin sets prices and records a payment', async ({ page }) => {
+  const backend = await setup(page, { role: 'admin' })
+  await page.goto('/admin/billing')
+  const fee = page.getByLabel('Fee per completed appointment (BDT)')
+  await expect(fee).toHaveValue('')
+
+  await fee.fill('12.5')
+  await fee.blur()
+  await expect(page.getByText('Enter a whole number from 1 to 1,000,000.')).toBeVisible()
+  await fee.fill('150')
+  await page.getByRole('button', { name: 'Save prices' }).click()
+  await expect.poll(() => backend.pricing.booking_fee_bdt).toBe(150)
+  expect(backend.pricing.subscription_monthly_bdt).toBeNull()
+
+  backend.charges = [
+    {
+      id: 'c9',
+      kind: 'booking_fee',
+      billing_month: null,
+      amount_bdt: 150,
+      status: 'owed',
+      created_at: '2026-11-06T06:00:00Z',
+      settled_at: null,
+      doctor_id: 'd1',
+      doctor_name: 'Dr. Kazi Ahmed',
+    },
+  ]
+  await page.reload()
+  await page.getByRole('button', { name: 'Mark paid' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Mark paid' }).click()
+  await expect(page.getByRole('cell', { name: 'Paid' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Mark paid' })).toHaveCount(0)
+})
+
+test('the home page says patients pay nothing and the doctor page shows no invented price', async ({ page }) => {
+  await setup(page, { signedIn: false })
+  await page.goto('/')
+  await expect(page.getByText('Free for patients', { exact: true })).toBeAttached()
+  await page.getByRole('navigation', { name: 'Footer' }).getByRole('link', { name: 'For doctors' }).click()
+  await expect(page).toHaveURL(/\/for-doctors$/)
+  await expect(page.getByText('Pricing is shared during onboarding.')).toHaveCount(2)
+  await page.getByRole('link', { name: 'Create a doctor account' }).click()
+  await expect(page).toHaveURL(/role=doctor/)
+})
+
+test('a crisis message is calm, exact, and offers no doctors', async ({ page }) => {
+  await setup(page)
+  await page.goto('/chat')
+  await page.getByLabel('Describe your symptoms').fill('I want to end my life')
+  await page.getByRole('button', { name: 'Send' }).click()
+
+  const notice = page.getByTestId('crisis-notice')
+  await expect(notice).toBeVisible()
+  await expect(notice).toHaveText(new RegExp(CRISIS_REPLY.split('\n')[0]))
+  await expect(notice.getByRole('link', { name: 'Call 999 now' })).toHaveAttribute('href', 'tel:999')
+  await expect(page.getByTestId('emergency-notice')).toHaveCount(0)
+  await expect(notice).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+  await expect(page.getByRole('button', { name: 'Show me doctors now' })).toHaveCount(0)
+})
+
+test('a physical emergency keeps the red alert and offers no doctors', async ({ page }) => {
+  await setup(page)
+  await page.goto('/chat')
+  await page.getByLabel('Describe your symptoms').fill('I have chest pain')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.getByTestId('emergency-notice')).toBeVisible()
+  await expect(page.getByTestId('crisis-notice')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Show me doctors now' })).toHaveCount(0)
+})
+
+test('the assistant offers its own answers, and doctors can be asked for at any time', async ({ page }) => {
+  const backend = await setup(page)
+  backend.chips = [{ label: 'Physical' }, { label: 'Emotional' }]
+  await page.goto('/chat')
+  await expect(page.getByRole('button', { name: 'Show me doctors now' })).toHaveCount(0)
+  await page.getByLabel('Describe your symptoms').fill('I have a broken heart')
+  await page.getByRole('button', { name: 'Send' }).click()
+
+  await expect(page.getByRole('button', { name: 'Emotional' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '2 to 3 days' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Show me doctors now' }).click()
+
+  await expect(page.getByRole('article', { name: 'You said' }).last()).toHaveText(/Show me doctors now/)
+  await expect(page.getByTestId('recommendation').first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Show me doctors now' })).toHaveCount(0)
+})
+
+test('correcting a form error does not lose the next click', async ({ page }) => {
+  await setup(page, { signedIn: false })
+  await page.goto('/login')
+  const email = page.getByLabel('Email')
+  await email.fill('not an email')
+  await email.blur()
+  await expect(page.locator('[aria-invalid="true"]')).toHaveCount(1)
+  await email.fill('patient@example.com')
+  await expect(page.locator('[aria-invalid="true"]')).toHaveCount(0)
+})
+

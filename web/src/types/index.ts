@@ -108,6 +108,8 @@ export interface Appointment {
   } | null
 }
 
+export type SafetyKind = 'physical' | 'self_harm'
+
 export interface ChatMessage {
   id: string
   conversation_id: string
@@ -116,6 +118,7 @@ export interface ChatMessage {
   created_at: string
   metadata?: {
     is_emergency?: boolean
+    safety_kind?: SafetyKind | null
     recommendations?: DoctorRecommendation[]
   } | null
 }
@@ -141,6 +144,8 @@ export interface ChatReply {
   is_emergency: boolean
   recommendations?: DoctorRecommendation[] | null
   followup_field?: string | null
+  chips?: { label: string }[]
+  safety_kind?: SafetyKind | null
 }
 
 export interface AuditLog {
@@ -199,4 +204,36 @@ export interface TableParams {
   offset: number
   sort?: string
   descending?: boolean
+}
+
+export type BillingPlan = 'booking_fee' | 'subscription'
+export type ChargeStatus = 'owed' | 'paid' | 'waived'
+
+/** Whole taka. Null means the price is unset, and nothing is charged. */
+export interface BillingPricing {
+  booking_fee_bdt: number | null
+  subscription_monthly_bdt: number | null
+}
+
+export interface BillingCharge {
+  id: string
+  kind: BillingPlan
+  billing_month: string | null
+  amount_bdt: number
+  status: ChargeStatus
+  created_at: string
+  settled_at: string | null
+}
+
+export interface MyBilling {
+  plan: BillingPlan | null
+  chosen_at: string | null
+  pricing: BillingPricing
+  total_owed_bdt: number
+  charges: BillingCharge[]
+}
+
+export interface AdminBillingCharge extends BillingCharge {
+  doctor_id: string
+  doctor_name: string | null
 }

@@ -4,7 +4,7 @@ import { cn } from '../../lib/cn'
 import { Tooltip } from './tooltip'
 
 const iconButtonVariants = cva(
-  'inline-flex size-11 shrink-0 items-center justify-center rounded-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 md:size-10',
+  'inline-flex size-11 shrink-0 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 md:size-10',
   {
     variants: {
       variant: {

@@ -1,4 +1,4 @@
-import { CheckCircle2, X } from 'lucide-react'
+import { CheckCircle, X } from '@phosphor-icons/react'
 import { Toast as ToastPrimitive } from 'radix-ui'
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -37,16 +37,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               if (!open) setToasts((current) => current.filter((other) => other.id !== item.id))
             }}
             className={cn(
-              'flex animate-rise-in items-start gap-2 rounded-md border bg-surface p-3 text-sm shadow-overlay',
+              'flex animate-rise-in items-start gap-2 rounded-xl border bg-surface p-3 body-6 shadow-overlay',
               item.tone === 'error' ? 'border-danger' : 'border-border'
             )}
           >
             {item.tone === 'success' && (
-              <CheckCircle2 aria-hidden className="mt-0.5 size-4 shrink-0 text-success" strokeWidth={1.75} />
+              <CheckCircle aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
             )}
             <ToastPrimitive.Description className="flex-1">{item.message}</ToastPrimitive.Description>
-            <ToastPrimitive.Close aria-label={t('common.close')} className="rounded-sm text-muted hover:text-ink">
-              <X aria-hidden className="size-4" strokeWidth={1.75} />
+            <ToastPrimitive.Close aria-label={t('common.close')} className="rounded-lg text-muted hover:text-ink">
+              <X aria-hidden className="size-4" />
             </ToastPrimitive.Close>
           </ToastPrimitive.Root>
         ))}
