@@ -4,6 +4,7 @@ from app.api.v1 import (
     admin,
     appointments,
     auth,
+    billing,
     chat,
     doctors,
     health,
@@ -18,5 +19,6 @@ api_router.include_router(users.router)
 api_router.include_router(doctors.router)
 api_router.include_router(appointments.router)
 api_router.include_router(admin.router)
+api_router.include_router(billing.router)
 api_router.include_router(chat.router)
 api_router.include_router(recommendations.router)

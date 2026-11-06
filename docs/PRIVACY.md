@@ -13,6 +13,7 @@ What personal data the backend holds, where it goes, and how long it stays. This
 | Symptoms and emergency flag | `patient_symptom_sessions` | Same as messages |
 | Appointments | `appointments` | Kept as records of care. A closed account shows as "Deleted Patient" |
 | Doctor credentials | `doctor_credentials`, private bucket | No deletion path yet |
+| Doctor billing plan and charges | `doctor_billing_plans`, `billing_charges` | Kept as financial records. They hold no patient details beyond the appointment id |
 | Audit events | `audit_logs` | Kept. Entries hold ids and field names, not names, emails or phone numbers |
 
 **Consent:** the API refuses to store symptoms until the patient has agreed, recorded in `profiles.ai_consent_at`. An emergency still gets its alert without consent, and nothing the patient wrote is stored.

@@ -59,11 +59,16 @@ The image runs as a non-root user, has a health check, and finishes running work
 
 **Workers:** rate limits are counted per process, so `workers x limit` applies. Run behind a proxy that sets `X-Forwarded-For`, or the limits see the proxy's address.
 
+## Billing
+
+Apply migration `00014`, then set prices at `/admin/billing`. Until a price is set, nothing is charged. Payment happens outside the app, and an admin records it there.
+
 ## Scheduled Jobs
 
 | Job | Command | When |
 |---|---|---|
 | Erase expired chats | `python scripts/purge_expired.py` | Daily |
+| Charge doctor subscriptions | `python scripts/bill_subscriptions.py` | Daily. Each month is charged once |
 | Retry failed vector syncs | `python scripts/reindex_all.py --unsynced` | Every 15 minutes |
 | Rebuild the vector index | `python scripts/reindex_all.py` | After changing the embedding model |
 

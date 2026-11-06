@@ -4,7 +4,14 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import require_admin
-from app.models.enums import VerificationStatus
+from app.models.enums import ChargeStatus, VerificationStatus
+from app.schemas.billing import (
+    AdminBillingCharge,
+    AdminBillingChargePage,
+    BillingPricing,
+    BillingPricingUpdate,
+    ChargeSettlement,
+)
 from app.schemas.common import UuidStr
 from app.schemas.doctor import (
     AdminDoctorActionRequest,
@@ -31,8 +38,47 @@ from app.services.admin_service import (
     suspend_doctor,
     update_specialty,
 )
+from app.services.billing_service import list_charges, settle_charge, update_pricing
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
+
+
+# ------------------------------------------------------------------------------
+# Doctor Billing
+# ------------------------------------------------------------------------------
+
+
+@router.put("/billing/pricing", response_model=BillingPricing, summary="Set doctor prices")
+def admin_update_pricing(
+    update: BillingPricingUpdate,
+    current_admin: UserMeResponse = Depends(require_admin),
+) -> BillingPricing:
+    return update_pricing(str(current_admin.id), update)
+
+
+@router.get(
+    "/billing/charges", response_model=AdminBillingChargePage, summary="List doctor charges"
+)
+def admin_list_charges(
+    status: ChargeStatus | None = Query(default=None, description="Filter by status"),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    current_admin: UserMeResponse = Depends(require_admin),
+) -> AdminBillingChargePage:
+    return list_charges(status, limit, offset)
+
+
+@router.post(
+    "/billing/charges/{id}/settle",
+    response_model=AdminBillingCharge,
+    summary="Mark a charge paid or waived",
+)
+def admin_settle_charge(
+    id: UuidStr,
+    settlement: ChargeSettlement,
+    current_admin: UserMeResponse = Depends(require_admin),
+) -> AdminBillingCharge:
+    return settle_charge(str(current_admin.id), id, settlement.status)
 
 
 # ------------------------------------------------------------------------------

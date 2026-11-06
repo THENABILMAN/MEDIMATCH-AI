@@ -14,6 +14,22 @@ class VerificationStatus(str, Enum):
     SUSPENDED = "suspended"
 
 
+class BillingPlan(str, Enum):
+    BOOKING_FEE = "booking_fee"
+    SUBSCRIPTION = "subscription"
+
+
+class ChargeKind(str, Enum):
+    BOOKING_FEE = "booking_fee"
+    SUBSCRIPTION = "subscription"
+
+
+class ChargeStatus(str, Enum):
+    OWED = "owed"
+    PAID = "paid"
+    WAIVED = "waived"
+
+
 class AppointmentStatus(str, Enum):
     BOOKED = "booked"
     CANCELLED = "cancelled"

@@ -24,6 +24,7 @@ from app.api.v1 import (
     admin,
     appointments,
     auth,
+    billing,
     chat,
     doctors,
     health,
@@ -188,6 +189,7 @@ def create_app() -> FastAPI:
         doctors.router,
         appointments.router,
         admin.router,
+        billing.router,
         chat.router,
         recommendations.router,
     ):
