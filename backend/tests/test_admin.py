@@ -150,20 +150,20 @@ def test_admin_specialty_crud(client: TestClient, admin_headers: dict):
     """Admin can create, view, update, and delete specialties."""
     # 1. Create specialty
     create_payload = {
-        "name": "Dermatology",
-        "description": "Diagnosis and management of skin, hair, and nail conditions.",
+        "name": "Sleep Medicine",
+        "description": "Diagnosis and management of sleep conditions.",
     }
     res_create = client.post("/admin/specialties", headers=admin_headers, json=create_payload)
     assert res_create.status_code == status.HTTP_201_CREATED
     spec = res_create.json()
     specialty_id = spec["id"]
-    assert spec["name"] == "Dermatology"
+    assert spec["name"] == "Sleep Medicine"
 
     # 2. List specialties
     res_list = client.get("/admin/specialties", headers=admin_headers)
     assert res_list.status_code == status.HTTP_200_OK
     names = [s["name"] for s in res_list.json()]
-    assert "Dermatology" in names
+    assert "Sleep Medicine" in names
 
     # 3. Update specialty
     update_payload = {"description": "Updated skin & aesthetic clinical dermatology care."}
@@ -176,3 +176,8 @@ def test_admin_specialty_crud(client: TestClient, admin_headers: dict):
     # 4. Delete specialty
     res_del = client.delete(f"/admin/specialties/{specialty_id}", headers=admin_headers)
     assert res_del.status_code == status.HTTP_200_OK
+
+
+def test_a_duplicate_specialty_name_is_refused_not_a_crash(client: TestClient, admin_headers: dict):
+    res = client.post("/admin/specialties", headers=admin_headers, json={"name": "cardiology"})
+    assert res.status_code == status.HTTP_409_CONFLICT

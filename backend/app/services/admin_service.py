@@ -348,6 +348,11 @@ def _reindex_doctors(doctor_ids: list[str]) -> None:
         run_in_background(sync_doctor_vector, doctor_id)
 
 
+def _specialty_name_taken(client: Any, name: str, except_id: str | None = None) -> bool:
+    rows = client.table("specialties").select("id, name").ilike("name", name).execute().data or []
+    return any(str(row["id"]) != except_id for row in rows if row["name"].lower() == name.lower())
+
+
 def create_specialty(payload: SpecialtyCreate, admin_id: str) -> SpecialtyRead:
     admin_client = get_supabase_admin_client()
     if not admin_client:
@@ -355,14 +360,14 @@ def create_specialty(payload: SpecialtyCreate, admin_id: str) -> SpecialtyRead:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database service unavailable"
         )
 
+    name = payload.name.strip()
+    if _specialty_name_taken(admin_client, name):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=f"A specialty named {name} already exists"
+        )
     res = (
         admin_client.table("specialties")
-        .insert(
-            {
-                "name": payload.name.strip(),
-                "description": payload.description,
-            }
-        )
+        .insert({"name": name, "description": payload.description})
         .execute()
     )
 
@@ -407,6 +412,11 @@ def update_specialty(specialty_id: str, payload: SpecialtyUpdate, admin_id: str)
     updates = {}
     if payload.name is not None:
         updates["name"] = payload.name.strip()
+        if _specialty_name_taken(admin_client, updates["name"], except_id=specialty_id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"A specialty named {updates['name']} already exists",
+            )
     if payload.description is not None:
         updates["description"] = payload.description
 
