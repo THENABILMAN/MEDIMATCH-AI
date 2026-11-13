@@ -20,6 +20,10 @@ What personal data the backend holds, where it goes, and how long it stays. This
 
 **Retention:** chats untouched for `CHAT_RETENTION_DAYS` (365 by default) are erased by `backend/scripts/purge_expired.py`, which must be scheduled daily.
 
+## Doctor Directory
+
+The doctor listings come from a public directory the owner collected. The source files stay on the owner's machine in `doctor db/`, which git ignores. The database holds each doctor's listed name, degrees, specialty, position, workplace, BMDC number when listed, and the link to the public listing. Phone numbers in the workplace text are removed on import. Pinecone receives the clinical fields only, never names or fees.
+
 ## Sent to Third Parties
 
 | Provider | What it receives | What it does not receive |

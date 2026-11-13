@@ -59,6 +59,10 @@ The image runs as a non-root user, has a health check, and finishes running work
 
 **Workers:** rate limits are counted per process, so `workers x limit` applies. Run behind a proxy that sets `X-Forwarded-For`, or the limits see the proxy's address.
 
+## Doctor Directory
+
+Apply migration `00015`, then run `python backend/scripts/import_directory.py` with the directory file in `doctor db/`. Running it again updates each doctor in place. It never deletes a doctor who joined MediMatch.
+
 ## Billing
 
 Apply migration `00014`, then set prices at `/admin/billing`. Until a price is set, nothing is charged. Payment happens outside the app, and an admin records it there.

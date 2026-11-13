@@ -50,7 +50,7 @@ MEDIMATCH-AI/
 2. **Secret Isolation**: Never expose service-role keys, Pinecone API keys, or Groq keys to any frontend (Web or Mobile). All credentials must be kept strictly on the backend and loaded via environment variables.
 3. **Medical Safety**: The AI assistant must never diagnose, prescribe treatments, or reassure patients that serious symptoms are harmless. It only helps find suitable, qualified doctors.
 4. **Deterministic Emergency Triage**: Emergency detection must be rule-based (deterministic keyword and regex checks backed by comprehensive tests), never delegated solely to an LLM.
-5. **Doctor Verification Enforcement**: Only doctors with `verification_status = 'approved'` may ever be recommended or searchable by patients.
+5. **Doctor Verification Enforcement**: Only doctors with `verification_status = 'approved'` may ever be recommended or searchable by patients. A doctor listed from the public directory (`listing_source = 'directory'`) has not been checked by MediMatch, so patients always see it labelled "Not yet verified", with no online booking. Never present one as verified, and never fill an unknown fee, experience or city with a guess.
 6. **Row-Level Security (RLS)**: Every table containing user data must have RLS enabled with strict least-privilege policies.
 7. **Privacy Preservation**: Minimize personal data sent to LLM/embedding providers; never send patient names, phone numbers, email addresses, or identifying credentials.
 8. **Defense in Depth**: Every route enforces auth and role checks, and RLS guards the same data. Rely on neither alone. Clients never write directly: the API is the only writer.
@@ -71,9 +71,11 @@ MEDIMATCH-AI/
 ## Commands
 
 ### Backend
+Every Python command runs in the `medi` conda environment (Python 3.12). Activate it first with `conda activate medi`.
+
 ```bash
-# Install dependencies
-python -m pip install -r backend/requirements-dev.txt   # Python 3.12. requirements.txt is runtime only
+# Install dependencies into medi
+python -m pip install -r backend/requirements-dev.txt   # requirements.txt is runtime only
 
 # Start local Supabase (needs Docker), or rebuild it from zero
 npx supabase@latest start
@@ -103,6 +105,10 @@ python backend/scripts/purge_expired.py
 
 # Charge this month's doctor subscriptions. Run daily, each month is charged once
 python backend/scripts/bill_subscriptions.py
+
+# Import the owner's doctor directory from "doctor db/", which is private and never committed
+python backend/scripts/import_directory.py --dry-run
+python backend/scripts/import_directory.py
 
 # Run all tests. They use local Supabase only and refuse any other host
 cd backend && python -m pytest tests -q
@@ -207,6 +213,14 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
   - Language switch added. Most of the interface is still English, because Bangla copy needs a reviewer
   - Tests: 44 Vitest and 97 Playwright passing on a mocked API
   - The assistant runs on Groq and was tried in real English, Bangla and Banglish conversations. The full emergency evaluation was measured on the earlier model. A spot check on Groq flagged 12 of 14 emergencies and 0 of 8 ordinary messages
+- [x] **Phase 5h: Doctor Directory**
+  - 7,537 doctors from the owner's directory (`doctor db/`, kept out of git) are on the live project, and every dummy doctor and its account is gone
+  - Migration `00015` lets a listing exist without an account: `listing_source`, `listed_name`, `source_url`, `bmdc_number`, `designation`, `specialty_text`, and fee, experience and city that can be unknown
+  - `backend/scripts/directory_rules.py` maps 2,846 free-text specialties onto 28 specialties and finds a city in the workplace text for 80% of doctors. A clinician should review the rules. 51 listings with no fitting specialty, such as homeopaths, are never suggested
+  - Directory doctors are labelled "Not yet verified" and show "Contact the hospital to book". Phone numbers are stripped from workplace text
+  - Search filters specialty and city inside the database and Pinecone, so it stays correct at this size. "Chittagong" and "Chattogram" find the same doctors
+  - New writer and analysis prompts: the model may only state what the conversation or the turn notes say, and is told exactly how each listed doctor can be reached
+  - 1120 backend tests pass on local Supabase, 54 Vitest and 130 Playwright on a mocked API
 - [x] **Phase 5g: Business Model**
   - Free for patients, paid by doctors. Each doctor chooses a fee per completed appointment or a monthly subscription
   - Migration `00014` adds `billing_settings`, `doctor_billing_plans` and `billing_charges`. It is applied to the live project
@@ -234,6 +248,9 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
 ---
 
 ## Decisions Log
+- **2026-11-13**: Imported the owner's doctor directory and removed every dummy doctor, on the owner's instruction. Directory doctors are labelled "Not yet verified" with no online booking, on the owner's choice, because MediMatch has not checked them. A city that cannot be found in the listing stays unknown, so the doctor appears only when the patient says any city is fine.
+- **2026-11-13**: The shortlist may include doctors without booking times when they are directory listings. A doctor who joined MediMatch still needs an open time to be suggested.
+- **2026-11-13**: Specialty search prefers an exact name, because "ENT" is also inside "Gastroenterology" and "Dentistry". A duplicate specialty name is refused with 409 rather than crashing.
 - **2026-11-06**: "Show me doctors now" is never offered after an alert or in a conversation that touched self-harm, so the app does not push a search at someone in crisis. The patient can still ask in words.
 - **2026-11-06**: Form errors clear as they are corrected (`mode: 'onTouched'`). Clearing on blur moved the submit button under the click, and the click was lost.
 - **2026-11-06**: Booking fees are charged when an appointment is completed, because booking has no confirmed step. A database trigger does it, so no path can skip it, and an appointment is charged once. Cancelled appointments cost nothing.
