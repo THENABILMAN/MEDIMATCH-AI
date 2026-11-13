@@ -11,6 +11,7 @@ Ensures:
 """
 
 import logging
+import time
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor, wait
 from datetime import UTC, datetime
@@ -22,6 +23,7 @@ from app.core.config import settings
 from app.core.supabase import get_supabase_admin_client
 from app.models.enums import VerificationStatus
 from app.search.builder import build_doctor_embedding_text
+from app.search.cities import normalize_city
 from app.search.embeddings import get_embedding_provider
 
 logger = logging.getLogger("medimatch.search.sync")
@@ -72,6 +74,22 @@ def set_pinecone_index_client(client: Any | None) -> None:
     """Sets a mock Pinecone index client for unit tests."""
     global _MOCK_PINECONE_INDEX
     _MOCK_PINECONE_INDEX = client
+
+
+def vector_metadata(doc: dict[str, Any]) -> dict[str, Any]:
+    """What Pinecone filters on. Pinecone refuses null values, so an unknown city is left out."""
+    specialties = doc.get("specialties", [])
+    metadata: dict[str, Any] = {
+        "doctor_id": str(doc["id"]),
+        "specialty_ids": [str(s["id"]) for s in specialties],
+        "specialty_names": [s["name"] for s in specialties],
+        "status": "approved",
+        "listing_source": doc.get("listing_source") or "registered",
+    }
+    city = normalize_city(doc.get("city"))
+    if city:
+        metadata["city"] = city
+    return metadata
 
 
 def _fetch_doctor_with_specialties(doctor_id: str) -> dict[str, Any] | None:
@@ -190,16 +208,7 @@ def sync_doctor_vector(doctor_id: str) -> bool:
             raise ValueError(f"Embedding provider produced no vector for doctor {doctor_id}")
 
         vector = vectors[0]
-        specialty_ids = [s["id"] for s in doc.get("specialties", [])]
-        specialty_names = [s["name"] for s in doc.get("specialties", [])]
-
-        metadata = {
-            "doctor_id": doctor_id,
-            "specialty_ids": specialty_ids,
-            "specialty_names": specialty_names,
-            "city": doc.get("city", "Dhaka"),
-            "status": "approved",
-        }
+        metadata = vector_metadata(doc)
 
         _upsert_vector_to_pinecone(doctor_id=doctor_id, vector=vector, metadata=metadata)
         _update_sync_status(doctor_id, "synced")
@@ -245,3 +254,74 @@ def retry_unsynced() -> int:
     for doctor_id in doctor_ids:
         sync_doctor_vector(doctor_id)
     return len(doctor_ids)
+
+
+# Pinecone embeds at most 96 texts a call and upserts at most 1,000 vectors
+EMBED_BATCH = 96
+UPSERT_BATCH = 100
+STATUS_BATCH = 200
+RATE_LIMIT_WAIT_SECONDS = 30
+MOST_RATE_LIMIT_WAITS = 20
+
+
+def _with_rate_limit_waits(task: Callable[[], Any]) -> Any:
+    """Waits out Pinecone's per-minute limits, which a full index rebuild can reach."""
+    for _ in range(MOST_RATE_LIMIT_WAITS):
+        try:
+            return task()
+        except Exception as e:
+            text = str(e)
+            if (
+                "429" not in text
+                and "RESOURCE_EXHAUSTED" not in text
+                and "rate" not in text.lower()
+            ):
+                raise
+            logger.warning("[VECTOR_SYNC] Pinecone rate limit reached, waiting")
+            time.sleep(RATE_LIMIT_WAIT_SECONDS)
+    return task()
+
+
+def _mark_synced(doctor_ids: list[str]) -> None:
+    client = get_supabase_admin_client()
+    if not client:
+        return
+    now = datetime.now(UTC).isoformat()
+    for start in range(0, len(doctor_ids), STATUS_BATCH):
+        chunk = doctor_ids[start : start + STATUS_BATCH]
+        client.table("doctor_profiles").update(
+            {"sync_status": "synced", "last_synced_at": now}
+        ).in_("id", chunk).execute()
+
+
+def index_doctors(
+    doctors: list[dict[str, Any]], progress: Callable[[int, int], None] | None = None
+) -> int:
+    """Embeds and upserts approved doctors in batches, then marks them synced.
+
+    Each doctor needs its "specialties" list. Returns how many were indexed.
+    """
+    approved = [
+        d for d in doctors if d.get("verification_status") == VerificationStatus.APPROVED.value
+    ]
+    provider = get_embedding_provider()
+    index = get_pinecone_index()
+    done = 0
+    for start in range(0, len(approved), EMBED_BATCH):
+        batch = approved[start : start + EMBED_BATCH]
+        texts = [build_doctor_embedding_text(d) for d in batch]
+        vectors: list[list[float]] = _with_rate_limit_waits(
+            lambda texts=texts: provider.embed_documents(texts)  # type: ignore[misc]
+        )
+        records = [
+            {"id": str(doc["id"]), "values": vector, "metadata": vector_metadata(doc)}
+            for doc, vector in zip(batch, vectors, strict=True)
+        ]
+        for upsert_start in range(0, len(records), UPSERT_BATCH):
+            chunk = records[upsert_start : upsert_start + UPSERT_BATCH]
+            _with_rate_limit_waits(lambda chunk=chunk: index.upsert(vectors=chunk))  # type: ignore[misc]
+        _mark_synced([str(doc["id"]) for doc in batch])
+        done += len(batch)
+        if progress:
+            progress(done, len(approved))
+    return done

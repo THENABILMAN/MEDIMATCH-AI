@@ -14,6 +14,11 @@ def _options() -> ClientOptions:
     )
 
 
+def any_contains_filter(column: str, values: list[str]) -> str:
+    """A PostgREST or() filter matching rows whose column contains any of the values."""
+    return ",".join(f"{column}.ilike.{contains_pattern(v)}" for v in values)
+
+
 def contains_pattern(text: str) -> str:
     """Builds a case-insensitive "contains" pattern that matches user text literally.
 

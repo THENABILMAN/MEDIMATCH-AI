@@ -2,6 +2,7 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 from app.models.enums import UserRole, VerificationStatus
+from app.search.cities import normalize_city
 
 
 def test_public_search_returns_only_approved_doctors(client: TestClient):
@@ -63,8 +64,9 @@ def test_search_filter_by_city(client: TestClient):
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert data["total"] >= 1
+    # Either spelling of the city counts as Chittagong
     for doctor in data["items"]:
-        assert doctor["city"].lower() == "chittagong"
+        assert normalize_city(doctor["city"]) == "Chattogram"
 
 
 def test_search_filter_by_specialty(client: TestClient):

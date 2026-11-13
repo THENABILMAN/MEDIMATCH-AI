@@ -14,7 +14,6 @@ Usage:
 """
 
 import sys
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -32,9 +31,8 @@ import argparse
 from app.core.config import settings
 from app.core.supabase import get_supabase_admin_client
 from app.models.enums import VerificationStatus
-from app.search.builder import build_doctor_embedding_text
 from app.search.embeddings import get_embedding_provider
-from app.search.sync import get_pinecone_index, retry_unsynced
+from app.search.sync import get_pinecone_index, index_doctors, retry_unsynced
 
 
 def reindex_all():
@@ -54,26 +52,31 @@ def reindex_all():
     print(f"Embedding Provider          : {provider.__class__.__name__}")
     print(f"Embedding Model             : {settings.EMBEDDING_MODEL} ({provider.dimension}-dim)\n")
 
-    # 1. Fetch all doctor profiles with specialties
-    res = (
-        client.table("doctor_profiles")
-        .select("*, doctor_specialties(specialties(id, name, description))")
-        .execute()
-    )
-    all_doctors: list[dict[str, Any]] = res.data or []
+    # 1. Fetch every doctor, a page at a time, because a request returns at most 1,000 rows
+    all_doctors: list[dict[str, Any]] = []
+    page = 1000
+    while True:
+        res = (
+            client.table("doctor_profiles")
+            .select("*, doctor_specialties(specialties(id, name, description))")
+            .order("id")
+            .range(len(all_doctors), len(all_doctors) + page - 1)
+            .execute()
+        )
+        rows = res.data or []
+        all_doctors += rows
+        if len(rows) < page:
+            break
     print(f"[INFO] Found {len(all_doctors)} total doctor profile(s) in Supabase.")
 
     approved_docs: list[dict[str, Any]] = []
     unapproved_doc_ids: list[str] = []
-
     for doc in all_doctors:
-        specs = []
-        for item in doc.get("doctor_specialties", []):
-            s = item.get("specialties")
-            if s:
-                specs.append(s)
-        doc["specialties"] = specs
-
+        doc["specialties"] = [
+            item["specialties"]
+            for item in doc.get("doctor_specialties", [])
+            if item.get("specialties")
+        ]
         if doc.get("verification_status") == VerificationStatus.APPROVED.value:
             approved_docs.append(doc)
         else:
@@ -83,79 +86,17 @@ def reindex_all():
     print(f"  • Unapproved to Purge       : {len(unapproved_doc_ids)}\n")
 
     # 2. Purge unapproved doctors from Pinecone
-    if unapproved_doc_ids:
-        print(
-            f"[INFO] Purging {len(unapproved_doc_ids)} unapproved/suspended vectors from Pinecone..."
-        )
-        try:
-            index.delete(ids=unapproved_doc_ids)
-            print("[SUCCESS] Purged unapproved vectors from index.")
-        except Exception as e:
-            print(f"[NOTICE] Vector purge completed with note: {e}")
+    for start in range(0, len(unapproved_doc_ids), 1000):
+        index.delete(ids=unapproved_doc_ids[start : start + 1000])
 
-    # 3. Build documents and embed approved doctors
+    # 3. Embed and upsert approved doctors in batches
     if not approved_docs:
         print("[WARNING] No approved doctors found to index.")
         return
-
-    print(
-        f"[INFO] Building documents and generating embeddings for {len(approved_docs)} doctor(s)..."
+    index_doctors(
+        approved_docs,
+        progress=lambda done, total: print(f"  • Indexed {done}/{total}", flush=True),
     )
-    doc_texts = [build_doctor_embedding_text(d) for d in approved_docs]
-    embeddings = provider.embed_documents(doc_texts)
-
-    vectors_to_upsert = []
-    now_iso = datetime.now(UTC).isoformat()
-
-    for doc, vec in zip(approved_docs, embeddings, strict=False):
-        doc_id = str(doc["id"])
-        specialty_ids = [s["id"] for s in doc.get("specialties", [])]
-        specialty_names = [s["name"] for s in doc.get("specialties", [])]
-
-        metadata = {
-            "doctor_id": doc_id,
-            "specialty_ids": specialty_ids,
-            "specialty_names": specialty_names,
-            "city": doc.get("city", "Dhaka"),
-            "status": "approved",
-        }
-
-        vectors_to_upsert.append(
-            {
-                "id": doc_id,
-                "values": vec,
-                "metadata": metadata,
-            }
-        )
-
-    # 4. Batch upsert to Pinecone
-    batch_size = 50
-    total_upserted = 0
-    for i in range(0, len(vectors_to_upsert), batch_size):
-        batch = vectors_to_upsert[i : i + batch_size]
-        index.upsert(vectors=batch)
-        total_upserted += len(batch)
-        print(
-            f"  • Upserted batch {i + 1} to {i + len(batch)} ({total_upserted}/{len(vectors_to_upsert)})"
-        )
-
-    # 5. Update sync_status in Supabase
-    approved_ids = [str(d["id"]) for d in approved_docs]
-    for doc_id in approved_ids:
-        client.table("doctor_profiles").update(
-            {
-                "sync_status": "synced",
-                "last_synced_at": now_iso,
-            }
-        ).eq("id", doc_id).execute()
-
-    for doc_id in unapproved_doc_ids:
-        client.table("doctor_profiles").update(
-            {
-                "sync_status": "synced",
-                "last_synced_at": now_iso,
-            }
-        ).eq("id", doc_id).execute()
 
     # 6. Report final stats
     stats = index.describe_index_stats()

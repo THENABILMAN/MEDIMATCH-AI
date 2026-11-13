@@ -5,7 +5,11 @@ from typing import Any
 from fastapi import HTTPException, status
 from postgrest import SyncPostgrestClient
 
-from app.core.supabase import contains_pattern, get_supabase_admin_client, get_supabase_client
+from app.core.supabase import (
+    any_contains_filter,
+    get_supabase_admin_client,
+    get_supabase_client,
+)
 from app.models.enums import VerificationStatus
 from app.schemas.doctor import (
     DoctorCredentialRead,
@@ -14,6 +18,7 @@ from app.schemas.doctor import (
     PublicDoctorRead,
 )
 from app.schemas.profile import DoctorProfileRead, SpecialtyRead
+from app.search.cities import city_spellings
 from app.services.audit_service import log_audit_event
 from app.services.doctor_events import on_doctor_updated
 
@@ -331,25 +336,66 @@ def get_verification_history(user_id: str) -> list[dict[str, Any]]:
     ]
 
 
-def _doctor_ids_with_specialty(client: Any, specialty: str) -> list[str]:
-    """Resolves a specialty name fragment or id to the doctors who practise it."""
+def _public_doctor(doc: dict[str, Any], specialties: list[dict[str, Any]]) -> PublicDoctorRead:
+    fee = doc.get("consultation_fee")
+    return PublicDoctorRead(
+        id=str(doc["id"]),
+        full_name=doc["full_name"],
+        bio=doc.get("bio"),
+        qualifications=doc.get("qualifications") or [],
+        years_experience=doc.get("years_experience"),
+        consultation_fee=float(fee) if fee is not None else None,
+        clinic_name=doc.get("clinic_name"),
+        city=doc.get("city"),
+        verification_status=VerificationStatus.APPROVED,
+        specialties=[
+            SpecialtyRead(id=str(s["id"]), name=s["name"], description=s.get("description"))
+            for s in specialties
+        ],
+        listing_source=doc.get("listing_source") or "registered",
+        source_url=doc.get("source_url"),
+        bmdc_number=doc.get("bmdc_number"),
+        designation=doc.get("designation"),
+        specialty_text=doc.get("specialty_text"),
+    )
+
+
+def _specialties_by_doctor(client: Any, doctor_ids: list[str]) -> dict[str, list[dict[str, Any]]]:
+    """Every specialty of the given doctors, in one query."""
+    if not doctor_ids:
+        return {}
+    rows = (
+        client.table("doctor_specialties")
+        .select("doctor_id, specialties(id, name, description)")
+        .in_("doctor_id", doctor_ids)
+        .execute()
+        .data
+        or []
+    )
+    found: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        if row.get("specialties"):
+            found.setdefault(str(row["doctor_id"]), []).append(row["specialties"])
+    return found
+
+
+def _specialty_ids_matching(client: Any, specialty: str) -> list[str]:
+    """The specialty with exactly this name or id, else those whose name contains the text.
+
+    An exact name wins, because "ENT" is also inside "Gastroenterology" and "Dentistry".
+    """
     s_filter = specialty.lower().strip()
     specialties = client.table("specialties").select("id, name").execute().data or []
-    specialty_ids = [
+    exact = [
+        str(s["id"]) for s in specialties if s_filter in (s["name"].lower(), str(s["id"]).lower())
+    ]
+    if exact:
+        return exact
+    return [
         str(s["id"])
         for s in specialties
         if s_filter in s["name"].lower() or s_filter == str(s["id"])
     ]
-    if not specialty_ids:
-        return []
-
-    rows = (
-        client.table("doctor_specialties")
-        .select("doctor_id")
-        .in_("specialty_id", specialty_ids)
-        .execute()
-    )
-    return sorted({str(row["doctor_id"]) for row in rows.data or []})
 
 
 def search_public_doctors(
@@ -374,75 +420,51 @@ def search_public_doctors(
             detail="Database service unavailable",
         )
 
-    # Filter by specialty inside the query, so pages and totals stay correct
-    doctor_ids: list[str] | None = None
+    # The specialty filter runs inside the query, so pages and totals stay correct at any size
+    select = "*"
+    specialty_ids: list[str] = []
     if specialty:
-        doctor_ids = _doctor_ids_with_specialty(client, specialty)
-        if not doctor_ids:
+        specialty_ids = _specialty_ids_matching(client, specialty)
+        if not specialty_ids:
             return DoctorSearchResult(
                 items=[], total=0, page=page, page_size=page_size, total_pages=1
             )
+        select = "*, doctor_specialties!inner(specialty_id)"
 
-    # Always enforce verification_status = 'approved'
     query = (
         client.table("public_doctors")
-        .select("*, doctor_specialties(specialties(*))", count="exact")
+        .select(select, count="exact")
         .eq("verification_status", VerificationStatus.APPROVED.value)
     )
-
-    if doctor_ids is not None:
-        query = query.in_("id", doctor_ids)
-    if city:
-        query = query.ilike("city", contains_pattern(city))
+    if specialty_ids:
+        query = query.in_("doctor_specialties.specialty_id", specialty_ids)
+    spellings = city_spellings(city)
+    if spellings:
+        query = query.or_(any_contains_filter("city", spellings))
     if max_fee is not None:
         query = query.lte("consultation_fee", max_fee)
     if min_experience is not None:
         query = query.gte("years_experience", min_experience)
 
-    # Sorting
+    # Unknown fees and experience go last whichever way the list is sorted
     if sort_by == "fee_asc":
-        query = query.order("consultation_fee", desc=False)
+        query = query.order("consultation_fee", desc=False, nullsfirst=False)
     elif sort_by == "fee_desc":
-        query = query.order("consultation_fee", desc=True)
+        query = query.order("consultation_fee", desc=True, nullsfirst=False)
     elif sort_by == "experience_desc":
-        query = query.order("years_experience", desc=True)
+        query = query.order("years_experience", desc=True, nullsfirst=False)
     else:
-        query = query.order("created_at", desc=True)
+        # Doctors who joined MediMatch come before directory listings
+        query = query.order("listing_source", desc=True).order("created_at", desc=True)
+    query = query.order("id")
 
-    # Pagination range (0-based in Supabase)
     offset = (page - 1) * page_size
-    query = query.range(offset, offset + page_size - 1)
-
-    result = query.execute()
+    result = query.range(offset, offset + page_size - 1).execute()
     total = result.count or 0
     raw_doctors = result.data or []
+    specialties = _specialties_by_doctor(client, [str(doc["id"]) for doc in raw_doctors])
 
-    # Map to PublicDoctorRead
-    items: list[PublicDoctorRead] = []
-    for doc in raw_doctors:
-        specs: list[SpecialtyRead] = []
-        for ds in doc.get("doctor_specialties", []):
-            s = ds.get("specialties")
-            if s:
-                specs.append(
-                    SpecialtyRead(id=str(s["id"]), name=s["name"], description=s.get("description"))
-                )
-
-        items.append(
-            PublicDoctorRead(
-                id=str(doc["id"]),
-                full_name=doc["full_name"],
-                bio=doc.get("bio"),
-                qualifications=doc.get("qualifications") or [],
-                years_experience=doc.get("years_experience", 0),
-                consultation_fee=float(doc.get("consultation_fee", 0.0)),
-                clinic_name=doc.get("clinic_name"),
-                city=doc.get("city", "Dhaka"),
-                verification_status=VerificationStatus.APPROVED,
-                specialties=specs,
-            )
-        )
-
+    items = [_public_doctor(doc, specialties.get(str(doc["id"]), [])) for doc in raw_doctors]
     total_pages = max(1, ceil(total / page_size)) if page_size else 1
     return DoctorSearchResult(
         items=items,
@@ -467,7 +489,7 @@ def get_public_doctor_by_id(doctor_id: str) -> PublicDoctorRead:
 
     res = (
         client.table("public_doctors")
-        .select("*, doctor_specialties(specialties(*))")
+        .select("*")
         .eq("id", doctor_id)
         .eq("verification_status", VerificationStatus.APPROVED.value)
         .execute()
@@ -480,23 +502,5 @@ def get_public_doctor_by_id(doctor_id: str) -> PublicDoctorRead:
         )
 
     raw_doc = res.data[0]
-    specs: list[SpecialtyRead] = []
-    for ds in raw_doc.get("doctor_specialties", []):
-        s = ds.get("specialties")
-        if s:
-            specs.append(
-                SpecialtyRead(id=str(s["id"]), name=s["name"], description=s.get("description"))
-            )
-
-    return PublicDoctorRead(
-        id=str(raw_doc["id"]),
-        full_name=raw_doc["full_name"],
-        bio=raw_doc.get("bio"),
-        qualifications=raw_doc.get("qualifications") or [],
-        years_experience=raw_doc.get("years_experience", 0),
-        consultation_fee=float(raw_doc.get("consultation_fee", 0.0)),
-        clinic_name=raw_doc.get("clinic_name"),
-        city=raw_doc.get("city", "Dhaka"),
-        verification_status=VerificationStatus.APPROVED,
-        specialties=specs,
-    )
+    specialties = _specialties_by_doctor(client, [str(raw_doc["id"])])
+    return _public_doctor(raw_doc, specialties.get(str(raw_doc["id"]), []))

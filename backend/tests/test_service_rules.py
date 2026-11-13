@@ -98,15 +98,27 @@ def test_saving_without_changes_keeps_doctor_approved(monkeypatch):
     assert client.log == []
 
 
-def test_specialty_search_resolves_to_matching_doctors():
+def test_specialty_search_resolves_names_and_ids():
     client = fake_client(
-        {
-            "specialties": [{"id": "s1", "name": "Neurology"}, {"id": "s2", "name": "Cardiology"}],
-            "doctor_specialties": [{"doctor_id": "d2"}, {"doctor_id": "d1"}, {"doctor_id": "d1"}],
-        }
+        {"specialties": [{"id": "s1", "name": "Neurology"}, {"id": "s2", "name": "Cardiology"}]}
     )
 
-    assert doctor_service._doctor_ids_with_specialty(client, " neuro ") == ["d1", "d2"]
+    assert doctor_service._specialty_ids_matching(client, " neuro ") == ["s1"]
+    assert doctor_service._specialty_ids_matching(client, "s2") == ["s2"]
+
+
+def test_an_exact_specialty_name_wins_over_a_fragment():
+    client = fake_client(
+        {
+            "specialties": [
+                {"id": "s1", "name": "ENT"},
+                {"id": "s2", "name": "Gastroenterology & Hepatology"},
+                {"id": "s3", "name": "Dentistry"},
+            ]
+        }
+    )
+    assert doctor_service._specialty_ids_matching(client, "ent") == ["s1"]
+    assert doctor_service._specialty_ids_matching(client, "gastro") == ["s2"]
 
 
 def test_unknown_specialty_returns_an_empty_page(monkeypatch):

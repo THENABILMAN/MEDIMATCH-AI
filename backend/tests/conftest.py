@@ -31,6 +31,7 @@ INTEGRATION_FILES = {
     "test_chat_api.py",
     "test_conversation_state.py",
     "test_data_access.py",
+    "test_directory_doctors.py",
     "test_doctors.py",
     "test_recommendations.py",
     "test_retrieval_rules.py",

@@ -165,8 +165,10 @@ def test_editing_a_specialty_reindexes_its_doctors(client, admin_token, search_d
 
 def test_vector_search_asks_for_approved_doctors_only(search_doubles):
     recommend_doctors(criteria())
-    kwargs = search_doubles.query.call_args.kwargs
-    assert kwargs["filter"] == {"status": {"$eq": "approved"}}
+    vector_filter = search_doubles.query.call_args.kwargs["filter"]
+    assert vector_filter["status"] == {"$eq": "approved"}
+    # The specialty and city are filtered in Pinecone too, so a big directory cannot crowd them out
+    assert "specialty_names" in vector_filter
 
 
 def test_enough_candidates_are_fetched_for_large_requests(search_doubles):

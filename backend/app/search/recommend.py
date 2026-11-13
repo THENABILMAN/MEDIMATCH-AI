@@ -4,8 +4,9 @@ Combines Pinecone vector semantic retrieval with authoritative Supabase PostgreS
 filtering and multi-factor ranking.
 
 Guarantees:
-1. Supabase is the single source of truth: doctors must be 'approved', within budget,
-   and possess future unbooked availability slots.
+1. Supabase is the single source of truth: doctors must be 'approved' and within budget. A doctor
+   who joined MediMatch must have a future unbooked slot. A directory listing has no online booking,
+   so it is shown with a note to contact the hospital instead.
 2. Stale or invalid vectors from Pinecone are immediately discarded.
 3. If Pinecone fails or returns insufficient candidates, gracefully falls back to SQL search.
 4. Generates transparent, non-diagnostic match explanations.
@@ -20,8 +21,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.ai.privacy import redact_pii
 from app.core.config import settings
-from app.core.supabase import contains_pattern, get_supabase_admin_client
+from app.core.supabase import any_contains_filter, get_supabase_admin_client
 from app.models.enums import VerificationStatus
+from app.search.cities import ANYWHERE, city_spellings, normalize_city
 from app.search.embeddings import get_embedding_provider
 from app.search.sync import get_pinecone_index
 
@@ -44,19 +46,24 @@ class DoctorRecommendation(BaseModel):
     """Structured representation of a recommended doctor card."""
 
     id: str
-    user_id: str
+    user_id: str | None = None
     full_name: str
     specialties: list[dict[str, Any]]
     bio: str | None = None
     qualifications: list[str] = Field(default_factory=list)
-    years_experience: int = 0
-    consultation_fee: float = 0.0
+    # None means unknown, never zero
+    years_experience: int | None = None
+    consultation_fee: float | None = None
     clinic_name: str | None = None
-    city: str
+    city: str | None = None
     match_score: float = Field(description="Normalized match score (0-100%)")
     available_slots_count: int = 0
     soonest_slot: str | None = None
     match_explanation: str
+    # "directory": listed from a public directory, not verified by MediMatch, no online booking
+    listing_source: str = "registered"
+    online_booking: bool = True
+    designation: str | None = None
 
     model_config = ConfigDict(extra="ignore")
 
@@ -73,7 +80,7 @@ class RecommendationResponse(BaseModel):
 
 def _generate_safe_explanation(
     specialty_names: list[str],
-    years_experience: int,
+    years_experience: int | None,
 ) -> str:
     """Generates a template-based explanation for why this doctor matches.
 
@@ -81,6 +88,8 @@ def _generate_safe_explanation(
     or reassurances that symptoms are harmless.
     """
     specs = ", ".join(specialty_names) if specialty_names else "General Medicine"
+    if years_experience is None:
+        return f"Specializes in {specs}."
     return f"Specializes in {specs}, with {years_experience} years of clinical experience."
 
 
@@ -97,8 +106,8 @@ def _fits_request(
     unrelated specialty or another city is not. The assistant searches strictly, so a person in
     emotional distress is only shown General Medicine when routing chose it.
     """
-    wanted = city.strip().lower()
-    if wanted and wanted != "bangladesh" and wanted not in (doctor_city or "").lower():
+    wanted = (normalize_city(city) or "").lower()
+    if wanted and wanted != ANYWHERE and wanted not in (normalize_city(doctor_city) or "").lower():
         return False
 
     cand_lower = [c.lower() for c in candidate_specialties]
@@ -110,8 +119,8 @@ def _calculate_score(
     vector_sim: float,
     doctor_specialties: list[str],
     candidate_specialties: list[str],
-    years_experience: int,
-    fee: float,
+    years_experience: int | None,
+    fee: float | None,
     max_fee: float | None,
     available_slots_count: int,
 ) -> float:
@@ -134,11 +143,11 @@ def _calculate_score(
     else:
         s_specialty = 0.2
 
-    # 3. Clinical experience score (capped at 25 years)
-    s_experience = min(years_experience / 25.0, 1.0)
+    # 3. Clinical experience score (capped at 25 years). Unknown is neither good nor bad
+    s_experience = 0.5 if years_experience is None else min(years_experience / 25.0, 1.0)
 
     # 4. Fee fit score. A missing fee is unknown, not free, so it scores in the middle
-    if fee <= 0:
+    if fee is None or fee <= 0:
         s_fee = 0.5
     elif max_fee and max_fee > 0:
         s_fee = max(0.0, 1.0 - (fee / max_fee))
@@ -162,17 +171,32 @@ def _calculate_score(
     return max(0.0, min(total, 1.0))
 
 
-def _doctor_query(client: Any, now_iso: str) -> Any:
-    """Approved doctors with their specialties and open future slots, ready for scoring."""
+def _searchable_specialties(candidate_specialties: list[str], strict: bool) -> list[str]:
+    """The specialty names a doctor must have. A general physician fits any request unless strict."""
+    names = list(candidate_specialties)
+    if not strict and "General Medicine" not in names:
+        names.append("General Medicine")
+    return names
+
+
+def _doctor_query(client: Any, now_iso: str, candidate_specialties: list[str], strict: bool) -> Any:
+    """Approved doctors with a wanted specialty, their open future slots, ready for scoring.
+
+    The specialty filter runs in the database, so a large directory never crowds out a match.
+    """
     return (
         client.table("doctor_profiles")
         .select(
             "id, user_id, bio, qualifications, years_experience, consultation_fee, clinic_name, city, "
-            "verification_status, profiles!inner(full_name), "
-            "doctor_specialties(specialties(id, name, description)), "
+            "verification_status, listing_source, listed_name, designation, profiles(full_name), "
+            "doctor_specialties!inner(specialties!inner(id, name, description)), "
             "availability_slots(id, start_time, is_booked)"
         )
         .eq("verification_status", VerificationStatus.APPROVED.value)
+        .in_(
+            "doctor_specialties.specialties.name",
+            _searchable_specialties(candidate_specialties, strict),
+        )
         .eq("availability_slots.is_booked", False)
         .gt("availability_slots.start_time", now_iso)
     )
@@ -195,9 +219,10 @@ def _to_recommendation(
         logger.info(f"[RECOMMENDATION] Rejecting doctor {doc_id}: not approved")
         return None
 
-    # Rule 2: Budget constraint
-    fee = float(doc.get("consultation_fee", 0.0))
-    if max_fee is not None and fee > max_fee:
+    # Rule 2: Budget constraint. An unknown fee cannot be shown to break a budget
+    raw_fee = doc.get("consultation_fee")
+    fee = float(raw_fee) if raw_fee is not None else None
+    if max_fee is not None and fee is not None and fee > max_fee:
         return None
 
     # Rule 3: Must match the requested city and a suitable specialty
@@ -208,7 +233,9 @@ def _to_recommendation(
     if not _fits_request(spec_names, candidate_specialties, doc.get("city"), city, strict):
         return None
 
-    # Rule 4: Must have active upcoming slots
+    # Rule 4: A doctor who joined MediMatch must have an open time. A directory listing has no
+    # online booking, and the patient is told to contact the hospital
+    directory = doc.get("listing_source") == "directory"
     future_slots = sorted(
         (
             s
@@ -217,11 +244,11 @@ def _to_recommendation(
         ),
         key=lambda s: s["start_time"],
     )
-    if not future_slots:
+    if not future_slots and not directory:
         return None
 
-    years = doc.get("years_experience", 0)
-    soonest = future_slots[0]["start_time"]
+    years = doc.get("years_experience")
+    soonest = future_slots[0]["start_time"] if future_slots else None
     score = _calculate_score(
         vector_sim=vector_sim,
         doctor_specialties=spec_names,
@@ -234,18 +261,23 @@ def _to_recommendation(
 
     return DoctorRecommendation(
         id=doc_id,
-        user_id=str(doc["user_id"]),
-        full_name=(doc.get("profiles") or {}).get("full_name") or "Medical Specialist",
+        user_id=str(doc["user_id"]) if doc.get("user_id") else None,
+        full_name=(doc.get("profiles") or {}).get("full_name")
+        or doc.get("listed_name")
+        or "Medical Specialist",
         specialties=specs,
         bio=doc.get("bio"),
         qualifications=doc.get("qualifications") or [],
         years_experience=years,
         consultation_fee=fee,
         clinic_name=doc.get("clinic_name"),
-        city=doc.get("city", "Dhaka"),
+        city=doc.get("city"),
         match_score=round(score * 100, 1),
         available_slots_count=len(future_slots),
         soonest_slot=soonest,
+        listing_source="directory" if directory else "registered",
+        online_booking=not directory,
+        designation=doc.get("designation"),
         match_explanation=_generate_safe_explanation(
             specialty_names=spec_names,
             years_experience=years,
@@ -267,16 +299,19 @@ def _sql_fallback_search(
         return []
 
     now_iso = datetime.now(UTC).isoformat()
+    # Doctors who joined MediMatch first, because patients can book them here
     query = (
-        _doctor_query(client, now_iso)
-        .order("years_experience", desc=True)
+        _doctor_query(client, now_iso, candidate_specialties, strict)
+        .order("listing_source", desc=True)
+        .order("years_experience", desc=True, nullsfirst=False)
         .limit(MAX_SQL_CANDIDATES)
     )
 
-    if city and city.lower() != "bangladesh":
-        query = query.ilike("city", contains_pattern(city))
+    wanted = normalize_city(city)
+    if wanted and wanted.lower() != ANYWHERE:
+        query = query.or_(any_contains_filter("city", city_spellings(wanted)))
     if max_fee is not None:
-        query = query.lte("consultation_fee", max_fee)
+        query = query.or_(f"consultation_fee.lte.{float(max_fee)},consultation_fee.is.null")
 
     recommendations = [
         rec
@@ -304,7 +339,7 @@ def recommend_doctors(
     candidate_specialties: list[str] = search_criteria.get("candidate_specialties") or [
         "General Medicine"
     ]
-    city: str = search_criteria.get("city") or "Dhaka"
+    city: str = normalize_city(search_criteria.get("city")) or "Dhaka"
     max_fee: float | None = search_criteria.get("max_fee")
     raw_keywords: list[str] = search_criteria.get("keywords") or []
     strict: bool = bool(search_criteria.get("strict_specialty"))
@@ -322,10 +357,17 @@ def recommend_doctors(
     # 2. Query Pinecone vector index
     try:
         query_vector = get_embedding_provider().embed_query(query_text)
+        # Filtering in Pinecone keeps thousands of listings from crowding out the right specialty
+        vector_filter: dict[str, Any] = {
+            "status": {"$eq": VerificationStatus.APPROVED.value},
+            "specialty_names": {"$in": _searchable_specialties(candidate_specialties, strict)},
+        }
+        if city.lower() != ANYWHERE:
+            vector_filter["city"] = {"$eq": city}
         pinecone_res = get_pinecone_index().query(
             vector=query_vector,
             top_k=max(settings.VECTOR_CANDIDATES, top_k * 3),
-            filter={"status": {"$eq": VerificationStatus.APPROVED.value}},
+            filter=vector_filter,
         )
         for match in getattr(pinecone_res, "matches", []):
             m_id = getattr(match, "id", None)
@@ -340,7 +382,13 @@ def recommend_doctors(
     recommendations: list[DoctorRecommendation] = []
     matched_ids = [doc_id for doc_id in vector_matches if _is_uuid(doc_id)]
     if matched_ids and client:
-        rows = _doctor_query(client, now_iso).in_("id", matched_ids).execute().data or []
+        rows = (
+            _doctor_query(client, now_iso, candidate_specialties, strict)
+            .in_("id", matched_ids)
+            .execute()
+            .data
+            or []
+        )
         recommendations = [
             rec
             for doc in rows

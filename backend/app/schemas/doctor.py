@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -48,16 +48,24 @@ class DoctorCredentialRead(BaseModel):
 
 
 class PublicDoctorRead(BaseModel):
+    """A doctor patients can see. None means the value is not known, never zero."""
+
     id: str
     full_name: str
     bio: str | None = None
     qualifications: list[str] = Field(default_factory=list)
-    years_experience: int = 0
-    consultation_fee: float = 0.0
+    years_experience: int | None = None
+    consultation_fee: float | None = None
     clinic_name: str | None = None
-    city: str
+    city: str | None = None
     verification_status: VerificationStatus
     specialties: list[SpecialtyRead] = Field(default_factory=list)
+    # "directory" listings come from a public directory and MediMatch has not checked them
+    listing_source: Literal["registered", "directory"] = "registered"
+    source_url: str | None = None
+    bmdc_number: str | None = None
+    designation: str | None = None
+    specialty_text: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
