@@ -38,28 +38,182 @@ specialties:
       - anxiety that stops daily life
       - severe sleep problems for weeks
       - hearing or seeing things others do not
+      - alcohol or drug dependence
+  General Medicine:
+    when: a first visit for an adult with a general complaint and no more fitting specialty, or when the patient asks for a general doctor
+    groups:
+      - fever, cough or cold
+      - tiredness or weakness with no clear cause
+      - general check-ups
+      - several mild complaints at once
+  Pediatrics:
+    when: any medical complaint in a baby, child or teenager, when the patient is under 18
+    groups:
+      - a child with fever, cough or diarrhoea
+      - a baby not feeding or gaining weight
+      - a child's growth or development
+  Pediatric Surgery:
+    when: a child who may need an operation, such as a lump, hernia or birth defect
+    groups:
+      - a lump or swelling in a child's groin or belly
+      - a birth defect needing surgery
+  Gynecology & Obstetrics:
+    when: women's health, pregnancy and fertility
+    groups:
+      - pregnancy and pregnancy check-ups
+      - period problems
+      - lower belly pain in a woman
+      - trouble getting pregnant
+      - vaginal discharge or itching
+      - menopause
   Cardiology:
-    when: physical heart symptoms
+    when: physical heart symptoms and blood pressure
     groups:
       - palpitations with no emotional cause
       - known heart problems
-      - high blood pressure follow-up
+      - high blood pressure
+      - breathlessness on walking or climbing stairs
+      - swollen feet with breathlessness
+  Cardiac & Vascular Surgery:
+    when: an operation on the heart or blood vessels is already being discussed
+    groups:
+      - a doctor has advised heart surgery or bypass
+      - varicose veins or blocked leg arteries
   Neurology:
     when: symptoms of the brain and nerves
     groups:
       - headaches that keep coming back
-      - dizziness
-      - numbness or tingling
+      - dizziness or loss of balance
+      - numbness, tingling or weakness in a limb
+      - fits or seizures
       - memory problems
-  General Medicine:
-    when: general physical complaints with no more suitable specialty listed, or when the patient asks for a general doctor
+      - tremor
+  Neurosurgery:
+    when: a brain, spine or nerve problem that may need an operation
     groups:
-      - fever, cough or cold
-      - stomach pain or digestion problems
-      - tiredness with no clear cause
-      - skin complaints
-      - general check-ups
-      - a physical complaint with no other specialty that fits
+      - back pain spreading down a leg with numbness
+      - a slipped disc
+      - a known brain or spine tumour
+      - after a head injury
+  ENT:
+    when: ear, nose, throat, head and neck
+    groups:
+      - ear pain, discharge or hearing loss
+      - ringing in the ears
+      - blocked nose, sinus pain or nosebleeds
+      - sore throat that keeps returning
+      - hoarse voice
+      - a lump in the neck
+  Ophthalmology:
+    when: eyes and vision
+    groups:
+      - blurred or reduced vision
+      - red, painful or watery eyes
+      - something in the eye
+      - cataract or glaucoma follow-up
+  Dentistry:
+    when: teeth, gums, mouth and jaw
+    groups:
+      - toothache
+      - bleeding or swollen gums
+      - mouth ulcers that do not heal
+      - jaw pain
+      - braces or crooked teeth
+  Dermatology:
+    when: skin, hair and nails, and sexually transmitted infections
+    groups:
+      - rash, itching or hives
+      - acne
+      - hair loss
+      - fungal skin or nail infection
+      - a changing mole
+      - genital sores or discharge
+  Orthopedics:
+    when: bones, joints, fractures and injuries
+    groups:
+      - a fall or injury with pain or swelling
+      - a possible broken bone
+      - knee, hip or shoulder pain
+      - back or neck pain after strain
+  Physical Medicine & Rehabilitation:
+    when: long-lasting pain or stiffness, and recovery of movement after illness or injury
+    groups:
+      - long-lasting back or neck pain
+      - recovery after a stroke
+      - frozen shoulder
+      - sports injuries needing exercise therapy
+  Rheumatology:
+    when: joint inflammation and immune conditions
+    groups:
+      - several swollen, stiff joints
+      - morning joint stiffness lasting over an hour
+      - gout
+      - known arthritis or lupus
+  Urology:
+    when: the urinary system and men's reproductive health
+    groups:
+      - burning or pain when urinating
+      - blood in the urine
+      - kidney stones
+      - trouble passing urine or a weak stream
+      - erection problems
+  Nephrology:
+    when: kidney disease
+    groups:
+      - known kidney disease or dialysis
+      - swelling of the face or feet with less urine
+      - abnormal kidney test results
+  Gastroenterology & Hepatology:
+    when: the stomach, intestines and liver
+    groups:
+      - stomach pain or acidity that keeps returning
+      - diarrhoea or constipation for weeks
+      - vomiting blood or black stools
+      - jaundice or liver problems
+      - trouble swallowing
+  Endocrinology:
+    when: diabetes, thyroid and hormones
+    groups:
+      - diabetes or high blood sugar
+      - thyroid problems
+      - unexplained weight gain or loss
+      - hormone problems
+  Pulmonology:
+    when: lungs and breathing
+    groups:
+      - cough lasting more than three weeks
+      - wheezing or asthma
+      - breathlessness that has built up slowly
+      - tuberculosis follow-up
+  Oncology:
+    when: cancer care
+    groups:
+      - a known or suspected cancer
+      - follow-up after cancer treatment
+  Hematology:
+    when: blood disorders
+    groups:
+      - known anaemia that does not improve
+      - easy bruising or bleeding
+      - thalassaemia
+  Plastic Surgery:
+    when: burns, scars and reconstruction
+    groups:
+      - burns
+      - scars or wounds that need repair
+  General Surgery:
+    when: a problem that may need a general operation
+    groups:
+      - a lump or hernia
+      - piles or fissure
+      - gallstones
+      - a breast lump
+      - a wound or abscess
+  Nutrition:
+    when: diet and weight, when no illness needs treating first
+    groups:
+      - wanting help with diet or weight
+      - nutrition during pregnancy or illness
 
 ambiguous_phrases:
   - id: broken_heart

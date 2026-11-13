@@ -83,7 +83,7 @@ def _known_cities() -> list[str]:
     if not client:
         return []
     try:
-        res = client.table("public_doctors").select("city").execute()
+        res = client.table("doctor_cities").select("city").execute()
         return sorted({row["city"] for row in res.data or [] if row.get("city")})
     except Exception as e:
         logger.warning(f"Could not load cities: {type(e).__name__}")
@@ -396,11 +396,26 @@ def build_search_criteria_node(state: ConversationState) -> dict[str, Any]:
 
 
 def _search_notes(state: ConversationState) -> dict[str, Any]:
-    doctors = len(state.get("recommendations") or [])
+    found = state.get("recommendations") or []
+    doctors = len(found)
     notes: dict[str, Any] = {
         "doctors_listed_below_your_reply": doctors,
         "kinds_of_specialist": state.get("candidate_specialty_names", []),
     }
+    # The writer must describe how to reach the doctors exactly, so it is told, never left to guess
+    contact_only = sum(1 for doctor in found if doctor.get("online_booking") is False)
+    if doctors and contact_only == doctors:
+        notes["how_to_reach_them"] = (
+            "None can be booked online here yet. They are listed from a public directory and not yet "
+            "verified by MediMatch. The patient contacts the hospital shown for each one."
+        )
+    elif contact_only:
+        notes["how_to_reach_them"] = (
+            "Some can be booked here. The others are listed from a public directory, are not yet "
+            "verified by MediMatch, and are reached by contacting the hospital shown."
+        )
+    elif doctors:
+        notes["how_to_reach_them"] = "All of them can be booked here."
     if doctors:
         notes["do"] = (
             "Say something kind about what they shared, naming a detail, then say in plain words "

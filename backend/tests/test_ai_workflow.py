@@ -114,7 +114,7 @@ def test_every_normal_turn_runs_the_analysis_then_the_writer():
     say(llm, "hello")
     assert len(llm.prompts) == 2
     assert "You read a conversation" in llm.prompts[0]
-    assert "MediMatch assistant persona" in llm.prompts[1]
+    assert "MediMatch assistant: reply writer" in llm.prompts[1]
 
 
 def test_only_the_writer_lowers_the_models_reasoning():
@@ -873,6 +873,11 @@ def test_the_analysis_schema_has_every_state_the_brief_lists():
         "Never say symptoms are harmless",
         "You are an AI assistant",
         "at most one question",
+        "Never state a fact that is not in the conversation or the notes",
+        "Never name a doctor, hospital, clinic",
+        "Never claim to have searched, booked",
+        "never promise booking for a doctor the notes say must be contacted",
+        "decline briefly and kindly",
     ],
 )
 def test_the_persona_keeps_its_rules(rule):
