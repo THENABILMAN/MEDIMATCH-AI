@@ -66,7 +66,7 @@ export class MockBackend {
   constructor(private page: Page, private options: Options) {
     this.user = structuredClone(USERS[options.role ?? 'patient'])
     if (options.consent === false) this.user.ai_consent_at = null
-    this.slots = options.empty ? [] : this.doctors.flatMap((item) => buildSlots(item.id))
+    this.slots = options.empty ? [] : this.doctors.filter((item) => item.listing_source !== 'directory').flatMap((item) => buildSlots(item.id))
     if (options.empty) this.doctors = []
 
     this.mine = {
@@ -318,8 +318,8 @@ export class MockBackend {
     const maxFee = Number(url.searchParams.get('max_fee')) || Infinity
     const items = this.doctors.filter(
       (item) =>
-        item.consultation_fee <= maxFee &&
-        (!city || item.city.toLowerCase().includes(city)) &&
+        (item.consultation_fee ?? 0) <= maxFee &&
+        (!city || (item.city ?? '').toLowerCase().includes(city)) &&
         (!specialty || item.specialties.some((entry) => entry.name.toLowerCase().includes(specialty)))
     )
     return { items, total: items.length, page: 1, page_size: 10, total_pages: 1 }

@@ -1,6 +1,6 @@
-import { Clock, SealCheck, ShieldWarning, XCircle } from '@phosphor-icons/react'
+import { Clock, Info, SealCheck, ShieldWarning, XCircle } from '@phosphor-icons/react'
 import { useTranslation } from 'react-i18next'
-import type { VerificationStatus } from '../../types'
+import type { ListingSource, VerificationStatus } from '../../types'
 import { Badge, type BadgeProps } from '../ui/badge'
 
 const DISPLAY: Record<VerificationStatus, { tone: BadgeProps['tone']; Icon: typeof Clock }> = {
@@ -17,6 +17,18 @@ export function VerificationBadge({ status }: { status: VerificationStatus }) {
     <Badge tone={tone}>
       <Icon aria-hidden className="size-3.5" />
       {t(`verification.status.${status}`)}
+    </Badge>
+  )
+}
+
+/** What patients see: verified, or listed from a public directory and not yet verified. */
+export function ListingBadge({ source }: { source?: ListingSource | null }) {
+  const { t } = useTranslation()
+  if (source !== 'directory') return <VerificationBadge status="approved" />
+  return (
+    <Badge tone="neutral">
+      <Info aria-hidden className="size-3.5" />
+      {t('doctor.notVerified')}
     </Badge>
   )
 }

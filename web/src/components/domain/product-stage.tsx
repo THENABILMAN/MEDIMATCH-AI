@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { useDoctorSearch, useDoctorsSlots } from '../../api/hooks'
 import { nextOpenSlot } from '../../lib/slots'
 import { cn } from '../../lib/cn'
-import { formatCurrency, formatDateTime, formatNumber } from '../../lib/format'
+import { formatDateTime, formatNumber } from '../../lib/format'
+import { feeText } from './doctor-facts'
 import { Avatar } from '../ui/avatar'
 import { Badge } from '../ui/badge'
 
@@ -51,7 +52,7 @@ function Shortlist() {
               <p className="body-6 tabular">
                 {soonest ? formatDateTime(soonest.start_time, i18n.language) : t('home.indexNoTime')}
                 {' · '}
-                {formatCurrency(doctor.consultation_fee, i18n.language)}
+                {feeText(doctor.consultation_fee, t, i18n.language)}
               </p>
             </div>
           </li>

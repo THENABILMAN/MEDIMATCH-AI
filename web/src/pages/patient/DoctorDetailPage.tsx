@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../../api/client'
 import { useBookSlot, useDoctor, useDoctorSlots } from '../../api/hooks'
 import { DoctorCardDetailed } from '../../components/domain/doctor-card'
+import { isDirectoryListing } from '../../components/domain/doctor-facts'
 import { SlotPicker } from '../../components/domain/slot-picker'
 import { Banner } from '../../components/ui/banner'
 import { Button } from '../../components/ui/button'
@@ -161,11 +162,17 @@ export default function DoctorDetailPage() {
               <h2 id="booking-title" className="mb-4 title-2">
                 {t('booking.title')}
               </h2>
-              <BookingPanel
-                doctorId={doctor.data.id}
-                doctorName={doctor.data.full_name ?? ''}
-                fee={doctor.data.consultation_fee}
-              />
+              {isDirectoryListing(doctor.data) ? (
+                <p data-testid="contact-to-book" className="body-3">
+                  {t('booking.directoryBody')}
+                </p>
+              ) : (
+                <BookingPanel
+                  doctorId={doctor.data.id}
+                  doctorName={doctor.data.full_name ?? ''}
+                  fee={doctor.data.consultation_fee ?? 0}
+                />
+              )}
             </div>
           </aside>
         </div>

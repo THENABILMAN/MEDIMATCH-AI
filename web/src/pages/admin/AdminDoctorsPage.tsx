@@ -104,7 +104,7 @@ export default function AdminDoctorsPage() {
                   <TableCell className="hidden md:table-cell">{doctor.city}</TableCell>
                   <TableCell className="hidden text-right tabular md:table-cell">{doctor.years_experience}</TableCell>
                   <TableCell className="hidden text-right tabular md:table-cell">
-                    {formatCurrency(doctor.consultation_fee, i18n.language)}
+                    {formatCurrency(doctor.consultation_fee ?? 0, i18n.language)}
                   </TableCell>
                   <TableCell>
                     <VerificationBadge status={doctor.verification_status} />

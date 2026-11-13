@@ -102,6 +102,42 @@ describe('chat messages', () => {
   })
 })
 
+describe('directory doctors in a shortlist', () => {
+  it('say they are not verified, cannot be booked online, and never show a fee as zero', () => {
+    const listed: DoctorRecommendation = {
+      ...doctor,
+      id: 'd9',
+      user_id: null,
+      consultation_fee: null,
+      years_experience: null,
+      soonest_slot: null,
+      available_slots_count: 0,
+      listing_source: 'directory',
+      online_booking: false,
+    }
+    render(
+      <MemoryRouter>
+        <ChatMessage
+          message={{
+            id: 'm9',
+            conversation_id: 'c1',
+            sender: 'assistant',
+            content: 'Here are doctors who can help.',
+            created_at: '2026-11-05T04:00:00Z',
+            metadata: { recommendations: [listed] },
+          }}
+        />
+      </MemoryRouter>
+    )
+    const row = within(screen.getByTestId('recommendation'))
+    expect(row.getByText('Not yet verified')).toBeInTheDocument()
+    expect(row.getByText(/Contact the hospital to book/)).toBeInTheDocument()
+    expect(row.getByText(/Fee not listed/)).toBeInTheDocument()
+    expect(row.getByRole('link', { name: 'View details' })).toHaveAttribute('href', '/doctors/d9')
+    expect(row.queryByText(/৳0/)).not.toBeInTheDocument()
+  })
+})
+
 describe('safety notices', () => {
   it('states that the assistant is not medical advice', () => {
     render(<AIDisclaimer />)

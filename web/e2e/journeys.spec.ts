@@ -369,3 +369,25 @@ test('correcting a form error does not lose the next click', async ({ page }) =>
   await expect(page.locator('[aria-invalid="true"]')).toHaveCount(0)
 })
 
+test('a directory doctor is labelled unverified and points to the hospital instead of booking', async ({ page }) => {
+  await setup(page, { signedIn: false })
+  await page.goto('/doctors/d5')
+  await expect(page.getByRole('heading', { name: 'Dr. Nusrat Jahan' })).toBeVisible()
+  await expect(page.getByText('Not yet verified')).toBeVisible()
+  await expect(page.getByText(/MediMatch has not verified this doctor/)).toBeVisible()
+  await expect(page.getByTestId('contact-to-book')).toBeVisible()
+  await expect(page.getByRole('radiogroup', { name: 'Choose a time' })).toHaveCount(0)
+  await expect(page.getByText('Fee not listed')).toBeVisible()
+  await expect(page.getByText('৳0')).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'the original public listing' })).toHaveAttribute('href', /directory\.test/)
+})
+
+test('search shows which doctors are verified', async ({ page }) => {
+  await setup(page, { signedIn: false })
+  await page.goto('/doctors')
+  const listed = page.getByRole('link', { name: /Dr. Nusrat Jahan/ })
+  await expect(listed).toContainText('Not yet verified')
+  await expect(listed).toContainText('Contact the hospital to book')
+  await expect(page.getByRole('link', { name: /Dr. Kazi Ahmed/ })).toContainText('Verified')
+})
+

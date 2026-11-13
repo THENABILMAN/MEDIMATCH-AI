@@ -55,11 +55,11 @@ export function useDoctorProfileForm(profile: DoctorProfile | undefined) {
   useEffect(() => {
     if (!profile) return
     reset({
-      city: profile.city,
+      city: profile.city ?? '',
       clinic_name: profile.clinic_name ?? '',
       // NaN shows an empty field, so a new doctor's fee reads as unset rather than free
       consultation_fee: profile.consultation_fee || Number.NaN,
-      years_experience: profile.years_experience,
+      years_experience: profile.years_experience ?? Number.NaN,
       specialty_ids: profile.specialties.map((specialty) => specialty.id),
       qualifications: profile.qualifications.join(', '),
       bio: profile.bio ?? '',

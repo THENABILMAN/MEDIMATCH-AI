@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEven
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { useDoctorSearch, useDoctorsSlots } from '../api/hooks'
+import { feeText, isDirectoryListing } from '../components/domain/doctor-facts'
 import { ProductStage } from '../components/domain/product-stage'
 import { Reveal, TaglineReveal, useScrollProgress } from '../components/domain/reveal'
 import { Button } from '../components/ui/button'
@@ -19,7 +20,7 @@ import { Skeleton } from '../components/ui/skeleton'
 import { cn } from '../lib/cn'
 import { EMERGENCY_NUMBER } from '../lib/constants'
 import { saveDraft } from '../lib/draft'
-import { formatCurrency, formatDateTime, formatNumber } from '../lib/format'
+import { formatDateTime, formatNumber } from '../lib/format'
 import { nextOpenSlot } from '../lib/slots'
 import type { DoctorProfile } from '../types'
 
@@ -37,7 +38,7 @@ const STEPS = [
   { key: 'book', stage: 3 },
 ] as const
 const CHECKS = ['license', 'review', 'recheck'] as const
-const QUESTIONS = ['diagnose', 'emergency', 'language', 'privacy', 'fee', 'account', 'cancel', 'join'] as const
+const QUESTIONS = ['diagnose', 'emergency', 'verified', 'language', 'privacy', 'fee', 'account', 'cancel', 'join'] as const
 const PROMISES = ['payment', 'cancel', 'erase'] as const
 const INDEX_SIZE = 8
 const ALL = ''
@@ -250,8 +251,14 @@ function IndexRow({ doctor, soonest }: { doctor: DoctorProfile; soonest?: string
           <span className="block text-muted">{doctor.specialties.map((item) => item.name).join(', ')}</span>
         </span>
         <span className="text-muted">{[doctor.clinic_name, doctor.city].filter(Boolean).join(', ')}</span>
-        <span className="tabular">{soonest ? formatDateTime(soonest, i18n.language) : t('home.indexNoTime')}</span>
-        <span className="heading-6 tabular md:text-right">{formatCurrency(doctor.consultation_fee, i18n.language)}</span>
+        <span className="tabular">
+          {isDirectoryListing(doctor)
+            ? t('doctor.contactToBook')
+            : soonest
+              ? formatDateTime(soonest, i18n.language)
+              : t('home.indexNoTime')}
+        </span>
+        <span className="heading-6 tabular md:text-right">{feeText(doctor.consultation_fee, t, i18n.language)}</span>
       </Link>
     </li>
   )

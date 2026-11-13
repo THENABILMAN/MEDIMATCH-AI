@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { formatCurrency, formatDateTime, formatNumber } from '../../lib/format'
+import { formatDateTime, formatNumber } from '../../lib/format'
 import type { DoctorRecommendation } from '../../types'
 import { buttonVariants } from '../ui/button'
+import { feeText } from './doctor-facts'
+import { ListingBadge } from './verification-badge'
 
 export function RecommendationList({ recommendations }: { recommendations: DoctorRecommendation[] }) {
   const { t, i18n } = useTranslation()
@@ -21,6 +23,9 @@ export function RecommendationList({ recommendations }: { recommendations: Docto
             </span>
             <div className="min-w-0">
               <h3 className="heading-5">{doctor.full_name}</h3>
+              <div className="mt-1">
+                <ListingBadge source={doctor.listing_source} />
+              </div>
               <p className="body-6 text-muted">
                 {doctor.specialties.map((specialty) => specialty.name).join(', ')}
                 {' · '}
@@ -31,14 +36,16 @@ export function RecommendationList({ recommendations }: { recommendations: Docto
               </p>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                 <p className="body-2 tabular">
-                  {doctor.soonest_slot
-                    ? t('chat.soonest', { time: formatDateTime(doctor.soonest_slot, i18n.language) })
-                    : t('chat.slotsAvailable', { count: doctor.available_slots_count })}
+                  {doctor.online_booking === false
+                    ? t('chat.contactToBook')
+                    : doctor.soonest_slot
+                      ? t('chat.soonest', { time: formatDateTime(doctor.soonest_slot, i18n.language) })
+                      : t('chat.slotsAvailable', { count: doctor.available_slots_count })}
                   {' · '}
-                  {formatCurrency(doctor.consultation_fee, i18n.language)}
+                  {feeText(doctor.consultation_fee, t, i18n.language)}
                 </p>
                 <Link to={`/doctors/${doctor.id}`} className={buttonVariants({ size: 'sm' })}>
-                  {t('chat.viewAndBook')}
+                  {t(doctor.online_booking === false ? 'chat.viewDetails' : 'chat.viewAndBook')}
                 </Link>
               </div>
             </div>

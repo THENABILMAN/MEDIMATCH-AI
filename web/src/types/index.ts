@@ -14,15 +14,24 @@ export interface DoctorProfile {
   full_name?: string | null
   bio?: string | null
   qualifications: string[]
-  years_experience: number
-  consultation_fee: number
+  /** Null when not known. Doctors listed from a public directory often leave these out */
+  years_experience: number | null
+  consultation_fee: number | null
   clinic_name?: string | null
-  city: string
+  city: string | null
   verification_status: VerificationStatus
   specialties: Specialty[]
   created_at?: string | null
   updated_at?: string | null
+  /** "directory": listed from a public directory, not verified by MediMatch, no online booking */
+  listing_source?: ListingSource
+  source_url?: string | null
+  bmdc_number?: string | null
+  designation?: string | null
+  specialty_text?: string | null
 }
+
+export type ListingSource = 'registered' | 'directory'
 
 export interface UserProfile {
   id: string
@@ -67,19 +76,22 @@ export interface AvailabilitySlot {
 
 export interface DoctorRecommendation {
   id: string
-  user_id: string
+  user_id: string | null
   full_name: string
   specialties: Specialty[]
   bio?: string | null
   qualifications: string[]
-  years_experience: number
-  consultation_fee: number
+  years_experience: number | null
+  consultation_fee: number | null
   clinic_name?: string | null
-  city: string
+  city: string | null
   match_score: number
   available_slots_count: number
   soonest_slot?: string | null
   match_explanation: string
+  listing_source?: ListingSource
+  online_booking?: boolean
+  designation?: string | null
 }
 
 export interface Appointment {

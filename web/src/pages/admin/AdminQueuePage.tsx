@@ -106,7 +106,7 @@ function DoctorReview({ doctor, onDecided }: { doctor: AdminDoctor; onDecided: (
   }
 
   const facts: [string, string][] = [
-    [t('doctor.fee'), formatCurrency(doctor.consultation_fee, i18n.language)],
+    [t('doctor.fee'), formatCurrency(doctor.consultation_fee ?? 0, i18n.language)],
     [t('doctor.experience'), t('doctor.yearsExperience', { count: doctor.years_experience, years: doctor.years_experience })],
     [t('doctor.location'), [doctor.clinic_name, doctor.city].filter(Boolean).join(', ') || '—'],
     [t('doctor.qualifications'), doctor.qualifications.join(', ') || '—'],

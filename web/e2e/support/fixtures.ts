@@ -29,6 +29,18 @@ export const DOCTORS: DoctorProfile[] = [
   doctor('d2', 'Dr. Rubina Akhter', SPECIALTIES[0], 1200, 11, 'Dhaka', 'Labaid Specialized Hospital'),
   doctor('d3', 'Dr. Mahmudul Hasan', SPECIALTIES[2], 800, 9, 'Dhaka', 'Popular Diagnostic Centre'),
   doctor('d4', 'Dr. Samira Rahman', SPECIALTIES[1], 1800, 19, 'Chattogram', 'Chevron Clinical Laboratory'),
+  // Listed from a public directory: not verified, no online booking, and some facts unknown
+  {
+    ...doctor('d5', 'Dr. Nusrat Jahan', SPECIALTIES[0], 0, 0, 'Dhaka', 'Dhaka Medical College & Hospital'),
+    user_id: undefined,
+    consultation_fee: null,
+    years_experience: null,
+    listing_source: 'directory',
+    source_url: 'https://directory.test/dr-nusrat-jahan/',
+    designation: 'Associate Professor, Neurology',
+    specialty_text: 'Neurology (Brain, Nerve, Stroke & Headache) Specialist',
+    bio: 'Brain, nerve, stroke and headache diseases.',
+  },
 ]
 
 export function buildSlots(doctorId: string): AvailabilitySlot[] {
@@ -96,8 +108,8 @@ export function appointmentFor(doctorProfile: DoctorProfile, slot: AvailabilityS
       id: doctorProfile.id,
       full_name: doctorProfile.full_name ?? '',
       clinic_name: doctorProfile.clinic_name,
-      city: doctorProfile.city,
-      consultation_fee: doctorProfile.consultation_fee,
+      city: doctorProfile.city ?? '',
+      consultation_fee: doctorProfile.consultation_fee ?? 0,
       specialties: doctorProfile.specialties.map((item) => item.name),
     },
     patient: { id: patient.id, full_name: patient.full_name, phone: patient.phone },

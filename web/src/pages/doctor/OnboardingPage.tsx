@@ -28,7 +28,7 @@ const STEPS = ['practice', 'clinical', 'documents'] as const
 type Step = (typeof STEPS)[number]
 
 function firstIncompleteStep(profile: DoctorProfile): Step {
-  if (!profile.clinic_name || profile.consultation_fee <= 0) return 'practice'
+  if (!profile.clinic_name || !profile.consultation_fee) return 'practice'
   if (profile.specialties.length === 0 || !profile.bio) return 'clinical'
   return 'documents'
 }
