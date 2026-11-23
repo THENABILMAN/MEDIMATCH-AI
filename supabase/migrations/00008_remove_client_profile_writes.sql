@@ -12,3 +12,4 @@ DROP POLICY IF EXISTS "audit_logs_insert_service" ON public.audit_logs;
 -- Admin changes go through the API, where they are audited.
 DROP POLICY IF EXISTS "specialties_admin_modify" ON public.specialties;
 DROP POLICY IF EXISTS "doctor_profiles_delete_admin" ON public.doctor_profiles;
+
