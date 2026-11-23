@@ -14,6 +14,7 @@ import { useDoctorSearch, useDoctorsSlots } from '../api/hooks'
 import { feeText, isDirectoryListing } from '../components/domain/doctor-facts'
 import { ProductStage } from '../components/domain/product-stage'
 import { Reveal, TaglineReveal, useScrollProgress } from '../components/domain/reveal'
+import { LogoLockup } from '../components/layout/logo'
 import { Button } from '../components/ui/button'
 import { Textarea } from '../components/ui/input'
 import { Skeleton } from '../components/ui/skeleton'
@@ -90,6 +91,7 @@ function Hero() {
     <section aria-labelledby="home-title" className="hero-scroll mx-3 mt-3 rounded-2xl bg-surface pt-20 md:mx-6">
       <div className="home-gutter grid items-center gap-12 py-12 lg:min-h-[calc(100dvh-var(--header-height))] lg:grid-cols-[minmax(0,1fr)_minmax(0,480px)] lg:gap-16">
         <div className="flex max-w-[680px] flex-col gap-6">
+          <LogoLockup tagline={t('home.brandTagline')} />
           <h1 id="home-title" className="hero-gradient heading-4 pb-1 sm:heading-2 lg:heading-1">
             <span className="block">{t('home.titleFirst')}</span>
             <span className="block">{t('home.titleSecond')}</span>

@@ -59,6 +59,7 @@
     "home": "Go to home"
   },
   "home": {
+    "brandTagline": "The right doctor, matched by AI",
     "lead": "Tell our AI assistant what’s wrong in Bangla, English or Banglish. It asks one question at a time, then shortlists doctors in your city who can help, with the reason for each one.",
     "inputLabel": "What are you feeling?",
     "inputPlaceholder": "For example: a headache and dizziness since yesterday…",
@@ -674,7 +675,7 @@
       },
       "providers": {
         "title": "Who else sees it",
-        "body": "Groq runs the AI assistant, Pinecone runs doctor search and Supabase hosts our database. Names, phone numbers and emails we detect are removed before your words reach Groq and Pinecone. Detection can miss things, so please leave names out of your messages."
+        "body": "The AI assistant and doctor search run on our own computer, so your words are not sent to an outside AI company. Supabase hosts our database, which stores your chats."
       },
       "retention": {
         "title": "How long we keep it",
