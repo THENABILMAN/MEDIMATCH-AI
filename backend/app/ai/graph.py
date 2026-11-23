@@ -1,647 +1,376 @@
-"""LangGraph Symptom Consultation Workflow.
+"""The assistant: talk, ask until it is sure what is wrong, then suggest doctors.
 
-Each turn runs two model steps. A hidden analysis reads the conversation, then a writer speaks to
-the patient in persona. Between them Python decides what happens, because stopping, searching and
-safety must not depend on the model. Emergencies are checked first by fixed rules, the model can
-only add an alert, and every reply passes the output guard.
+Each turn:
+1. safety  - fixed rules catch an emergency before any model runs
+2. assess  - the model reads the chat and matching medical book passages, and says what it may be
+3. search  - once sure, doctors are found with MongoDB vector search
+4. reply   - the model talks to the patient
+
+Python decides when to stop asking. The model decides what the patient's answers mean.
 """
 
 import json
 import logging
-import re
+import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from langgraph.graph import END, StateGraph
 
-from app.ai.llm import LLMUnavailableError, get_llm_client
-from app.ai.privacy import redact_pii
-from app.ai.routing import (
-    ANY_CITY,
-    CHEST_PHRASE_IDS,
-    LOCATION,
-    chest_is_possible,
-    find_ambiguous_phrases,
-    is_emotional,
-    open_flags,
-    phrases_prompt,
-    plan_turn,
-    routing_record,
-    specialties_to_search,
-    specialty_guide,
-)
+from app.ai.llm import get_llm_client
 from app.ai.safety import (
     check_emergency,
     emergency_kind,
     get_crisis_response,
     get_emergency_response,
-    guard_fallback,
     has_bangla_script,
-    reply_violation,
 )
-from app.ai.state import ConversationState, SearchCriteria, TurnAnalysis, WriterTurn
+from app.ai.state import Assessment, ConversationState, SearchCriteria
 from app.core.config import settings
 from app.core.supabase import get_supabase_admin_client
+from app.search.vector_store import search_books
 
 logger = logging.getLogger("medimatch.ai.graph")
 
 PROMPTS = Path(__file__).resolve().parent / "prompts"
+ASSESS_PROMPT = (PROMPTS / "assess.md").read_text(encoding="utf-8")
 PERSONA = (PROMPTS / "persona.md").read_text(encoding="utf-8")
-ANALYSIS_PROMPT = (PROMPTS / "analysis.md").read_text(encoding="utf-8")
 
-MAX_MODEL_CHIPS = 3
-# Sentences this short ("Thank you.") are ordinary speech, not repetition
-SHORTEST_REPEATED_WORDS = 3
-# Share of words two sentences have in common for them to count as the same sentence
-REPEAT_OVERLAP = 0.7
-_SENTENCE_END = re.compile(r"(?<=[.!?।])\s+|\n+")
-_NOT_A_WORD = re.compile(r"[^\w\s]")
-
-# These stay the same every time, so a patient can always find them
-ESCAPE = "show_doctors"
-SHOW_DOCTORS_LABEL = {
-    "en": "Show me doctors now",
-    "bn": "এখনই ডাক্তার দেখান",
-    "banglish": "Ekhon doctor dekhan",
+ANY_CITY = "Bangladesh"
+GENERAL_MEDICINE = "General Medicine"
+# The web app matches these labels exactly
+SHOW_DOCTORS = {
+    "English": "Show me doctors now",
+    "Bangla": "এখনই ডাক্তার দেখান",
+    "Banglish": "Ekhon doctor dekhan",
 }
-ANY_CITY_LABEL = {"en": "Any city", "bn": "যেকোনো শহর", "banglish": "Je kono shohor"}
+ANY_CITY_LABEL = {"English": "Any city", "Bangla": "যেকোনো শহর", "Banglish": "Je kono shohor"}
+MOST_FINDINGS = 20
+MOST_CITY_ASKS = 2
+
+CACHE_SECONDS = 300
+_lookup_cache: dict[str, tuple[float, list[str]]] = {}
 
 
-def _recent_messages(
-    messages: list[dict[str, str]], limit: int | None = None
-) -> list[dict[str, str]]:
-    """The latest messages, redacted. This is all an LLM provider ever sees of a conversation."""
-    return [
-        {"role": m.get("role", "user"), "content": redact_pii(m.get("content", ""))}
-        for m in messages[-(limit or settings.LLM_HISTORY_MESSAGES) :]
-    ]
+def _cached(name: str, load: Callable[[], list[str]]) -> list[str]:
+    """Cities and specialties rarely change, so a turn need not fetch them. Failures are not kept."""
+    saved = _lookup_cache.get(name)
+    if saved and time.monotonic() - saved[0] < CACHE_SECONDS:
+        return saved[1]
+    values = load()
+    if values:
+        _lookup_cache[name] = (time.monotonic(), values)
+    return values
+
+
+def _column(table: str, column: str) -> list[str]:
+    client = get_supabase_admin_client()
+    if not client:
+        return []
+    try:
+        rows = client.table(table).select(column).execute().data or []
+        return sorted({row[column] for row in rows if row.get(column)})
+    except Exception as e:
+        logger.warning(f"Could not load {table}: {type(e).__name__}")
+        return []
 
 
 def _known_cities() -> list[str]:
-    """Cities with an approved doctor."""
-    client = get_supabase_admin_client()
-    if not client:
-        return []
-    try:
-        res = client.table("doctor_cities").select("city").execute()
-        return sorted({row["city"] for row in res.data or [] if row.get("city")})
-    except Exception as e:
-        logger.warning(f"Could not load cities: {type(e).__name__}")
-        return []
+    return _cached("cities", lambda: _column("doctor_cities", "city"))
 
 
 def _get_verified_specialty_names() -> list[str]:
-    """Fetch all verified specialty names directly from the Supabase database."""
-    client = get_supabase_admin_client()
-    if not client:
-        return []
-    try:
-        res = client.table("specialties").select("name").execute()
-        return [row["name"] for row in res.data or []]
-    except Exception as e:
-        logger.warning(f"Could not load specialties: {type(e).__name__}")
-        return []
+    return _cached("specialties", lambda: _column("specialties", "name"))
 
 
-def _match_verified_specialties(names: list[str], verified: list[str]) -> list[str]:
-    """Keeps only names that exist in the database, using their stored spelling."""
-    by_lower = {v.lower(): v for v in verified}
-    matched: list[str] = []
-    for name in names:
-        spec = by_lower.get(name.strip().lower())
-        if spec and spec not in matched:
-            matched.append(spec)
-    return matched
+# 1. Safety
 
 
-def _verified_confidence(scores: dict[str, float], verified: list[str]) -> dict[str, float]:
-    """Keeps only scores for specialties in the database, held between 0 and 1."""
-    by_lower = {v.lower(): v for v in verified}
+def safety_node(state: ConversationState) -> dict[str, Any]:
+    """Fixed rules only, so an emergency is answered at once and never depends on the model."""
+    latest = state["messages"][-1]["content"]
+    is_emergency, category, _ = check_emergency(latest)
+    if not is_emergency:
+        return {"safety_status": "safe", "safety_kind": None}
+
+    kind = emergency_kind(category)
+    self_harm = kind == "self_harm"
+    crisis_active = bool(state.get("crisis_active"))
     return {
-        by_lower[name.strip().lower()]: min(max(float(score), 0.0), 1.0)
-        for name, score in scores.items()
-        if name.strip().lower() in by_lower
-    }
-
-
-KNOWN_FIELDS = (
-    "symptoms",
-    "duration",
-    "severity",
-    "daily_impact",
-    "location",
-    "preferred_max_fee",
-    "care_preference",
-)
-
-
-def _known_details(state: ConversationState) -> dict[str, Any]:
-    return {field: state.get(field) for field in KNOWN_FIELDS if state.get(field)}
-
-
-def build_analysis_prompt(state: ConversationState, specialties: list[str]) -> str:
-    return (
-        f"{ANALYSIS_PROMPT}\n"
-        f"Specialties available:\n{specialty_guide(specialties)}\n\n"
-        f"Phrases to watch:\n{phrases_prompt()}\n\n"
-        f"Cities with doctors: {', '.join(_known_cities())}\n"
-        f"Details known so far: {json.dumps(_known_details(state), ensure_ascii=False)}\n"
-        f"Unclear phrases not yet explained: {open_flags(state.get('ambiguity_flags') or {})}\n"
-        f"Already asked: {state.get('asked_questions') or []}"
-    )
-
-
-# ------------------------------------------------------------------------------
-# Node 1: Safety Check (Rule-based deterministic emergency triage)
-# ------------------------------------------------------------------------------
-
-
-def _emergency_update(state: ConversationState, kind: str) -> dict[str, Any]:
-    """The fixed response. No model writes any part of it, and no doctors follow it."""
-    update: dict[str, Any] = {
         "safety_status": "emergency",
         "safety_kind": kind,
         "current_step": "emergency_escalated",
         "search_criteria": None,
         "recommendations": [],
         "chips": [],
-        "pending_chips": [],
         "asking_about": None,
-    }
-    if kind == "self_harm":
-        latest = (state.get("messages") or [{}])[-1].get("content", "")
-        update["assistant_reply"] = get_crisis_response(
-            latest, repeat=bool(state.get("crisis_active"))
-        )
-        update["crisis_active"] = True
-    else:
-        update["assistant_reply"] = get_emergency_response()
-    return update
-
-
-def safety_check_node(state: ConversationState) -> dict[str, Any]:
-    """Inspects the most recent patient message for emergency patterns."""
-    messages = state.get("messages", [])
-    latest = messages[-1].get("content", "") if messages else ""
-    is_emergency, category, _ = check_emergency(latest)
-    if is_emergency:
-        return _emergency_update(state, emergency_kind(category))
-    return {"safety_status": "safe", "safety_kind": None, "current_step": "safety_check"}
-
-
-def route_after_safety(state: ConversationState) -> str:
-    """Short-circuits the workflow on an emergency, before any model is called."""
-    return "escalate" if state.get("safety_status") == "emergency" else "continue"
-
-
-# ------------------------------------------------------------------------------
-# Node 2: Analyze (hidden step: read the conversation, then Python decides)
-# ------------------------------------------------------------------------------
-
-
-def _tapped_chip(state: ConversationState, latest: str) -> str | None:
-    """What a tapped chip means, by exact match. This works with no model at all."""
-    text = latest.strip().casefold()
-    for chip in state.get("pending_chips") or []:
-        if chip.get("label", "").strip().casefold() == text:
-            return chip.get("meaning")
-    return None
-
-
-def _apply_explanation(flags: dict[str, str], answer: str | None) -> dict[str, str]:
-    """Records how the patient explained every open phrase."""
-    if answer not in {"emotional", "physical", "both", "unclear"}:
-        return flags
-    return {phrase: (answer if status == "open" else status) for phrase, status in flags.items()}
-
-
-def _chest_answered_physical(before: dict[str, str], after: dict[str, str]) -> bool:
-    """A physical answer about the chest goes to the fixed alert, not to a doctor list."""
-    return any(
-        phrase in CHEST_PHRASE_IDS
-        and before.get(phrase) == "open"
-        and after[phrase] in {"physical", "both"}
-        for phrase in after
-    )
-
-
-def analyze_node(state: ConversationState) -> dict[str, Any]:
-    """Runs the hidden analysis, then decides this turn's action in Python."""
-    messages = state.get("messages", [])
-    latest = messages[-1].get("content", "") if messages else ""
-    flags = dict(state.get("ambiguity_flags") or {})
-    for phrase in find_ambiguous_phrases(latest):
-        flags.setdefault(phrase, "open")
-
-    # A tapped "physical" must reach the alert even if the model is down
-    chip = _tapped_chip(state, latest)
-    if chip in {"physical", "both", "emotional"}:
-        explained = _apply_explanation(flags, chip)
-        if _chest_answered_physical(flags, explained):
-            return {**_emergency_update(state, "physical"), "ambiguity_flags": explained}
-        flags = explained
-
-    verified = _get_verified_specialty_names()
-    try:
-        analysis: TurnAnalysis = get_llm_client().generate_structured(
-            messages=_recent_messages(messages),
-            response_model=TurnAnalysis,
-            system_prompt=build_analysis_prompt({**state, "ambiguity_flags": flags}, verified),
-        )
-    except ValueError as e:
-        raise LLMUnavailableError("The model's reply could not be read") from e
-
-    # The model can only add an alert, never remove one, because the rules have already run
-    if analysis.possible_emergency != "none":
-        logger.warning("[SAFETY ESCALATION] Emergency flagged by the model")
-        return {
-            **_emergency_update(state, analysis.possible_emergency),
-            "ambiguity_flags": flags,
-        }
-
-    for phrase in analysis.ambiguous_phrases:
-        if phrase and phrase not in flags:
-            flags[phrase] = "open"
-    explained = _apply_explanation(flags, analysis.ambiguity_answer)
-    if _chest_answered_physical(flags, explained):
-        logger.warning("[SAFETY ESCALATION] Patient described a physical chest symptom")
-        return {**_emergency_update(state, "physical"), "ambiguity_flags": explained}
-    flags = explained
-
-    symptoms = list(state.get("symptoms") or [])
-    symptoms += [s for s in analysis.symptoms if s and s not in symptoms]
-    location = ANY_CITY if chip == "any_city" else analysis.location or state.get("location")
-    confidence = _verified_confidence(analysis.specialty_confidence, verified) or dict(
-        state.get("specialty_confidence") or {}
-    )
-    physical_too = analysis.physical_symptoms_too or bool(state.get("physical_symptoms_too"))
-    urgency = analysis.urgency if analysis.urgency != "unknown" else state.get("urgency", "unknown")
-    if has_bangla_script(latest):
-        language = "bn"
-    else:
-        language = "banglish" if analysis.language == "bn" else analysis.language
-
-    details: ConversationState = {
-        "symptoms": symptoms,
-        "duration": analysis.duration or state.get("duration"),
-        "severity": analysis.severity or state.get("severity"),
-        "daily_impact": analysis.daily_impact or state.get("daily_impact"),
-        "age_group": analysis.age_group or state.get("age_group"),
-        "location": location,
-        "preferred_max_fee": analysis.preferred_max_fee or state.get("preferred_max_fee"),
-        "care_preference": analysis.care_preference or state.get("care_preference"),
-    }
-
-    asked = list(state.get("asked_questions") or [])
-    question_count = state.get("question_count", state.get("followup_count", 0))
-    # Only an offer of matches can be accepted, so the model cannot quietly reset the limit
-    if (
-        analysis.wants_to_keep_refining
-        and question_count >= settings.CONVERSATION_SOFT_QUESTION_LIMIT
-    ):
-        question_count = 0
-    wants_now = bool(chip == ESCAPE or analysis.wants_doctors_now or state.get("escape_pending"))
-    known = {field for field in KNOWN_FIELDS if details.get(field)}
-    if urgency != "unknown":
-        known.add("severity")
-
-    plan = plan_turn(
-        symptoms=symptoms,
-        location=location,
-        confidence=confidence,
-        urgency_known=urgency != "unknown",
-        flags=flags,
-        asked=asked,
-        known=known,
-        question_count=question_count,
-        wants_now=wants_now,
-        suggested=analysis.next_question,
-        crisis_active=bool(state.get("crisis_active")),
-    )
-
-    update: dict[str, Any] = {
-        **details,
-        "language": language,
-        "emotional_state": analysis.emotional_state,
-        "urgency": urgency,
-        "physical_symptoms_too": physical_too,
-        "specialty_confidence": confidence,
-        "candidate_specialty_names": specialties_to_search(
-            confidence, physical_too, details.get("care_preference")
+        "crisis_active": crisis_active or self_harm,
+        "assistant_reply": (
+            get_crisis_response(latest, repeat=crisis_active)
+            if self_harm
+            else get_emergency_response()
         ),
-        "ambiguity_flags": flags,
-        "asked_questions": asked + ([plan.goal] if plan.goal else []),
-        "question_count": question_count + (1 if plan.goal else 0),
-        "escape_pending": wants_now and plan.action != "search",
-        "action": plan.action,
-        "search_reason": plan.reason,
-        "searched_everywhere": plan.any_city or location == ANY_CITY,
-        "soft_limit_reached": plan.reason == "soft_limit",
-        "asking_about": plan.goal,
+    }
+
+
+# 2. Assess
+
+
+def _assessment_schema(specialties: list[str]) -> dict[str, Any]:
+    """The model can only name a specialty that exists, and its lists stay short."""
+    schema = Assessment.model_json_schema()
+    fields = schema["properties"]
+    for name, most in (("new_findings", 6), ("possible_conditions", 3), ("answer_options", 3)):
+        fields[name]["maxItems"] = most
+    if specialties:
+        fields["specialty"] = {"anyOf": [{"enum": specialties}, {"type": "null"}]}
+    return schema
+
+
+def _assess_prompt(state: ConversationState, specialties: list[str], passages: list[str]) -> str:
+    known = {
+        key: state.get(key)
+        for key in ("findings", "city", "possible_conditions", "confidence")
+        if state.get(key)
+    }
+    books = "\n---\n".join(passages) or "None. Use your own medical knowledge."
+    return (
+        f"{ASSESS_PROMPT}\n"
+        f"Specialties: {'; '.join(specialties)}\n"
+        f"Cities: {', '.join(_known_cities())}\n\n"
+        f"Your notes so far: {json.dumps(known, ensure_ascii=False)}\n\n"
+        f"Medical book passages:\n{books}"
+    )
+
+
+def _recent(state: ConversationState) -> list[dict[str, str]]:
+    return state["messages"][-settings.LLM_HISTORY_MESSAGES :]
+
+
+def _matches(text: str, labels: dict[str, str]) -> bool:
+    return text.strip().casefold() in {label.casefold() for label in labels.values()}
+
+
+def decide(
+    state: ConversationState, findings: list[str], confidence: int, city: str | None, wants: bool
+) -> str:
+    """When to stop asking. The model's confidence counts only after enough questions."""
+    asked = state.get("question_count", 0)
+    if state.get("crisis_active") and not wants:
+        return "support"
+    if not findings and not wants:
+        return "chat"
+    sure = confidence >= settings.SURE_CONFIDENCE and asked >= settings.MIN_QUESTIONS
+    if not (sure or wants or asked >= settings.MAX_QUESTIONS):
+        return "ask"
+    if not city and state.get("city_asks", 0) < MOST_CITY_ASKS:
+        return "ask_city"
+    return "search"
+
+
+def _chips(action: str, language: str, options: list[str], asked: int) -> list[str]:
+    if action == "ask_city":
+        return [ANY_CITY_LABEL[language]]
+    if action != "ask":
+        return []
+    chips = [option.strip()[:40] for option in options if option.strip()][:3]
+    return [*chips, SHOW_DOCTORS[language]] if asked else chips
+
+
+def assess_node(state: ConversationState) -> dict[str, Any]:
+    latest = state["messages"][-1]["content"]
+    before = state.get("findings") or []
+    specialties = _get_verified_specialty_names()
+    passages = search_books(" ".join([*before, latest]))
+
+    result = get_llm_client().generate_structured(
+        _recent(state),
+        _assess_prompt(state, specialties, passages),
+        Assessment,
+        _assessment_schema(specialties),
+    )
+
+    language: str = result.language
+    if has_bangla_script(latest):
+        language = "Bangla"
+    elif language == "Bangla":
+        language = "Banglish"
+    findings = list(
+        dict.fromkeys([*before, *(result.new_findings if result.has_health_problem else [])])
+    )[-MOST_FINDINGS:]
+    city = ANY_CITY if _matches(latest, ANY_CITY_LABEL) else result.city or state.get("city")
+    max_fee = result.max_fee or state.get("max_fee")
+    specialty = result.specialty if result.specialty in specialties else state.get("specialty")
+    conditions = [c.model_dump() for c in result.possible_conditions]
+
+    tapped_show = _matches(latest, SHOW_DOCTORS)
+    action = decide(
+        state, findings, result.confidence, city, tapped_show or result.wants_doctors_now
+    )
+    # The same cards are already on screen, so talk instead of showing them again
+    key = [specialty or GENERAL_MEDICINE, city or ANY_CITY, str(max_fee or "")]
+    if action == "search" and state.get("shown_search") == key and not tapped_show:
+        action = "chat"
+
+    asked = state.get("question_count", 0)
+    logger.info(f"Assessed: {action} at confidence {result.confidence}")
+    return {
+        "language": language,
+        "findings": findings,
+        "city": city,
+        "max_fee": max_fee,
+        "possible_conditions": conditions or state.get("possible_conditions") or [],
+        "confidence": result.confidence,
+        "specialty": specialty,
+        "next_question": result.next_question,
+        "passages": passages,
+        "action": action,
+        "question_count": asked + (action == "ask"),
+        "city_asks": state.get("city_asks", 0) + (action == "ask_city"),
+        "asking_about": "location" if action == "ask_city" else None,
+        "chips": _chips(action, language, result.answer_options, asked),
         "search_criteria": None,
         "recommendations": [],
     }
-    if plan.action == "search":
-        record = routing_record(
-            specialties=update["candidate_specialty_names"],
-            confidence=confidence,
-            reason=plan.reason,
-            answer_basis=analysis.answer_basis,
-            flags=flags,
-        )
-        update["routing_log"] = list(state.get("routing_log") or []) + [record]
-        # Labels and numbers only, with no ids, so this cannot be tied to a patient
-        logger.info(
-            f"Routed to {record['specialties']} at {record['confidence']} ({record['reason']})"
-        )
-    return update
 
 
-def route_after_analysis(state: ConversationState) -> str:
-    if state.get("safety_status") == "emergency":
-        return "escalate"
-    return "search" if state.get("action") == "search" else "write"
+# 3. Search
 
 
-# ------------------------------------------------------------------------------
-# Node 3: Search (Mapped ONLY to verified DB specialties, read from Supabase)
-# ------------------------------------------------------------------------------
-
-
-def build_search_criteria_node(state: ConversationState) -> dict[str, Any]:
-    """Searches before the reply is written, so the reply can truthfully say what was found."""
+def search_node(state: ConversationState) -> dict[str, Any]:
     from app.search.recommend import recommend_doctors
 
-    verified = _get_verified_specialty_names()
-    specialties = _match_verified_specialties(state.get("candidate_specialty_names", []), verified)
+    specialty = state.get("specialty") or GENERAL_MEDICINE
+    city = state.get("city") or ANY_CITY
+    max_fee = state.get("max_fee")
+    conditions = [c["name"] for c in state.get("possible_conditions") or []]
     criteria = SearchCriteria(
-        candidate_specialties=specialties or verified,
-        city=state.get("location") or ANY_CITY,
-        max_fee=state.get("preferred_max_fee"),
-        keywords=state.get("symptoms", [])[:5],
+        candidate_specialties=[specialty],
+        city=city,
+        max_fee=max_fee,
+        keywords=[*conditions, *(state.get("findings") or [])[:5]],
     ).model_dump()
-
     try:
-        found = recommend_doctors(criteria, top_k=5).recommendations
-        recommendations = [doctor.model_dump() for doctor in found]
+        doctors = [d.model_dump() for d in recommend_doctors(criteria, top_k=5).recommendations]
     except Exception as e:
-        logger.warning(f"Could not generate recommendations during chat: {type(e).__name__}")
-        recommendations = []
-    return {"search_criteria": criteria, "recommendations": recommendations}
-
-
-# ------------------------------------------------------------------------------
-# Node 4: Write (the model speaks to the patient, in persona)
-# ------------------------------------------------------------------------------
-
-
-def _search_notes(state: ConversationState) -> dict[str, Any]:
-    found = state.get("recommendations") or []
-    doctors = len(found)
-    notes: dict[str, Any] = {
-        "doctors_listed_below_your_reply": doctors,
-        "kinds_of_specialist": state.get("candidate_specialty_names", []),
-    }
-    # The writer must describe how to reach the doctors exactly, so it is told, never left to guess
-    contact_only = sum(1 for doctor in found if doctor.get("online_booking") is False)
-    if doctors and contact_only == doctors:
-        notes["how_to_reach_them"] = (
-            "None can be booked online here yet. They are listed from a public directory and not yet "
-            "verified by MediMatch. The patient contacts the hospital shown for each one."
-        )
-    elif contact_only:
-        notes["how_to_reach_them"] = (
-            "Some can be booked here. The others are listed from a public directory, are not yet "
-            "verified by MediMatch, and are reached by contacting the hospital shown."
-        )
-    elif doctors:
-        notes["how_to_reach_them"] = "All of them can be booked here."
-    if doctors:
-        notes["do"] = (
-            "Say something kind about what they shared, naming a detail, then say in plain words "
-            "that people who can help are listed below. Two sentences. Do not list specialties."
-        )
-    else:
-        notes["do"] = (
-            "No matching doctors were found. Say so honestly, and offer to look in another city. "
-            "Do not suggest a different kind of doctor."
-        )
-    if state.get("search_reason") == "patient_asked":
-        notes["also_say"] = "In one sentence, say the match may be less precise."
-    if state.get("soft_limit_reached"):
-        notes["also_do"] = (
-            "Briefly sum up what you understood, and ask if they would like to keep narrowing it "
-            "down."
-        )
-    if state.get("searched_everywhere"):
-        notes["searched"] = "all of Bangladesh"
-    if chest_is_possible(state.get("ambiguity_flags") or {}):
-        notes["must_say"] = (
-            f"If they have pain or pressure in their chest, they should call "
-            f"{settings.EMERGENCY_NUMBER} now."
-        )
-    return notes
-
-
-def _turn_notes(state: ConversationState) -> str:
-    """Tells the writer what to do this turn. The patient never sees these."""
-    action = state.get("action", "talk")
-    language = {"en": "English", "bn": "Bangla script", "banglish": "Banglish in English letters"}
-    notes: dict[str, Any] = {
-        "write_in": language.get(state.get("language", "en"), "English"),
-        "patient_seems": state.get("emotional_state", "calm"),
-        "details_known": _known_details(state),
-    }
-
-    if state.get("crisis_active"):
-        notes["patient_has_spoken_about_not_wanting_to_live"] = True
-    if action == "ask":
-        notes["ask_about"] = state.get("asking_about")
-        if state.get("asking_about") == "clarify_meaning":
-            notes["unclear_phrases"] = open_flags(state.get("ambiguity_flags") or {})
-            notes["chips_should_offer"] = "emotional, physical, and both"
-        if state.get("asking_about") == "care_preference":
-            notes["chips_should_offer"] = "talking therapy, a medical evaluation, and either"
-    elif action == "search":
-        notes.update(_search_notes(state))
-    elif action == "support":
-        notes["do"] = "Stay gentle and present. Ask nothing. Offer help finding someone when ready."
-    else:
-        notes["do"] = "Respond to what they said. If it fits, ask what's been going on."
-
-    if is_emotional(state.get("specialty_confidence") or {}) and state.get("physical_symptoms_too"):
-        notes["physical_symptoms_too"] = True
-    return f"{PERSONA}\n\n## Notes for this turn\n\n{json.dumps(notes, ensure_ascii=False)}"
-
-
-def _sentences(text: str) -> list[str]:
-    return [part.strip() for part in _SENTENCE_END.split(text) if part.strip()]
-
-
-def _sentence_key(sentence: str) -> str:
-    return " ".join(_NOT_A_WORD.sub("", sentence.casefold()).split())
-
-
-def _overlap(first: set[str], second: set[str]) -> float:
-    return len(first & second) / len(first | second)
-
-
-def repeated_sentences(reply: str, earlier: list[str]) -> list[str]:
-    """Sentences in a reply that the assistant has already said, or nearly said."""
-    said = [set(_sentence_key(s).split()) for text in earlier for s in _sentences(text)]
-    repeats = []
-    for sentence in _sentences(reply):
-        words = set(_sentence_key(sentence).split())
-        if len(words) >= SHORTEST_REPEATED_WORDS and any(
-            _overlap(words, old) >= REPEAT_OVERLAP for old in said
-        ):
-            repeats.append(sentence)
-    return repeats
-
-
-def _wrong_language(reply: str, language: str) -> bool:
-    return has_bangla_script(reply) != (language == "bn")
-
-
-def _reply_problem(reply: str, earlier: list[str], language: str) -> str | None:
-    """Why a reply must be rewritten. Only rule names here, never reply text."""
-    violation = reply_violation(reply)
-    if violation:
-        return violation
-    if repeated_sentences(reply, earlier):
-        return "repeated_sentence"
-    if _wrong_language(reply, language):
-        return "wrong_language"
-    return None
-
-
-REWRITE_NOTES = {
-    "diagnosis": "It named a condition or a possible cause. Name none.",
-    "reassurance": "It reassured them. Do not say they will be fine or that it is not serious.",
-    "prescription": "It named a medicine or treatment. Name none.",
-    "human_claim": "It claimed feelings, a body or a human life. You are an AI. Claim none.",
-    "repeated_sentence": "It repeated a sentence you already said. Use completely new words.",
-    "wrong_language": "It was written in the wrong language or script. Follow write_in exactly.",
-}
-
-
-def _ask_writer(system_prompt: str, state: ConversationState) -> WriterTurn:
-    try:
-        return get_llm_client().generate_structured(
-            messages=_recent_messages(
-                state.get("messages", []), settings.LLM_WRITER_HISTORY_MESSAGES
-            ),
-            response_model=WriterTurn,
-            system_prompt=system_prompt,
-            temperature=settings.LLM_WRITER_TEMPERATURE,
-            reasoning_effort=settings.LLM_WRITER_REASONING_EFFORT or None,
-        )
-    except ValueError as e:
-        raise LLMUnavailableError("The model's reply could not be read") from e
-
-
-def _final_reply(turn: WriterTurn, state: ConversationState, earlier: list[str]) -> WriterTurn:
-    """A reply gets one rewrite. Unsafe text never goes out, and a repeat loses the sentence."""
-    language = state.get("language", "en")
-    problem = _reply_problem(turn.reply, earlier, language)
-    if problem is None:
-        return turn
-
-    logger.warning(f"[OUTPUT GUARD] Rewriting a reply: {problem}")
-    rewritten = _ask_writer(
-        f"{_turn_notes(state)}\n\nYour last reply was rejected. {REWRITE_NOTES[problem]}", state
-    )
-
-    if reply_violation(rewritten.reply):
-        logger.warning("[OUTPUT GUARD] Rewrite failed, using the fixed reply")
-        return WriterTurn(reply=guard_fallback(language))
-
-    repeats = repeated_sentences(rewritten.reply, earlier)
-    kept = [sentence for sentence in _sentences(rewritten.reply) if sentence not in repeats]
-    if repeats and kept:
-        return rewritten.model_copy(update={"reply": " ".join(kept)})
-    return rewritten
-
-
-def _chips_for(turn: WriterTurn, state: ConversationState) -> list[dict[str, str]]:
-    """At most four chips. Fixed labels mean the city and escape chips can always be matched."""
-    if state.get("action") != "ask":
-        return []
-    language = state.get("language", "en")
-    chips = [chip.model_dump() for chip in turn.chips if not reply_violation(chip.label)]
-    chips = chips[:MAX_MODEL_CHIPS]
-    if state.get("asking_about") == LOCATION:
-        chips = [chip for chip in chips if chip["meaning"] != "any_city"][: MAX_MODEL_CHIPS - 1]
-        chips.append(
-            {"label": ANY_CITY_LABEL.get(language, ANY_CITY_LABEL["en"]), "meaning": "any_city"}
-        )
-    # question_count already includes this question, so the first one has no escape to offer
-    if state.get("question_count", 0) >= 2:
-        escape = SHOW_DOCTORS_LABEL.get(language, SHOW_DOCTORS_LABEL["en"])
-        chips.append({"label": escape, "meaning": ESCAPE})
-    return chips
-
-
-def write_node(state: ConversationState) -> dict[str, Any]:
-    """Writes the reply. With no model there is no reply to give, so this raises."""
-    earlier = [
-        m.get("content", "") for m in state.get("messages", []) if m.get("role") == "assistant"
-    ]
-    turn = _final_reply(_ask_writer(_turn_notes(state), state), state, earlier)
-    chips = _chips_for(turn, state)
-
-    action = state.get("action")
-    if action == "search":
-        step = "completed"
-    elif action == "ask":
-        step = "ask_followup"
-    else:
-        step = "conversation"
-
+        logger.warning(f"Doctor search failed: {type(e).__name__}")
+        doctors = []
     return {
-        "assistant_reply": turn.reply,
-        "chips": [chip["label"] for chip in chips],
-        "pending_chips": chips,
-        "current_step": step,
+        "search_criteria": criteria,
+        "recommendations": doctors,
+        "shown_bookable": any(doctor.get("online_booking") for doctor in doctors),
+        # Nothing was shown, so the next message may search again
+        "shown_search": [specialty, city, str(max_fee or "")] if doctors else [],
     }
 
 
-# ------------------------------------------------------------------------------
-# Workflow Graph Construction
-# ------------------------------------------------------------------------------
+# 4. Reply
 
 
-def build_symptom_graph(checkpointer: Any | None = None) -> Any:
-    """Builds the symptom state machine. The API saves progress on the conversation row instead."""
+def _reach(state: ConversationState) -> str:
+    if state.get("shown_bookable"):
+        return (
+            "Cards with a booking button are booked here. For the others, the patient contacts "
+            "the hospital on the card."
+        )
+    return (
+        "None can be booked online. The patient contacts the hospital named on the card. Cards "
+        "have no booking button and no phone number."
+    )
+
+
+def _task(state: ConversationState) -> str:
+    action = state["action"]
+    if action == "ask":
+        return (
+            "React to what they said, then ask this one question in your own words: "
+            f"{state['next_question']}"
+        )
+    if action == "ask_city":
+        return "Say you have a good idea of what is going on, and ask which city they want a doctor in."
+    if action == "support":
+        return (
+            "They have spoken about not wanting to live. Be gentle and present, with no jokes and "
+            "no questions. Offer to help find someone to talk to."
+        )
+    if action == "search":
+        explain = (
+            "Name the first condition of your assessment as the most likely one, explain it in plain words and why their symptoms point there, "
+            "name the next possibility, and say a doctor should confirm it. Ask nothing. "
+        )
+        doctors = len(state.get("recommendations") or [])
+        if not doctors:
+            return f"{explain}No doctor was found in that city, so offer to try another city."
+        specialty = state.get("specialty") or GENERAL_MEDICINE
+        return (
+            f"{explain}Then say {doctors} {specialty} doctors are in the cards below. Do not list or "
+            f"name them, the cards do that. {_reach(state)}"
+        )
+    if state.get("shown_search"):
+        return f"Answer what they just said. Doctors are already in cards above. {_reach(state)}"
+    return "Chat about what they said, and find out how they are feeling."
+
+
+def _reply_prompt(state: ConversationState) -> str:
+    parts = [PERSONA]
+    if state["action"] == "search" or state.get("shown_search"):
+        conditions = json.dumps(state.get("possible_conditions") or [], ensure_ascii=False)
+        parts.append(f"Your assessment: {conditions}")
+        if state.get("passages"):
+            parts.append("From the medical books:\n" + "\n---\n".join(state["passages"][:2]))
+    parts.append(f"Your task now: {_task(state)}\nWrite in {state['language']}.")
+    return "\n\n".join(parts)
+
+
+STEPS = {"search": "completed", "ask": "ask_followup", "ask_city": "ask_followup"}
+
+
+def reply_node(state: ConversationState) -> dict[str, Any]:
+    reply = get_llm_client().generate(
+        _recent(state), _reply_prompt(state), temperature=settings.LLM_TEMPERATURE
+    )
+    return {"assistant_reply": reply, "current_step": STEPS.get(state["action"], "conversation")}
+
+
+# Workflow
+
+
+def build_symptom_graph() -> Any:
     workflow = StateGraph(ConversationState)
-
-    workflow.add_node("safety_check", safety_check_node)
-    workflow.add_node("analyze", analyze_node)
-    workflow.add_node("build_search_criteria", build_search_criteria_node)
-    workflow.add_node("write", write_node)
-
-    workflow.set_entry_point("safety_check")
+    workflow.add_node("safety", safety_node)
+    workflow.add_node("assess", assess_node)
+    workflow.add_node("search", search_node)
+    workflow.add_node("reply", reply_node)
+    workflow.set_entry_point("safety")
     workflow.add_conditional_edges(
-        "safety_check", route_after_safety, {"escalate": END, "continue": "analyze"}
+        "safety", lambda s: END if s["safety_status"] == "emergency" else "assess"
     )
     workflow.add_conditional_edges(
-        "analyze",
-        route_after_analysis,
-        {"escalate": END, "search": "build_search_criteria", "write": "write"},
+        "assess", lambda s: "search" if s["action"] == "search" else "reply"
     )
-    workflow.add_edge("build_search_criteria", "write")
-    workflow.add_edge("write", END)
+    workflow.add_edge("search", "reply")
+    workflow.add_edge("reply", END)
+    return workflow.compile()
 
-    return workflow.compile(checkpointer=checkpointer)
 
-
-# Singleton compiled graph
 _COMPILED_GRAPH = None
 
 
 def get_symptom_graph() -> Any:
-    """Returns the compiled symptom graph."""
     global _COMPILED_GRAPH
     if _COMPILED_GRAPH is None:
         _COMPILED_GRAPH = build_symptom_graph()
     return _COMPILED_GRAPH
+
+
+def warm_up() -> None:
+    """Loads the models into memory at startup, so the first patient does not wait."""
+    try:
+        get_symptom_graph()
+        _known_cities()
+        _get_verified_specialty_names()
+        search_books("fever")
+        get_llm_client().generate([{"role": "user", "content": "hi"}], "Reply with one word.")
+    except Exception as e:
+        logger.warning(f"Warm up failed: {type(e).__name__}")

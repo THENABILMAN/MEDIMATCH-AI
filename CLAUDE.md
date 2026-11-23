@@ -1,15 +1,15 @@
 # CLAUDE.md — MediMatch AI Development Guidelines
 
 ## Project Summary
-MediMatch AI is an AI-powered doctor recommendation and appointment booking platform designed to connect patients with verified medical specialists. Patients can describe symptoms naturally to an intelligent conversational assistant, which clarifies details safely and guides them to appropriate doctors. The system leverages hybrid semantic search with Pinecone and Supabase PostgreSQL to offer verified doctor comparisons, live scheduling, and seamless booking across web and mobile platforms.
+MediMatch AI is an AI-powered doctor recommendation and appointment booking platform designed to connect patients with verified medical specialists. Patients can describe symptoms naturally to an intelligent conversational assistant, which clarifies details safely and guides them to appropriate doctors. The system leverages hybrid semantic search with MongoDB and Supabase PostgreSQL to offer verified doctor comparisons, live scheduling, and seamless booking across web and mobile platforms.
 
 ---
 
 ## Technology Stack
 - **Backend API**: FastAPI (Python 3.12+)
 - **Database & Auth**: Supabase (PostgreSQL, Supabase Auth, Row-Level Security)
-- **Vector Search Index**: Pinecone
-- **AI Orchestration & LLM**: LangGraph, Groq
+- **Vector Search**: MongoDB (doctors, and medical books)
+- **AI Orchestration & LLM**: LangGraph, and a local Hugging Face model run by Ollama
 - **Web Frontend**: React + TypeScript (Vite)
 - **Mobile Frontend**: Flutter (Dart)
 
@@ -22,10 +22,10 @@ MEDIMATCH-AI/
 │   ├── app/
 │   │   ├── core/           # Config, security, logging
 │   │   ├── api/            # API routes and endpoints
-│   │   ├── ai/             # Safety rules, LangGraph assistant, routing, prompts, LLM client, privacy
+│   │   ├── ai/             # Safety rules, LangGraph assistant, prompts, LLM client, privacy
 │   │   ├── models/         # Enums
 │   │   ├── schemas/        # Pydantic request and response models
-│   │   ├── search/         # Embeddings, Pinecone sync, recommendations
+│   │   ├── search/         # Embeddings, MongoDB vector search, sync, recommendations
 │   │   ├── services/       # Business logic for each route group
 │   │   ├── run_migrations.py # Applies and tracks SQL migrations
 │   │   └── main.py         # Application entry point
@@ -46,16 +46,16 @@ MEDIMATCH-AI/
 ---
 
 ## Non-Negotiable Rules
-1. **Source of Truth**: Supabase Postgres is the single source of truth. Pinecone is exclusively a search index; always re-fetch current doctor records directly from Supabase before returning results to clients.
-2. **Secret Isolation**: Never expose service-role keys, Pinecone API keys, or Groq keys to any frontend (Web or Mobile). All credentials must be kept strictly on the backend and loaded via environment variables.
-3. **Medical Safety**: The AI assistant must never diagnose, prescribe treatments, or reassure patients that serious symptoms are harmless. It only helps find suitable, qualified doctors.
+1. **Source of Truth**: Supabase Postgres is the single source of truth. MongoDB is exclusively a search index; always re-fetch current doctor records directly from Supabase before returning results to clients.
+2. **Secret Isolation**: Never expose service-role keys or MongoDB links to any frontend (Web or Mobile). All credentials must be kept strictly on the backend and loaded via environment variables.
+3. **Medical Safety**: The assistant works out what is most likely wrong by talking, says it as "most likely" for a doctor to confirm, and never as certain. It never prescribes.
 4. **Deterministic Emergency Triage**: Emergency detection must be rule-based (deterministic keyword and regex checks backed by comprehensive tests), never delegated solely to an LLM.
 5. **Doctor Verification Enforcement**: Only doctors with `verification_status = 'approved'` may ever be recommended or searchable by patients. A doctor listed from the public directory (`listing_source = 'directory'`) has not been checked by MediMatch, so patients always see it labelled "Not yet verified", with no online booking. Never present one as verified, and never fill an unknown fee, experience or city with a guess.
 6. **Row-Level Security (RLS)**: Every table containing user data must have RLS enabled with strict least-privilege policies.
 7. **Privacy Preservation**: Minimize personal data sent to LLM/embedding providers; never send patient names, phone numbers, email addresses, or identifying credentials.
 8. **Defense in Depth**: Every route enforces auth and role checks, and RLS guards the same data. Rely on neither alone. Clients never write directly: the API is the only writer.
-9. **Model Writes the Conversation**: The LLM writes every normal reply, in the patient's language, with no templates or keyword lists. Emergency and crisis messages stay fixed and rule-checked first, the model can add an alert but never remove one, and every reply passes the output guard. Stopping, searching and safety are decided in Python, not by the model.
-10. **Honest About Being an AI**: The assistant never claims feelings, a body or a human life. Warmth comes from attention and language. It is a guide to human help, not a therapist or a friend.
+9. **Model Writes the Conversation**: The model assesses and writes every normal reply in the patient's language. The rule-checked emergency and crisis messages always run first. When to stop asking and search is decided in Python.
+10. **Honest About Being an AI**: The assistant never claims feelings, a body or a human life. Warmth comes from attention and language. It may be witty and chatty, and it is never a therapist.
 
 ---
 
@@ -93,8 +93,10 @@ cd backend && python -m uvicorn app.main:app --reload --port 8000
 # Run interactive AI symptom assistant terminal CLI
 python backend/scripts/chat_cli.py
 
-# Verify / setup Pinecone serverless index
-python backend/scripts/setup_pinecone_index.py
+# Vector database and local models, once
+docker compose up -d mongo
+ollama pull hf.co/gpustack/bge-m3-GGUF:Q8_0
+ollama create medimatch -f backend/models/Modelfile
 
 # Rebuild the vector index, or only retry failed doctors
 python backend/scripts/reindex_all.py
@@ -118,10 +120,8 @@ cd backend && python -m pytest tests -q -m "not integration"
 
 # Evaluations. These call real services, so they are opt-in
 python backend/scripts/eval_recommendations.py
-python backend/scripts/eval_emergency.py
-python backend/scripts/eval_conversation.py   # Takes several days on the Groq limit, and resumes
 
-# Whole journey against a running local API, with real Pinecone and LLM
+# Whole journey against a running local API, with real MongoDB and LLM
 python backend/scripts/e2e_check.py --api http://127.0.0.1:8010
 
 # Lint, format and types
@@ -248,6 +248,13 @@ npx playwright test      # Mocked API. Writes web/screenshots/after/
 ---
 
 ## Decisions Log
+- **2026-11-24**: On the owner's instruction, replaced Pinecone with MongoDB vector search and Groq with a small local Hugging Face model. The entries below about Groq, Pinecone, routing, `STRICT_SAFETY` and the output guard describe earlier versions.
+- **2026-11-24**: The assistant now talks and asks until it is sure what is wrong (confidence 80 after at least 3 questions, at most 8), then asks the city and shows doctors. It names the likely condition for a doctor to confirm. Rule-based 999 and self-harm messages stay.
+- **2026-11-24**: Models were chosen by test on an RTX 4050 6 GB. MedGemma 1.5 4B printed its reasoning and took over 50 seconds. Qwen 3.5 4B reasoned well but its Bangla was poor and it invented doctors. Gemma 4 E4B got all 3 scripted patients right in English, Banglish and Bangla in 5 to 8 seconds.
+- **2026-11-24**: Medical books go in the `medical_books` MongoDB collection as `{text, source, embedding}`, embedded with the same `bge-m3` model. With no books the assistant uses its own knowledge.
+- **2026-11-23**: This is a university project that will not launch, so on the owner's instruction the assistant favours speed and personality. `STRICT_SAFETY` is off by default: no output guard, no rewrite, no model-added physical alert. Kept because they cost no time: the instant rule-based 999 alert and the self-harm message. Tests run with it on.
+- **2026-11-23**: Groq limits each model separately (8,000 tokens a minute each). `qwen/qwen3.8-27b` without reasoning does the analysis, `openai/gpt-oss-120b` writes, `openai/gpt-oss-20b` is the spare, and a rate-limited call moves to the next model at once. Before this, 10 of 11 benchmark messages failed with 429.
+- **2026-11-23**: Doctors already on screen are not searched again unless the specialty, city or budget changes or the patient asks, so the assistant chats instead.
 - **2026-11-13**: Imported the owner's doctor directory and removed every dummy doctor, on the owner's instruction. Directory doctors are labelled "Not yet verified" with no online booking, on the owner's choice, because MediMatch has not checked them. A city that cannot be found in the listing stays unknown, so the doctor appears only when the patient says any city is fine.
 - **2026-11-13**: The shortlist may include doctors without booking times when they are directory listings. A doctor who joined MediMatch still needs an open time to be suggested.
 - **2026-11-13**: Specialty search prefers an exact name, because "ENT" is also inside "Gastroenterology" and "Dentistry". A duplicate specialty name is refused with 409 rather than crashing.

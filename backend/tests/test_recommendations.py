@@ -1,9 +1,9 @@
 """Integration & Safety Tests for Doctor Recommendation Engine.
 
 Verifies:
-1. Stale Pinecone vectors for unapproved, suspended, or rejected doctors are strictly discarded.
+1. Stale MongoDB vectors for unapproved, suspended, or rejected doctors are strictly discarded.
 2. Doctors without future availability slots are excluded from recommendations.
-3. Pinecone outages gracefully fall back to authoritative SQL search without failing patient requests.
+3. MongoDB outages gracefully fall back to authoritative SQL search without failing patient requests.
 4. Consultation budget (max_fee) is strictly respected.
 5. Direct /recommendations and chat integration return properly ranked recommendations.
 """
@@ -15,68 +15,60 @@ import pytest
 from conftest import create_mock_jwt
 from fastapi import status
 from fastapi.testclient import TestClient
+from scripted_llm import ScriptedLLM, assessment
 
-from app.ai.llm import LLMClient, set_llm_client
-from app.ai.state import TurnAnalysis, WriterTurn
+from app.ai.llm import set_llm_client
 from app.models.enums import UserRole
 from app.search.embeddings import FakeEmbeddingProvider, set_embedding_provider
 from app.search.recommend import _fits_request, recommend_doctors
-from app.search.sync import set_pinecone_index_client
+from app.search.vector_store import set_vector_store
 
 
 @pytest.fixture(autouse=True)
 def setup_test_search():
-    """Activates FakeEmbeddingProvider and mocked Pinecone by default in tests."""
+    """Activates FakeEmbeddingProvider and mocked MongoDB by default in tests."""
     provider = FakeEmbeddingProvider(dimension=1024)
     set_embedding_provider(provider)
 
     mock_index = MagicMock()
     # Default mock matches seeded approved doctors
     mock_index.query = MagicMock(
-        return_value=MagicMock(
-            matches=[
-                MagicMock(
-                    id="d2000000-0000-0000-0000-000000000001", score=0.88
-                ),  # Dr. Kazi Ahmed (Approved Neuro)
-                MagicMock(
-                    id="d2000000-0000-0000-0000-000000000006", score=0.82
-                ),  # Dr. Rubina Akhter (Approved Neuro)
-                MagicMock(
-                    id="d2000000-0000-0000-0000-000000000003", score=0.74
-                ),  # Dr. Mahmudul Hasan (Approved Gen)
-            ]
-        )
+        return_value=[
+            MagicMock(
+                id="d2000000-0000-0000-0000-000000000001", score=0.88
+            ),  # Dr. Kazi Ahmed (Approved Neuro)
+            MagicMock(
+                id="d2000000-0000-0000-0000-000000000006", score=0.82
+            ),  # Dr. Rubina Akhter (Approved Neuro)
+            MagicMock(
+                id="d2000000-0000-0000-0000-000000000003", score=0.74
+            ),  # Dr. Mahmudul Hasan (Approved Gen)
+        ]
     )
-    set_pinecone_index_client(mock_index)
+    set_vector_store(mock_index)
 
     yield mock_index
 
     set_embedding_provider(None)
-    set_pinecone_index_client(None)
+    set_vector_store(None)
 
 
 def test_stale_unapproved_or_suspended_vector_never_recommended():
     """NON-NEGOTIABLE RULE: Supabase is the single source of truth.
 
-    Even if Pinecone returns a stale vector for a suspended or rejected doctor,
+    Even if MongoDB returns a stale vector for a suspended or rejected doctor,
     the recommendation engine MUST reject them upon authoritative DB verification.
     """
     mock_index = MagicMock()
-    # Mock Pinecone returning suspended and rejected doctors with high vector scores!
+    # Mock MongoDB returning suspended and rejected doctors with high vector scores!
     mock_index.query = MagicMock(
-        return_value=MagicMock(
-            matches=[
-                MagicMock(
-                    id="d2000000-0000-0000-0000-000000000009", score=0.99
-                ),  # Suspended doctor!
-                MagicMock(
-                    id="d2000000-0000-0000-0000-000000000010", score=0.98
-                ),  # Rejected doctor!
-                MagicMock(id="d2000000-0000-0000-0000-000000000001", score=0.85),  # Approved doctor
-            ]
-        )
+        return_value=[
+            MagicMock(id="d2000000-0000-0000-0000-000000000009", score=0.99),  # Suspended doctor!
+            MagicMock(id="d2000000-0000-0000-0000-000000000010", score=0.98),  # Rejected doctor!
+            MagicMock(id="d2000000-0000-0000-0000-000000000001", score=0.85),  # Approved doctor
+        ]
     )
-    set_pinecone_index_client(mock_index)
+    set_vector_store(mock_index)
 
     criteria = {
         "candidate_specialties": ["Neurology"],
@@ -103,15 +95,13 @@ def test_doctor_with_no_future_availability_slots_excluded():
     non_existent_uuid = str(uuid.uuid4())
     mock_index = MagicMock()
     mock_index.query = MagicMock(
-        return_value=MagicMock(
-            matches=[
-                MagicMock(id="non-uuid-string-from-index", score=0.99),
-                MagicMock(id=non_existent_uuid, score=0.95),
-                MagicMock(id="d2000000-0000-0000-0000-000000000001", score=0.85),
-            ]
-        )
+        return_value=[
+            MagicMock(id="non-uuid-string-from-index", score=0.99),
+            MagicMock(id=non_existent_uuid, score=0.95),
+            MagicMock(id="d2000000-0000-0000-0000-000000000001", score=0.85),
+        ]
     )
-    set_pinecone_index_client(mock_index)
+    set_vector_store(mock_index)
 
     criteria = {
         "candidate_specialties": ["Neurology"],
@@ -127,14 +117,14 @@ def test_doctor_with_no_future_availability_slots_excluded():
         assert d.soonest_slot is not None
 
 
-def test_pinecone_failure_triggers_graceful_sql_fallback():
-    """If Pinecone service is unavailable or throws network errors,
+def test_mongodb_failure_triggers_graceful_sql_fallback():
+    """If MongoDB service is unavailable or throws network errors,
 
     recommend_doctors catches the failure and seamlessly returns SQL fallback results.
     """
     mock_index = MagicMock()
-    mock_index.query = MagicMock(side_effect=RuntimeError("Pinecone connection timed out"))
-    set_pinecone_index_client(mock_index)
+    mock_index.query = MagicMock(side_effect=RuntimeError("MongoDB connection timed out"))
+    set_vector_store(mock_index)
 
     criteria = {
         "candidate_specialties": ["Neurology"],
@@ -210,22 +200,16 @@ def test_chat_completion_populates_recommendations(client: TestClient):
     conv_id = create_res.json()["id"]
 
     # 2. Configure deterministic mock LLM
-    class MockNeuroLLM(LLMClient):
-        def generate_structured(
-            self, messages, response_model, system_prompt=None, temperature=None, **_options
-        ):
-            if response_model is WriterTurn:
-                return WriterTurn(reply="Matching neurologists are listed below.")
-            return TurnAnalysis(
-                symptoms=["throbbing head pain"],
-                duration="3 days",
-                severity="moderate",
-                location="Dhaka",
-                urgency="routine",
-                specialty_confidence={"Neurology": 0.9},
+    set_llm_client(
+        ScriptedLLM(
+            assessment(
+                findings=["throbbing head pain"],
+                city="Dhaka",
+                wants_doctors_now=True,
+                specialty="Neurology",
             )
-
-    set_llm_client(MockNeuroLLM(api_key="mock", model="mock"))
+        )
+    )
 
     # 3. Send message that completes extraction
     msg_res = client.post(
@@ -253,7 +237,7 @@ def test_chat_completion_populates_recommendations(client: TestClient):
     assert "Recommended Specialists" not in data["assistant_reply"]
 
     # Reset LLM
-    set_llm_client(LLMClient())
+    set_llm_client(None)
 
 
 def test_recommendations_require_sign_in(client: TestClient):

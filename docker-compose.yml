@@ -1,6 +1,17 @@
-# Runs the API against local Supabase, which `make db-start` starts on this machine.
+# Runs MongoDB for doctor search, and the API against local Supabase, which `make db-start` starts on this machine.
 # Keys for the local stack come from `npx supabase status`, set in .env.docker.
 services:
+  # MongoDB with vector search. Starts alone with `docker compose up -d mongo`
+  mongo:
+    image: mongodb/mongodb-atlas-local:8.0
+    hostname: medimatch-mongo
+    ports:
+      - "127.0.0.1:27018:27017"
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+      - mongo-search:/data/mongot
+    mem_limit: 2500m
   api:
     build:
       context: .
@@ -18,3 +29,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+
+volumes:
+  mongo-data:
+  mongo-config:
+  mongo-search:

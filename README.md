@@ -14,8 +14,8 @@ The backend and the patient, doctor and admin web portals work end to end. The F
 |---|---|
 | API | FastAPI, Python 3.12 |
 | Database and auth | Supabase (Postgres, Auth, Row-Level Security, Storage) |
-| Search | Pinecone with `llama-text-embed-v2` |
-| AI | LangGraph, with Groq |
+| Search | MongoDB vector search with `bge-m3` |
+| AI | LangGraph, with Gemma 4 E4B from Hugging Face, run locally by Ollama |
 | Web | React 19, TypeScript, Vite, Tailwind CSS v4, Radix |
 
 ## Repository
@@ -34,7 +34,7 @@ CLAUDE.md         Project rules, commands, status and decisions
 
 ## Run It Locally
 
-You need Python 3.12, Node, Docker, and accounts with Pinecone and Groq.
+You need Python 3.12, Node, Docker, and Ollama.
 
 **1. Configure.** Copy the example files, then fill them in. Values for local Supabase come from `npx supabase@latest status`.
 
@@ -69,7 +69,10 @@ python backend/scripts/seed.py --with-logins
 **4. Build the search index.**
 
 ```bash
-python backend/scripts/setup_pinecone_index.py
+docker compose up -d mongo
+ollama pull hf.co/gpustack/bge-m3-GGUF:Q8_0
+ollama create medimatch -f backend/models/Modelfile
+python backend/scripts/reindex_all.py
 python backend/scripts/reindex_all.py
 ```
 
@@ -96,8 +99,8 @@ cd web && npx playwright test             # Browser tests on a mocked API
 
 ## Project Rules
 
-1. Supabase Postgres is the source of truth. Pinecone is only a search index, so doctor records are always re-read from Postgres.
-2. Service-role, Pinecone and Groq keys stay on the backend.
+1. Supabase Postgres is the source of truth. MongoDB is only a search index, so doctor records are always re-read from Postgres.
+2. Service-role keys and MongoDB links stay on the backend.
 3. The assistant never diagnoses, prescribes, or says serious symptoms are harmless.
 4. Emergency detection runs on fixed rules first. The model can add an alert but never remove one.
 5. Only approved doctors can be found or booked.

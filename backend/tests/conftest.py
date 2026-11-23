@@ -86,8 +86,10 @@ os.environ.update(
         "SUPABASE_ANON_KEY": STACK["ANON_KEY"] if STACK else "",
         "SUPABASE_SERVICE_ROLE_KEY": STACK["SERVICE_ROLE_KEY"] if STACK else "",
         "DATABASE_URL": STACK["DB_URL"] if STACK else "",
-        "PINECONE_API_KEY": "",
-        "GROQ_API_KEY": "",
+        "MONGODB_BOOKS": "",
+        "MONGODB_URI": "mongodb://127.0.0.1:1",
+        "MONGODB_TIMEOUT_MS": "100",
+        "OLLAMA_URL": "http://127.0.0.1:1",
         "EMBEDDING_PROVIDER": "fake",
         "RATE_LIMIT_ENABLED": "false",
         "SYNC_IN_BACKGROUND": "false",
@@ -141,6 +143,13 @@ def _trust_test_tokens():
     patcher.setattr(deps, "verify_supabase_token", _decode_test_token)
     yield
     patcher.undo()
+
+
+@pytest.fixture(autouse=True)
+def _no_cached_lookups():
+    from app.ai.graph import _lookup_cache
+
+    _lookup_cache.clear()
 
 
 @pytest.fixture(scope="session")

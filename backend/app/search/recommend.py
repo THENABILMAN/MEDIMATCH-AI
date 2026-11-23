@@ -1,14 +1,14 @@
 """Hybrid Recommendation Service for MediMatch AI.
 
-Combines Pinecone vector semantic retrieval with authoritative Supabase PostgreSQL
+Combines MongoDB vector semantic retrieval with authoritative Supabase PostgreSQL
 filtering and multi-factor ranking.
 
 Guarantees:
 1. Supabase is the single source of truth: doctors must be 'approved' and within budget. A doctor
    who joined MediMatch must have a future unbooked slot. A directory listing has no online booking,
    so it is shown with a note to contact the hospital instead.
-2. Stale or invalid vectors from Pinecone are immediately discarded.
-3. If Pinecone fails or returns insufficient candidates, gracefully falls back to SQL search.
+2. Stale or invalid vectors from MongoDB are immediately discarded.
+3. If MongoDB fails or returns insufficient candidates, gracefully falls back to SQL search.
 4. Generates transparent, non-diagnostic match explanations.
 """
 
@@ -25,7 +25,7 @@ from app.core.supabase import any_contains_filter, get_supabase_admin_client
 from app.models.enums import VerificationStatus
 from app.search.cities import ANYWHERE, city_spellings, normalize_city
 from app.search.embeddings import get_embedding_provider
-from app.search.sync import get_pinecone_index
+from app.search.vector_store import get_vector_store
 
 logger = logging.getLogger("medimatch.search.recommend")
 
@@ -292,7 +292,7 @@ def _sql_fallback_search(
     limit: int = 5,
     strict: bool = False,
 ) -> list[DoctorRecommendation]:
-    """Graceful fallback query when Pinecone is down or yields insufficient results."""
+    """Graceful fallback query when MongoDB is down or yields insufficient results."""
     logger.info("[RECOMMENDATION] Executing SQL fallback search")
     client = get_supabase_admin_client()
     if not client:
@@ -354,28 +354,25 @@ def recommend_doctors(
     now_iso = datetime.now(UTC).isoformat()
     vector_matches: dict[str, float] = {}
 
-    # 2. Query Pinecone vector index
+    # 2. Find similar doctors in MongoDB
     try:
         query_vector = get_embedding_provider().embed_query(query_text)
-        # Filtering in Pinecone keeps thousands of listings from crowding out the right specialty
+        # Filtering in MongoDB keeps thousands of listings from crowding out the right specialty
         vector_filter: dict[str, Any] = {
             "status": {"$eq": VerificationStatus.APPROVED.value},
             "specialty_names": {"$in": _searchable_specialties(candidate_specialties, strict)},
         }
         if city.lower() != ANYWHERE:
             vector_filter["city"] = {"$eq": city}
-        pinecone_res = get_pinecone_index().query(
+        matches = get_vector_store().query(
             vector=query_vector,
             top_k=max(settings.VECTOR_CANDIDATES, top_k * 3),
-            filter=vector_filter,
+            where=vector_filter,
         )
-        for match in getattr(pinecone_res, "matches", []):
-            m_id = getattr(match, "id", None)
-            if m_id:
-                vector_matches[str(m_id)] = float(getattr(match, "score", 0.0) or 0.0)
+        vector_matches = {match.id: match.score for match in matches}
     except Exception as e:
         logger.warning(
-            f"[RECOMMENDATION] Pinecone query failed ({type(e).__name__}); using SQL search."
+            f"[RECOMMENDATION] MongoDB query failed ({type(e).__name__}); using SQL search."
         )
 
     # 3. Re-fetch every candidate from Supabase, the source of truth

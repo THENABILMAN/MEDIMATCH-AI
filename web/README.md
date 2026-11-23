@@ -6,7 +6,7 @@ The patient, doctor and admin portals, built with React, TypeScript, Vite, Tailw
 
 ```bash
 npm install
-cp .env.example .env   # Public values only. Never add service-role, Pinecone or OpenRouter keys.
+cp .env.example .env   # Public values only. Never add service-role keys or MongoDB links.
 npm run dev
 ```
 

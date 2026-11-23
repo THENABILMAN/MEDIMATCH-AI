@@ -174,7 +174,7 @@ def _link_specialties(cur: Any, doctors: list[dict[str, Any]], ids: dict[str, st
 
 
 def _index(ids: list[str]) -> int:
-    """Embeds the imported doctors into Pinecone. Supabase stays the source of truth."""
+    """Embeds the imported doctors into MongoDB. Supabase stays the source of truth."""
     from app.search.sync import index_doctors
 
     conn = psycopg2.connect(settings.DATABASE_URL)
@@ -208,7 +208,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Import the doctor directory")
     parser.add_argument("--file", type=Path, default=DEFAULT_FILE)
     parser.add_argument("--dry-run", action="store_true", help="Report only, write nothing")
-    parser.add_argument("--skip-vectors", action="store_true", help="Leave Pinecone for later")
+    parser.add_argument("--skip-vectors", action="store_true", help="Leave MongoDB for later")
     args = parser.parse_args()
 
     listings = read_listings(args.file)
@@ -239,9 +239,9 @@ def main() -> None:
         conn.close()
 
     if args.skip_vectors:
-        print("[INFO] Skipped Pinecone. Run scripts/reindex_all.py --unsynced later.")
+        print("[INFO] Skipped MongoDB. Run scripts/reindex_all.py --unsynced later.")
         return
-    print(f"[SUCCESS] Indexed {_index(list(ids.values()))} doctors in Pinecone.")
+    print(f"[SUCCESS] Indexed {_index(list(ids.values()))} doctors in MongoDB.")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 """Doctor Lifecycle Event Hooks.
 
 These functions are invoked upon doctor profile status transitions.
-Each one queues a Pinecone sync. Stale vectors are harmless in the meantime, because every search
+Each one queues a MongoDB sync. Stale vectors are harmless in the meantime, because every search
 result is checked against Postgres before it is returned.
 """
 

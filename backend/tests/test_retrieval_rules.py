@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, create_autospec
 import psycopg2
 import pytest
 from conftest import STACK
-from pinecone.db_data import _Index
 
 from app.core.config import Settings, settings
 from app.search import recommend as recommend_module
@@ -19,7 +18,8 @@ from app.search.embeddings import (
     set_embedding_provider,
 )
 from app.search.recommend import _calculate_score, recommend_doctors
-from app.search.sync import set_pinecone_index_client, sync_doctor_vector
+from app.search.sync import sync_doctor_vector
+from app.search.vector_store import DoctorStore, Match, set_vector_store
 from app.services import doctor_events
 
 APPROVED_NEURO = "d2000000-0000-0000-0000-000000000001"
@@ -38,7 +38,7 @@ def sql(query: str, params: tuple = ()):
 
 
 def vector_result(*pairs):
-    return MagicMock(matches=[MagicMock(id=doctor, score=score) for doctor, score in pairs])
+    return [Match(doctor, score) for doctor, score in pairs]
 
 
 @pytest.fixture(autouse=True)
@@ -46,10 +46,10 @@ def search_doubles():
     set_embedding_provider(FakeEmbeddingProvider(dimension=1024))
     index = MagicMock()
     index.query = MagicMock(return_value=vector_result((APPROVED_NEURO, 0.9)))
-    set_pinecone_index_client(index)
+    set_vector_store(index)
     yield index
     set_embedding_provider(None)
-    set_pinecone_index_client(None)
+    set_vector_store(None)
 
 
 def criteria(**overrides):
@@ -92,7 +92,7 @@ def test_names_and_fees_stay_out_of_embedded_text():
 
 
 def test_failed_sync_does_not_claim_it_synced(search_doubles):
-    search_doubles.upsert.side_effect = RuntimeError("pinecone down")
+    search_doubles.upsert.side_effect = RuntimeError("mongodb down")
     sql("UPDATE public.doctor_profiles SET last_synced_at = NULL WHERE id = %s", (APPROVED_NEURO,))
 
     assert sync_doctor_vector(APPROVED_NEURO) is False
@@ -141,7 +141,7 @@ def test_approval_returns_before_a_slow_vector_sync(monkeypatch):
 
 def test_a_failing_background_sync_is_recorded(monkeypatch, search_doubles):
     monkeypatch.setattr(settings, "SYNC_IN_BACKGROUND", True)
-    search_doubles.delete.side_effect = RuntimeError("pinecone down")
+    search_doubles.delete.side_effect = RuntimeError("mongodb down")
     sql("UPDATE public.doctor_profiles SET sync_status = 'synced' WHERE id = %s", (SUSPENDED,))
 
     doctor_events.on_doctor_suspended(SUSPENDED, "admin", "reason")
@@ -165,9 +165,9 @@ def test_editing_a_specialty_reindexes_its_doctors(client, admin_token, search_d
 
 def test_vector_search_asks_for_approved_doctors_only(search_doubles):
     recommend_doctors(criteria())
-    vector_filter = search_doubles.query.call_args.kwargs["filter"]
+    vector_filter = search_doubles.query.call_args.kwargs["where"]
     assert vector_filter["status"] == {"$eq": "approved"}
-    # The specialty and city are filtered in Pinecone too, so a big directory cannot crowd them out
+    # The specialty and city are filtered in MongoDB too, so a big directory cannot crowd them out
     assert "specialty_names" in vector_filter
 
 
@@ -231,13 +231,13 @@ def test_ranking_weights_must_add_up():
         Settings(WEIGHT_VECTOR=0.9, _env_file=None)
 
 
-def test_calls_match_the_real_pinecone_client():
+def test_calls_match_the_real_mongodb_client():
     """A plain mock accepts any argument, which once sent every real search to the SQL fallback."""
-    index = create_autospec(_Index, instance=True)
+    index = create_autospec(DoctorStore, instance=True)
     index.query.return_value = vector_result((APPROVED_NEURO, 0.9))
     index.upsert.return_value = None
     index.delete.return_value = None
-    set_pinecone_index_client(index)
+    set_vector_store(index)
 
     assert recommend_doctors(criteria()).retrieval_mode == "hybrid"
     assert sync_doctor_vector(APPROVED_NEURO) is True

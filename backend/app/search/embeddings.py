@@ -2,7 +2,7 @@
 
 Provides:
 - BaseEmbeddingProvider: Abstract base class for embedding models.
-- PineconeInferenceEmbeddingProvider: Real provider using Pinecone Inference API (llama-text-embed-v2, 1024-dim).
+- OllamaEmbeddingProvider: A local Hugging Face model (bge-m3, 1024-dim), served by Ollama.
 - FakeEmbeddingProvider: Fast, deterministic unit vector generator for tests without external network dependencies.
 - get_embedding_provider() & set_embedding_provider(): Factory and test fixture hooks.
 """
@@ -12,7 +12,7 @@ import logging
 import math
 from abc import ABC, abstractmethod
 
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+import httpx
 
 from app.core.config import settings
 
@@ -39,66 +39,32 @@ class BaseEmbeddingProvider(ABC):
         pass
 
 
-class PineconeInferenceEmbeddingProvider(BaseEmbeddingProvider):
-    """Embeddings powered by Pinecone's hosted Inference API.
+class OllamaEmbeddingProvider(BaseEmbeddingProvider):
+    """A multilingual Hugging Face embedding model, run locally by Ollama."""
 
-    Defaults to model 'llama-text-embed-v2' (1024 dimensions, cosine metric).
-    Requires PINECONE_API_KEY from environment.
-    """
-
-    def __init__(
-        self,
-        api_key: str | None = None,
-        model: str | None = None,
-        dimension: int | None = None,
-    ):
-        from pinecone import Pinecone
-
-        self._api_key = api_key or settings.PINECONE_API_KEY
-        self._model = model or settings.EMBEDDING_MODEL
-        self._dimension = dimension or settings.EMBEDDING_DIMENSION
-        self._client = Pinecone(api_key=self._api_key, timeout=settings.PINECONE_TIMEOUT_SECONDS)
+    def __init__(self) -> None:
+        self._http = httpx.Client(
+            base_url=settings.OLLAMA_URL,
+            timeout=settings.LLM_TIMEOUT_SECONDS,
+            limits=httpx.Limits(keepalive_expiry=120),
+        )
 
     @property
     def dimension(self) -> int:
-        return self._dimension
+        return settings.EMBEDDING_DIMENSION
 
-    @retry(
-        retry=retry_if_exception_type(Exception),
-        stop=stop_after_attempt(2),
-        wait=wait_exponential(multiplier=1, min=1, max=4),
-        reraise=True,
-    )
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-
-        logger.info(f"Generating document embeddings for {len(texts)} texts via {self._model}")
-        res = self._client.inference.embed(
-            model=self._model,
-            inputs=texts,
-            parameters={"input_type": "passage", "truncate": "END"},
+        response = self._http.post(
+            "/api/embed",
+            json={"model": settings.EMBEDDING_MODEL, "input": texts, "keep_alive": "1h"},
         )
-        return [item["values"] for item in res]
+        response.raise_for_status()
+        return list(response.json()["embeddings"])
 
-    @retry(
-        retry=retry_if_exception_type(Exception),
-        stop=stop_after_attempt(2),
-        wait=wait_exponential(multiplier=1, min=1, max=4),
-        reraise=True,
-    )
     def embed_query(self, text: str) -> list[float]:
-        if not text or not text.strip():
-            # Return zero vector for empty query
-            return [0.0] * self._dimension
-
-        logger.info(f"Generating query embedding via {self._model}")
-        res = self._client.inference.embed(
-            model=self._model,
-            inputs=[text.strip()],
-            parameters={"input_type": "query", "truncate": "END"},
-        )
-        return res[0]["values"]
+        return self.embed_documents([text])[0]
 
 
 class FakeEmbeddingProvider(BaseEmbeddingProvider):
@@ -161,12 +127,8 @@ def get_embedding_provider() -> BaseEmbeddingProvider:
         _GLOBAL_EMBEDDING_PROVIDER = FakeEmbeddingProvider(dimension=settings.EMBEDDING_DIMENSION)
         return _GLOBAL_EMBEDDING_PROVIDER
 
-    if provider == "pinecone":
-        _GLOBAL_EMBEDDING_PROVIDER = PineconeInferenceEmbeddingProvider(
-            api_key=settings.PINECONE_API_KEY,
-            model=settings.EMBEDDING_MODEL,
-            dimension=settings.EMBEDDING_DIMENSION,
-        )
+    if provider == "ollama":
+        _GLOBAL_EMBEDDING_PROVIDER = OllamaEmbeddingProvider()
         return _GLOBAL_EMBEDDING_PROVIDER
 
     raise ValueError(f"Unsupported EMBEDDING_PROVIDER: {settings.EMBEDDING_PROVIDER}")

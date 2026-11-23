@@ -13,13 +13,11 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: EMBEDDING_PROVIDER
-        value: pinecone
+        value: ollama
       - key: EMBEDDING_MODEL
-        value: llama-text-embed-v2
+        value: hf.co/gpustack/bge-m3-GGUF:Q8_0
       - key: EMBEDDING_DIMENSION
         value: "1024"
-      - key: PINECONE_INDEX
-        value: medimatch-doctors
       - key: BACKEND_CORS_ORIGINS
         sync: false
       - key: SUPABASE_URL
@@ -28,12 +26,10 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: PINECONE_API_KEY
+      - key: MONGODB_URI
         sync: false
-      - key: GROQ_API_KEY
+      - key: OLLAMA_URL
         sync: false
-      - key: GROQ_MODEL
-        value: openai/gpt-oss-120b
       # Verify every number yourself before launch. See docs/DEPLOYMENT.md
       - key: CRISIS_HELPLINES
         sync: false

@@ -33,56 +33,40 @@ class Settings(BaseSettings):
     )
     DATABASE_URL: str = Field(default="", description="PostgreSQL connection string")
 
-    # Pinecone Vector Search
-    PINECONE_API_KEY: str = Field(default="", description="Pinecone API key")
-    PINECONE_INDEX: str = Field(default="medimatch-doctors", description="Pinecone index name")
+    # MongoDB vector search. A local container or a MongoDB Atlas link both work
+    MONGODB_URI: str = "mongodb://localhost:27018/?directConnection=true"
+    MONGODB_DATABASE: str = "medimatch"
+    MONGODB_DOCTORS: str = "doctors"
+    MONGODB_BOOKS: str = Field(default="medical_books", description="Empty turns the books off")
+    MONGODB_TIMEOUT_MS: int = Field(default=3000, ge=1)
+    BOOK_PASSAGE_CHARS: int = Field(default=700, ge=100)
 
-    # Groq LLM
-    GROQ_API_KEY: str = Field(default="", description="Groq API key")
-    GROQ_MODEL: str = Field(default="openai/gpt-oss-120b", description="Groq model identifier")
+    # Local models from Hugging Face, served by Ollama
+    OLLAMA_URL: str = "http://localhost:11434"
+    LLM_MODEL: str = Field(default="medimatch", description="Built from backend/models/Modelfile")
+    LLM_TEMPERATURE: float = Field(default=0.8, ge=0, le=2, description="For the reply")
+    LLM_TIMEOUT_SECONDS: float = Field(
+        default=120.0, gt=0, description="Covers loading the model the first time"
+    )
+    LLM_CONTEXT_TOKENS: int = Field(default=6144, ge=1024)
+    LLM_MAX_TOKENS: int = Field(default=500, ge=50)
+    LLM_HISTORY_MESSAGES: int = Field(default=16, ge=1)
 
-    # A chat turn makes two or three LLM calls in a worker thread, so these bound how long it can
-    # hold one
-    LLM_TIMEOUT_SECONDS: float = Field(default=10.0, gt=0)
-    LLM_TEMPERATURE: float = Field(default=0.2, ge=0, le=2, description="For the analysis step")
-    LLM_WRITER_TEMPERATURE: float = Field(
-        default=0.7, ge=0, le=2, description="For the reply, so replies do not repeat themselves"
-    )
-    # The analysis keeps the model's full reasoning, because it is a safety net. Set this empty for
-    # a model that does not accept it
-    LLM_WRITER_REASONING_EFFORT: str = Field(default="low", description="Saves tokens on replies")
-    LLM_MAX_ATTEMPTS: int = Field(default=3, ge=1)
-    LLM_HISTORY_MESSAGES: int = Field(
-        default=12, ge=1, description="Latest messages sent to the LLM"
-    )
-    LLM_WRITER_HISTORY_MESSAGES: int = Field(
-        default=8, ge=1, description="Latest messages the reply writer sees"
-    )
+    # When the assistant is sure enough to suggest doctors
+    SURE_CONFIDENCE: int = Field(default=80, ge=0, le=100)
+    MIN_QUESTIONS: int = Field(default=3, ge=0)
+    MAX_QUESTIONS: int = Field(default=8, ge=1)
 
-    # When the assistant stops asking
-    ROUTING_MIN_CONFIDENCE: float = Field(
-        default=0.7, ge=0, le=1, description="Score the top specialty needs"
-    )
-    ROUTING_MIN_MARGIN: float = Field(
-        default=0.25, ge=0, le=1, description="Lead the top specialty needs over the next"
-    )
-    CONVERSATION_SOFT_QUESTION_LIMIT: int = Field(
-        default=12, ge=1, description="Questions before offering best matches"
-    )
-
-    # Embedding Settings
-    EMBEDDING_PROVIDER: str = Field(
-        default="pinecone", description="Embedding provider (pinecone, fake, openai)"
-    )
-    EMBEDDING_MODEL: str = Field(default="llama-text-embed-v2", description="Embedding model name")
-    EMBEDDING_DIMENSION: int = Field(default=1024, description="Vector dimension matching index")
+    # Embeddings. Books must be embedded with this same model
+    EMBEDDING_PROVIDER: str = Field(default="ollama", description="ollama, or fake for tests")
+    EMBEDDING_MODEL: str = "hf.co/gpustack/bge-m3-GGUF:Q8_0"
+    EMBEDDING_DIMENSION: int = Field(default=1024, description="Matches the model and the index")
 
     # Vector Search
     SYNC_IN_BACKGROUND: bool = True
     VECTOR_CANDIDATES: int = Field(
         default=30, ge=1, description="Vector matches fetched before filtering"
     )
-    PINECONE_TIMEOUT_SECONDS: float = Field(default=5.0, gt=0)
 
     # Recommendation Weights (must sum to 1.0)
     WEIGHT_VECTOR: float = Field(default=0.40, description="Weight for vector similarity score")

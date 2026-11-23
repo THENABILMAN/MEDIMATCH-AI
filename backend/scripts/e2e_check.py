@@ -29,7 +29,7 @@ if str(backend_dir) not in sys.path:
 
 from app.core.config import settings
 from app.core.supabase import get_supabase_admin_client
-from app.search.sync import get_pinecone_index
+from app.search.vector_store import get_vector_store
 
 PASSWORD = "e2e-long-password-1"
 SUSPENDED_DOCTOR = "d2000000-0000-0000-0000-000000000009"
@@ -101,7 +101,7 @@ def wait_for(condition: Any, seconds: float = 45) -> bool:
 
 
 def vector_exists(doctor_id: str) -> bool:
-    return doctor_id in get_pinecone_index().fetch(ids=[doctor_id]).vectors
+    return bool(get_vector_store().exists(doctor_id))
 
 
 def run(api: str) -> int:
@@ -112,7 +112,7 @@ def run(api: str) -> int:
     finally:
         # A run that stops early must not leave its doctor in the index or its accounts behind
         if created:
-            get_pinecone_index().delete(ids=created)
+            get_vector_store().delete(ids=created)
         remove_accounts(j.user_ids, created)
         print(f"Removed {len(j.user_ids)} test account(s).")
 
@@ -161,7 +161,7 @@ def journey(j: Journey, created: list[str]) -> int:
     res = j.http.post(f"/admin/doctors/{doctor_id}/approve", headers=admin, json={})
     j.step("admin approves doctor", res.status_code == 200, res.status_code)
     j.step("approved doctor is public", j.http.get(f"/doctors/{doctor_id}").status_code == 200)
-    j.step("vector appears in Pinecone", wait_for(lambda: vector_exists(doctor_id)))
+    j.step("vector appears in MongoDB", wait_for(lambda: vector_exists(doctor_id)))
 
     # Doctor opens a slot
     start = time.time() + 86400 * 3
@@ -259,7 +259,7 @@ def journey(j: Journey, created: list[str]) -> int:
     )
     j.step("admin suspends doctor", res.status_code == 200, res.status_code)
     j.step("suspended doctor is not public", j.http.get(f"/doctors/{doctor_id}").status_code == 404)
-    j.step("vector removed from Pinecone", wait_for(lambda: not vector_exists(doctor_id)))
+    j.step("vector removed from MongoDB", wait_for(lambda: not vector_exists(doctor_id)))
 
     res = j.http.get("/admin/audit-logs?limit=100", headers=admin).json()
     actions = {item["action"] for item in res["items"]}

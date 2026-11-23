@@ -54,7 +54,7 @@ def api_get_recommendations(
     payload: RecommendationQueryRequest,
     _current_user: UserMeResponse = Depends(require_patient),
 ) -> RecommendationResponse:
-    """Combines Pinecone semantic similarity with Supabase verification, budget limits,
+    """Combines MongoDB semantic similarity with Supabase verification, budget limits,
 
     and upcoming schedule availability to rank and return suitable doctors.
     """

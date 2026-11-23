@@ -24,7 +24,7 @@ def health_check() -> dict[str, str]:
 
 @router.get("/ready", summary="Readiness: the service can reach its database")
 def readiness_check() -> JSONResponse:
-    """Pinecone and Groq are reported but optional, because both have fallbacks."""
+    """Only the database is required. Doctor search falls back to SQL without MongoDB."""
     database = "unavailable"
     client = get_supabase_client()
     if client:
@@ -41,8 +41,8 @@ def readiness_check() -> JSONResponse:
             "status": "ready" if ready else "unavailable",
             "checks": {
                 "database": database,
-                "vector_search": "configured" if settings.PINECONE_API_KEY else "fallback",
-                "llm": "configured" if settings.GROQ_API_KEY else "fallback",
+                "vector_search": settings.MONGODB_DATABASE,
+                "llm": settings.LLM_MODEL,
             },
         },
     )

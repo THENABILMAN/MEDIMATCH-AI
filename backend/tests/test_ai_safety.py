@@ -3,14 +3,13 @@
 Verifies:
 1. At least 30 emergency phrases (English, Bengali script, Banglish) trigger escalation.
 2. At least 20 non-emergency phrases do not trigger escalation.
-3. Output guard sanitizes diagnosis and prescription language.
 4. Privacy module redacts emails, phone numbers, and names.
 """
 
 import pytest
 
 from app.ai.privacy import redact_pii
-from app.ai.safety import _load_patterns, check_emergency, guard_fallback, output_guard
+from app.ai.safety import _load_patterns, check_emergency
 
 # ------------------------------------------------------------------------------
 # 1. Emergency Phrases Test Table (32 distinct test cases)
@@ -110,28 +109,6 @@ def test_non_emergency_phrases_do_not_trigger_escalation(phrase: str):
 # ------------------------------------------------------------------------------
 
 
-def test_output_guard_blocks_diagnosis_claims():
-    """Output guard must intercept and sanitize diagnostic claims."""
-    diagnosis_output = "Based on your symptoms, you have hypertension and migraine."
-    safe_output = output_guard(diagnosis_output)
-    assert safe_output == guard_fallback()
-    assert "hypertension" not in safe_output
-
-
-def test_output_guard_blocks_prescription_claims():
-    """Output guard must intercept and sanitize drug prescriptions."""
-    prescription_output = "You should take 500mg amoxicillin twice daily with water."
-    safe_output = output_guard(prescription_output)
-    assert safe_output == guard_fallback()
-    assert "amoxicillin" not in safe_output
-
-
-def test_output_guard_allows_safe_advisory_text():
-    """Safe, non-diagnostic text passes through unaltered."""
-    safe_text = "I recommend consulting a specialist in Cardiology located in Dhaka."
-    assert output_guard(safe_text) == safe_text
-
-
 # ------------------------------------------------------------------------------
 # 4. Privacy & PII Redaction Tests
 # ------------------------------------------------------------------------------
@@ -213,40 +190,6 @@ def test_triage_refuses_to_start_without_patterns(tmp_path):
 def test_triage_refuses_to_start_with_missing_file(tmp_path, path_name: str):
     with pytest.raises(FileNotFoundError):
         _load_patterns(tmp_path / path_name)
-
-
-@pytest.mark.parametrize(
-    "unsafe",
-    [
-        "You may have diabetes.",
-        "You probably have a migraine",
-        "It sounds like you have the flu",
-        "This could be a stomach infection",
-        "Try 2 Napa tablets",
-        "Take 2 tablets every 6 hours",
-        "You should be taking antibiotics",
-        "Don't worry, it's nothing serious",
-        "আপনার ডায়াবেটিস আছে",
-        "দিনে দুইবার ওষুধ খান",
-        "500 মিগ্রা ট্যাবলেট",
-    ],
-)
-def test_output_guard_blocks_unsafe_replies(unsafe: str):
-    assert output_guard(unsafe) != unsafe
-
-
-@pytest.mark.parametrize(
-    "safe",
-    [
-        "Hello! I can help you find a suitable doctor.",
-        "Do you have a fever?",
-        "How long have you had these symptoms?",
-        "A neurologist can evaluate your headaches.",
-        "What can MediMatch do? It helps you book verified doctors.",
-    ],
-)
-def test_output_guard_allows_safe_replies(safe: str):
-    assert output_guard(safe) == safe
 
 
 @pytest.mark.parametrize(

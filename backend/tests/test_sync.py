@@ -3,8 +3,8 @@
 Verifies:
 1. FakeEmbeddingProvider produces deterministic, normalized unit vectors without network calls.
 2. Doctor document builder includes clinical details and strictly omits PII and fees.
-3. Doctor approval creates/upserts vector to Pinecone with correct metadata.
-4. Non-approved (pending, suspended, rejected) doctors have their vectors deleted from Pinecone.
+3. Doctor approval creates/upserts vector to MongoDB with correct metadata.
+4. Non-approved (pending, suspended, rejected) doctors have their vectors deleted from MongoDB.
 5. Lifecycle hooks trigger vector synchronization.
 """
 
@@ -16,9 +16,9 @@ from app.search.builder import build_doctor_embedding_text
 from app.search.embeddings import FakeEmbeddingProvider, set_embedding_provider
 from app.search.sync import (
     delete_doctor_vector,
-    set_pinecone_index_client,
     sync_doctor_vector,
 )
+from app.search.vector_store import set_vector_store
 from app.services.doctor_events import (
     on_doctor_approved,
     on_doctor_rejected,
@@ -28,20 +28,20 @@ from app.services.doctor_events import (
 
 @pytest.fixture(autouse=True)
 def setup_fake_search():
-    """Ensure FakeEmbeddingProvider and mocked Pinecone are active during tests."""
+    """Ensure FakeEmbeddingProvider and mocked MongoDB are active during tests."""
     fake_provider = FakeEmbeddingProvider(dimension=1024)
     set_embedding_provider(fake_provider)
 
     mock_index = MagicMock()
     mock_index.upsert = MagicMock(return_value={"upserted_count": 1})
     mock_index.delete = MagicMock(return_value={})
-    set_pinecone_index_client(mock_index)
+    set_vector_store(mock_index)
 
     yield mock_index
 
     # Reset
     set_embedding_provider(None)
-    set_pinecone_index_client(None)
+    set_vector_store(None)
 
 
 def test_fake_embedding_provider_dimension_and_determinism():
@@ -109,7 +109,7 @@ def test_doctor_document_builder_omits_pii_and_fees():
     assert "user-uuid-5678" not in doc_text
 
 
-def test_sync_doctor_approved_upserts_to_pinecone(setup_fake_search):
+def test_sync_doctor_approved_upserts(setup_fake_search):
     """Syncing an approved doctor embeds and upserts vector with metadata."""
     mock_index = setup_fake_search
     # Seeded approved doctor
@@ -131,8 +131,8 @@ def test_sync_doctor_approved_upserts_to_pinecone(setup_fake_search):
     assert "Neurology" in metadata["specialty_names"]
 
 
-def test_sync_doctor_unapproved_deletes_from_pinecone(setup_fake_search):
-    """Syncing a non-approved doctor purges vector from Pinecone."""
+def test_sync_doctor_unapproved_deletes(setup_fake_search):
+    """Syncing a non-approved doctor purges vector from MongoDB."""
     mock_index = setup_fake_search
     # Seeded pending doctor
     pending_id = "d2000000-0000-0000-0000-000000000007"
@@ -169,13 +169,13 @@ def test_doctor_events_lifecycle_triggers_vector_sync(setup_fake_search):
 def test_failed_vector_delete_is_retried_and_reported(monkeypatch):
     """A doctor must not be marked synced while their vector is still searchable."""
     mock_index = MagicMock()
-    mock_index.delete = MagicMock(side_effect=ConnectionError("pinecone down"))
-    set_pinecone_index_client(mock_index)
+    mock_index.delete = MagicMock(side_effect=ConnectionError("mongodb down"))
+    set_vector_store(mock_index)
     statuses = []
     monkeypatch.setattr("app.search.sync._update_sync_status", lambda _id, s: statuses.append(s))
-    monkeypatch.setattr("app.search.sync._delete_vector_from_pinecone.retry.sleep", lambda _s: None)
+    monkeypatch.setattr("app.search.sync._delete_vector.retry.sleep", lambda _s: None)
 
     assert delete_doctor_vector("d1") is False
     assert mock_index.delete.call_count == 3
     assert statuses == ["failed"]
-    set_pinecone_index_client(None)
+    set_vector_store(None)

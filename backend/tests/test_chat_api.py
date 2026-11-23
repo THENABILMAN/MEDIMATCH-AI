@@ -16,25 +16,11 @@ import pytest
 from conftest import create_mock_jwt
 from fastapi import status
 from fastapi.testclient import TestClient
+from scripted_llm import ScriptedLLM, assessment
 
 from app.ai.llm import LLMClient, LLMUnavailableError, set_llm_client
-from app.ai.state import TurnAnalysis, WriterTurn
 from app.core.config import settings
 from app.models.enums import UserRole
-
-
-class MockChatLLMClient(LLMClient):
-    """Deterministic Mock LLM client for API tests."""
-
-    def __init__(self, reply: str = "Tell me more.", analysis: TurnAnalysis | None = None):
-        super().__init__(api_key="mock", model="mock")
-        self.reply = reply
-        self.analysis = analysis or TurnAnalysis()
-
-    def generate_structured(
-        self, messages, response_model, system_prompt=None, temperature=None, **_options
-    ):
-        return self.analysis if response_model is TurnAnalysis else WriterTurn(reply=self.reply)
 
 
 @pytest.fixture(scope="module")
@@ -153,9 +139,8 @@ def test_create_conversation_returns_medical_disclaimer(client: TestClient, chat
 
     # Verify disclaimer contents
     init_msg = data["initial_message"]
-    assert "Medical Disclaimer" in init_msg
-    assert "AI assistant" in init_msg
-    assert "not provide medical diagnosis" in init_msg
+    assert "a doctor has the final word" in init_msg
+    assert "I'm an AI" in init_msg
     assert "999" in init_msg
 
     # Also verify GET /chat/conversations/{id} returns this initial message
@@ -165,7 +150,7 @@ def test_create_conversation_returns_medical_disclaimer(client: TestClient, chat
     history = get_res.json()
     assert len(history["messages"]) == 1
     assert history["messages"][0]["sender"] == "assistant"
-    assert "Medical Disclaimer" in history["messages"][0]["content"]
+    assert "a doctor has the final word" in history["messages"][0]["content"]
 
 
 def test_send_patient_message_processes_workflow(client: TestClient, chat_patients: dict):
@@ -180,16 +165,14 @@ def test_send_patient_message_processes_workflow(client: TestClient, chat_patien
     conv_id = create_res.json()["id"]
 
     # 2. Configure deterministic mock LLM
-    mock_llm = MockChatLLMClient(
-        "A neurologist is a good place to start. Matching doctors are listed below.",
-        TurnAnalysis(
-            symptoms=["head throbbing"],
-            duration="3 days",
-            severity="moderate",
-            location="Dhaka",
-            urgency="routine",
-            specialty_confidence={"Neurology": 0.9},
+    mock_llm = ScriptedLLM(
+        assessment(
+            findings=["head throbbing"],
+            city="Dhaka",
+            wants_doctors_now=True,
+            specialty="Neurology",
         ),
+        reply="A neurologist is a good place to start. Matching doctors are listed below.",
     )
     set_llm_client(mock_llm)
 
@@ -223,7 +206,7 @@ def test_general_conversation_does_not_generate_recommendations(
     conv_id = create_res.json()["id"]
 
     reply = "I'm the MediMatch assistant. I help you find a suitable doctor and book a visit."
-    set_llm_client(MockChatLLMClient(reply))
+    set_llm_client(ScriptedLLM(reply=reply))
 
     response = client.post(
         f"/chat/conversations/{conv_id}/messages",
@@ -246,11 +229,9 @@ def test_a_model_outage_says_so_and_saves_nothing(client: TestClient, chat_patie
         "/chat/conversations", headers=patient["headers"], json={"title": "Outage"}
     ).json()["id"]
 
-    class Down(MockChatLLMClient):
-        def generate_structured(
-            self, messages, response_model, system_prompt=None, temperature=None, **_options
-        ):
-            raise LLMUnavailableError("HTTP 429")
+    class Down(ScriptedLLM):
+        def generate_structured(self, *_args, **_kwargs):
+            raise LLMUnavailableError("down")
 
     set_llm_client(Down())
     response = client.post(

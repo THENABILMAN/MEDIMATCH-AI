@@ -1,17 +1,16 @@
 """Vector Synchronization Pipeline for MediMatch AI.
 
 Maintains bidirectional consistency between Supabase PostgreSQL (the single
-source of truth) and the Pinecone vector index.
+source of truth) and the MongoDB vector index.
 
 Ensures:
-1. Only doctors with verification_status = 'approved' exist in Pinecone.
+1. Only doctors with verification_status = 'approved' exist in MongoDB.
 2. Unapproved, suspended, or rejected doctors have their vectors deleted immediately.
 3. Doctor profiles update their sync_status and last_synced_at columns.
 4. Transient network errors are automatically retried.
 """
 
 import logging
-import time
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor, wait
 from datetime import UTC, datetime
@@ -25,12 +24,9 @@ from app.models.enums import VerificationStatus
 from app.search.builder import build_doctor_embedding_text
 from app.search.cities import normalize_city
 from app.search.embeddings import get_embedding_provider
+from app.search.vector_store import get_vector_store
 
 logger = logging.getLogger("medimatch.search.sync")
-
-# Mockable Pinecone Index Client for unit tests
-_MOCK_PINECONE_INDEX: Any | None = None
-_PINECONE_INDEX: Any | None = None
 
 # Provider calls are slow and retried, so they must not hold up an admin's request
 _sync_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="vector-sync")
@@ -54,30 +50,8 @@ def wait_for_background_syncs(timeout: float = 30.0) -> None:
         wait(list(_pending_syncs), timeout=timeout)
 
 
-def get_pinecone_index() -> Any:
-    """Returns the Pinecone Index instance or mock."""
-    global _PINECONE_INDEX
-    if _MOCK_PINECONE_INDEX is not None:
-        return _MOCK_PINECONE_INDEX
-
-    if _PINECONE_INDEX is None:
-        from pinecone import Pinecone
-
-        client = Pinecone(
-            api_key=settings.PINECONE_API_KEY, timeout=settings.PINECONE_TIMEOUT_SECONDS
-        )
-        _PINECONE_INDEX = client.Index(settings.PINECONE_INDEX)
-    return _PINECONE_INDEX
-
-
-def set_pinecone_index_client(client: Any | None) -> None:
-    """Sets a mock Pinecone index client for unit tests."""
-    global _MOCK_PINECONE_INDEX
-    _MOCK_PINECONE_INDEX = client
-
-
 def vector_metadata(doc: dict[str, Any]) -> dict[str, Any]:
-    """What Pinecone filters on. Pinecone refuses null values, so an unknown city is left out."""
+    """What MongoDB filters on."""
     specialties = doc.get("specialties", [])
     metadata: dict[str, Any] = {
         "doctor_id": str(doc["id"]),
@@ -139,10 +113,8 @@ def _update_sync_status(doctor_id: str, status: str) -> None:
     wait=wait_exponential(multiplier=1, min=1, max=4),
     reraise=True,
 )
-def _upsert_vector_to_pinecone(
-    doctor_id: str, vector: list[float], metadata: dict[str, Any]
-) -> None:
-    index = get_pinecone_index()
+def _upsert_vector(doctor_id: str, vector: list[float], metadata: dict[str, Any]) -> None:
+    index = get_vector_store()
     index.upsert(
         vectors=[
             {
@@ -160,15 +132,15 @@ def _upsert_vector_to_pinecone(
     wait=wait_exponential(multiplier=1, min=1, max=4),
     reraise=True,
 )
-def _delete_vector_from_pinecone(doctor_id: str) -> None:
-    index = get_pinecone_index()
+def _delete_vector(doctor_id: str) -> None:
+    index = get_vector_store()
     index.delete(ids=[doctor_id])
 
 
 def sync_doctor_vector(doctor_id: str) -> bool:
-    """Synchronizes a doctor's vector with Pinecone based on Supabase record.
+    """Synchronizes a doctor's vector with MongoDB based on Supabase record.
 
-    If status is 'approved', generates embedding and upserts to Pinecone.
+    If status is 'approved', generates embedding and upserts to MongoDB.
     If status is anything else ('pending', 'suspended', 'rejected'), deletes vector.
     """
     logger.info(f"[VECTOR_SYNC] Starting sync for doctor {doctor_id}")
@@ -176,20 +148,20 @@ def sync_doctor_vector(doctor_id: str) -> bool:
     if not doc:
         logger.warning(f"[VECTOR_SYNC] Doctor {doctor_id} not found in Supabase. Deleting vector.")
         try:
-            _delete_vector_from_pinecone(doctor_id)
+            _delete_vector(doctor_id)
         except Exception:
             pass
         return False
 
     status = doc.get("verification_status")
 
-    # Non-negotiable Rule: Only 'approved' doctors exist in Pinecone
+    # Non-negotiable Rule: Only 'approved' doctors exist in MongoDB
     if status != VerificationStatus.APPROVED.value:
         logger.info(
-            f"[VECTOR_SYNC] Doctor {doctor_id} status is '{status}' (not approved). Removing from Pinecone."
+            f"[VECTOR_SYNC] Doctor {doctor_id} status is '{status}' (not approved). Removing from MongoDB."
         )
         try:
-            _delete_vector_from_pinecone(doctor_id)
+            _delete_vector(doctor_id)
             _update_sync_status(doctor_id, "synced")
             return True
         except Exception as e:
@@ -210,9 +182,9 @@ def sync_doctor_vector(doctor_id: str) -> bool:
         vector = vectors[0]
         metadata = vector_metadata(doc)
 
-        _upsert_vector_to_pinecone(doctor_id=doctor_id, vector=vector, metadata=metadata)
+        _upsert_vector(doctor_id=doctor_id, vector=vector, metadata=metadata)
         _update_sync_status(doctor_id, "synced")
-        logger.info(f"[VECTOR_SYNC] Successfully indexed doctor {doctor_id} in Pinecone")
+        logger.info(f"[VECTOR_SYNC] Successfully indexed doctor {doctor_id} in MongoDB")
         return True
 
     except Exception as e:
@@ -224,10 +196,10 @@ def sync_doctor_vector(doctor_id: str) -> bool:
 
 
 def delete_doctor_vector(doctor_id: str) -> bool:
-    """Deletes doctor vector from Pinecone and updates Supabase sync status."""
+    """Deletes doctor vector from MongoDB and updates Supabase sync status."""
     logger.info(f"[VECTOR_SYNC] Deleting vector for doctor {doctor_id}")
     try:
-        _delete_vector_from_pinecone(doctor_id)
+        _delete_vector(doctor_id)
         _update_sync_status(doctor_id, "synced")
         return True
     except Exception as e:
@@ -256,30 +228,8 @@ def retry_unsynced() -> int:
     return len(doctor_ids)
 
 
-# Pinecone embeds at most 96 texts a call and upserts at most 1,000 vectors
-EMBED_BATCH = 96
-UPSERT_BATCH = 100
+EMBED_BATCH = 64
 STATUS_BATCH = 200
-RATE_LIMIT_WAIT_SECONDS = 30
-MOST_RATE_LIMIT_WAITS = 20
-
-
-def _with_rate_limit_waits(task: Callable[[], Any]) -> Any:
-    """Waits out Pinecone's per-minute limits, which a full index rebuild can reach."""
-    for _ in range(MOST_RATE_LIMIT_WAITS):
-        try:
-            return task()
-        except Exception as e:
-            text = str(e)
-            if (
-                "429" not in text
-                and "RESOURCE_EXHAUSTED" not in text
-                and "rate" not in text.lower()
-            ):
-                raise
-            logger.warning("[VECTOR_SYNC] Pinecone rate limit reached, waiting")
-            time.sleep(RATE_LIMIT_WAIT_SECONDS)
-    return task()
 
 
 def _mark_synced(doctor_ids: list[str]) -> None:
@@ -305,21 +255,17 @@ def index_doctors(
         d for d in doctors if d.get("verification_status") == VerificationStatus.APPROVED.value
     ]
     provider = get_embedding_provider()
-    index = get_pinecone_index()
+    index = get_vector_store()
     done = 0
     for start in range(0, len(approved), EMBED_BATCH):
         batch = approved[start : start + EMBED_BATCH]
         texts = [build_doctor_embedding_text(d) for d in batch]
-        vectors: list[list[float]] = _with_rate_limit_waits(
-            lambda texts=texts: provider.embed_documents(texts)  # type: ignore[misc]
-        )
+        vectors = provider.embed_documents(texts)
         records = [
             {"id": str(doc["id"]), "values": vector, "metadata": vector_metadata(doc)}
             for doc, vector in zip(batch, vectors, strict=True)
         ]
-        for upsert_start in range(0, len(records), UPSERT_BATCH):
-            chunk = records[upsert_start : upsert_start + UPSERT_BATCH]
-            _with_rate_limit_waits(lambda chunk=chunk: index.upsert(vectors=chunk))  # type: ignore[misc]
+        index.upsert(vectors=records)
         _mark_synced([str(doc["id"]) for doc in batch])
         done += len(batch)
         if progress:

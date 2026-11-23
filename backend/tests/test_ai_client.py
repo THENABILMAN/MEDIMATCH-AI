@@ -1,125 +1,77 @@
-"""LLM client behaviour and exactly what leaves the server. Offline: transport is mocked."""
+"""The local model client and text redaction. Offline: transport is mocked."""
 
 import json
-import time
 from collections.abc import Callable
 
 import httpx
 import pytest
+from scripted_llm import assessment
 
-from app.ai.graph import _recent_messages, build_symptom_graph
-from app.ai.llm import LLMClient, LLMUnavailableError, response_shape, set_llm_client
+from app.ai.llm import LLMClient, LLMUnavailableError
 from app.ai.privacy import redact_pii
-from app.ai.state import TurnAnalysis, WriterTurn
+from app.ai.state import Assessment
 from app.core.config import settings
+
+MESSAGES = [{"role": "user", "content": "private headache"}]
 
 
 def reply(content: str) -> httpx.Response:
-    return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+    return httpx.Response(200, json={"message": {"content": content}})
 
 
 def client_with(handler: Callable[[httpx.Request], httpx.Response]) -> LLMClient:
-    return LLMClient(api_key="k", model="m", transport=httpx.MockTransport(handler))
+    return LLMClient(transport=httpx.MockTransport(handler))
 
 
-MESSAGES = [{"role": "user", "content": "headache"}]
-
-
-@pytest.fixture(autouse=True)
-def no_retry_delay(monkeypatch):
-    monkeypatch.setattr("app.ai.llm.RETRY_WAIT_SECONDS", 0)
-
-
-def test_timeout_is_short_enough_for_a_chat_turn():
-    assert settings.LLM_TIMEOUT_SECONDS * settings.LLM_MAX_ATTEMPTS * 2 <= 60
-
-
-@pytest.mark.parametrize("status", [429, 500, 502, 503])
-def test_temporary_failures_are_retried(status):
-    calls: list[int] = []
-
-    def handler(_request):
-        calls.append(1)
-        return httpx.Response(status) if len(calls) == 1 else reply("ok")
-
-    assert client_with(handler).generate(MESSAGES) == "ok"
-    assert len(calls) == 2
-
-
-def test_timeouts_are_retried():
-    calls: list[int] = []
+def test_it_calls_the_configured_local_model():
+    seen: list[dict] = []
 
     def handler(request):
-        calls.append(1)
-        if len(calls) == 1:
-            raise httpx.ReadTimeout("slow", request=request)
-        return reply("ok")
+        seen.append(json.loads(request.content))
+        assert str(request.url).startswith(settings.OLLAMA_URL)
+        return reply(" hello ")
 
-    assert client_with(handler).generate(MESSAGES) == "ok"
+    assert client_with(handler).generate(MESSAGES, "be kind") == "hello"
+    assert seen[0]["model"] == settings.LLM_MODEL
+    assert seen[0]["messages"][0] == {"role": "system", "content": "be kind"}
 
 
-@pytest.mark.parametrize("status", [400, 401, 403])
-def test_permanent_failures_are_not_retried(status):
+def test_structured_output_sends_its_schema_and_is_validated():
+    answer = assessment(findings=["fever"])
+
+    def handler(request):
+        assert json.loads(request.content)["format"]["properties"]["new_findings"]
+        return reply(answer.model_dump_json())
+
+    assert client_with(handler).generate_structured(MESSAGES, "x", Assessment) == answer
+
+
+def test_bad_json_is_tried_twice_then_fails_without_leaking(caplog):
     calls: list[int] = []
 
     def handler(_request):
         calls.append(1)
-        return httpx.Response(status)
+        return reply("{secret words")
 
+    with caplog.at_level("DEBUG"), pytest.raises(LLMUnavailableError) as error:
+        client_with(handler).generate_structured(MESSAGES, "x", Assessment)
+    assert len(calls) == 2
+    assert "secret" not in caplog.text + str(error.value)
+    assert "headache" not in caplog.text
+
+
+@pytest.mark.parametrize("answer", [httpx.Response(500), reply(""), httpx.Response(200, text="no")])
+def test_a_failed_call_is_unavailable(answer):
     with pytest.raises(LLMUnavailableError):
-        client_with(handler).generate(MESSAGES)
-    assert len(calls) == 1
+        client_with(lambda _r: answer).generate(MESSAGES, "x")
 
 
-def test_gives_up_after_the_configured_attempts():
-    calls: list[int] = []
-
+def test_ollama_not_running_is_unavailable():
     def handler(_request):
-        calls.append(1)
-        return httpx.Response(503)
+        raise httpx.ConnectError("refused")
 
     with pytest.raises(LLMUnavailableError):
-        client_with(handler).generate(MESSAGES)
-    assert len(calls) == settings.LLM_MAX_ATTEMPTS
-
-
-def test_empty_model_reply_is_a_failure():
-    def handler(_request):
-        return httpx.Response(200, json={"choices": [{"message": {"content": None}}]})
-
-    with pytest.raises(LLMUnavailableError):
-        client_with(handler).generate(MESSAGES)
-
-
-def test_missing_key_never_calls_the_provider():
-    def handler(_request):
-        raise AssertionError("must not be called")
-
-    with pytest.raises(LLMUnavailableError):
-        LLMClient(api_key="", model="m", transport=httpx.MockTransport(handler)).generate(MESSAGES)
-
-
-def test_bad_json_is_a_failure_and_stays_out_of_the_error(caplog):
-    secret_output = "private patient words"
-
-    with caplog.at_level("DEBUG"), pytest.raises(ValueError) as exc:
-        client_with(lambda _r: reply(secret_output)).generate_structured(MESSAGES, WriterTurn)
-    assert secret_output not in str(exc.value)
-    assert secret_output not in caplog.text
-
-
-def test_message_contents_are_never_logged(caplog):
-    with caplog.at_level("DEBUG"):
-        client_with(lambda _r: reply("ok")).generate(
-            [{"role": "user", "content": "my secret symptom"}]
-        )
-    assert "my secret symptom" not in caplog.text
-
-
-def test_history_sent_to_the_model_is_bounded():
-    messages = [{"role": "user", "content": str(i)} for i in range(200)]
-    assert len(_recent_messages(messages)) == settings.LLM_HISTORY_MESSAGES
-    assert _recent_messages(messages)[-1]["content"] == "199"
+        client_with(handler).generate(MESSAGES, "x")
 
 
 @pytest.mark.parametrize(
@@ -160,129 +112,3 @@ def test_identifiers_are_redacted(text, leaked):
 )
 def test_clinical_detail_survives_redaction(text, kept):
     assert kept in redact_pii(text)
-
-
-def test_exact_text_sent_to_the_provider_holds_no_identifiers(monkeypatch):
-    monkeypatch.setattr("app.ai.graph._get_verified_specialty_names", lambda: ["General Medicine"])
-    monkeypatch.setattr("app.ai.graph._known_cities", lambda: ["Dhaka"])
-    sent: list[str] = []
-
-    def handler(request):
-        sent.append(request.content.decode())
-        return reply('{"reply": "Thanks.", "symptoms": ["headache"]}')
-
-    set_llm_client(client_with(handler))
-    try:
-        state = {
-            "conversation_id": "c",
-            "patient_id": "patient-uuid-123",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": "My name is Rahim Uddin, 01712345678, rahim@gmail.com, headache for 2 days",
-                }
-            ],
-        }
-        build_symptom_graph().invoke(state, config={"configurable": {"thread_id": "t"}})
-    finally:
-        set_llm_client(None)
-
-    assert len(sent) == 2
-    for body in sent:
-        for identifier in ("Rahim", "01712345678", "rahim@gmail.com", "patient-uuid-123"):
-            assert identifier not in body
-
-
-class KeepAliveStream(httpx.SyncByteStream):
-    """Behaves like OpenRouter holding a slow request open with keep-alive bytes."""
-
-    def __iter__(self):
-        for _ in range(50):
-            time.sleep(0.02)
-            yield b" "
-        yield b'{"choices": [{"message": {"content": "too late"}}]}'
-
-
-def test_keep_alive_bytes_cannot_stretch_the_deadline(monkeypatch):
-    monkeypatch.setattr(settings, "LLM_TIMEOUT_SECONDS", 0.1)
-    monkeypatch.setattr(settings, "LLM_MAX_ATTEMPTS", 1)
-
-    def handler(_request):
-        return httpx.Response(200, stream=KeepAliveStream())
-
-    started = time.monotonic()
-    with pytest.raises(LLMUnavailableError):
-        client_with(handler).generate(MESSAGES)
-    assert time.monotonic() - started < 0.5
-
-
-def test_leading_keep_alive_bytes_do_not_break_parsing():
-    def handler(_request):
-        return httpx.Response(
-            200, content=b"   \n" + b'{"choices": [{"message": {"content": "ok"}}]}'
-        )
-
-    assert client_with(handler).generate(MESSAGES) == "ok"
-
-
-def test_a_rate_limit_waits_as_long_as_the_provider_asks(monkeypatch):
-    waits: list[float] = []
-    monkeypatch.setattr(time, "sleep", waits.append)
-    responses = [httpx.Response(429, headers={"retry-after": "4"}), reply("ok")]
-    assert client_with(lambda request: responses.pop(0)).generate(MESSAGES) == "ok"
-    assert waits == [4.0]
-
-
-def test_a_long_rate_limit_fails_at_once_rather_than_holding_the_patient(monkeypatch):
-    waits: list[float] = []
-    monkeypatch.setattr(time, "sleep", waits.append)
-    limited = httpx.Response(429, headers={"retry-after": "60"})
-    with pytest.raises(LLMUnavailableError, match="429"):
-        client_with(lambda request: limited).generate(MESSAGES)
-    assert waits == []
-
-
-def test_the_response_shape_is_far_smaller_than_a_json_schema():
-    shape = json.dumps(response_shape(TurnAnalysis))
-    assert len(shape) < len(json.dumps(TurnAnalysis.model_json_schema())) / 2
-    assert '"language": "en|bn|banglish"' in shape
-
-
-def test_the_shape_describes_nested_models_and_optional_fields():
-    assert response_shape(WriterTurn)["chips"] == [
-        {"label": "str", "meaning": "physical|emotional|both|any_city|other"}
-    ]
-    assert response_shape(TurnAnalysis)["duration"] == "str or null"
-
-
-def test_reasoning_effort_is_sent_only_when_asked_for():
-    bodies: list[dict] = []
-
-    def handler(request):
-        bodies.append(json.loads(request.content))
-        return reply("ok")
-
-    client = client_with(handler)
-    client.generate(MESSAGES)
-    client.generate(MESSAGES, reasoning_effort="low")
-    assert "reasoning_effort" not in bodies[0]
-    assert bodies[1]["reasoning_effort"] == "low"
-
-
-def test_a_model_output_the_provider_cannot_parse_is_retried(monkeypatch):
-    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
-    failed = httpx.Response(400, json={"error": {"code": "output_parse_failed"}})
-    responses = [failed, reply("ok")]
-    assert client_with(lambda request: responses.pop(0)).generate(MESSAGES) == "ok"
-
-
-def test_any_other_bad_request_is_not_retried():
-    calls: list[int] = []
-
-    def handler(request):
-        calls.append(1)
-        return httpx.Response(400, json={"error": {"code": "invalid_api_key"}})
-
-    with pytest.raises(LLMUnavailableError):
-        client_with(handler).generate(MESSAGES)
-    assert len(calls) == 1

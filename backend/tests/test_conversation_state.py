@@ -4,32 +4,13 @@ import uuid
 
 import pytest
 from conftest import create_mock_jwt
+from scripted_llm import ScriptedLLM, assessment
 
 from app.ai import graph
-from app.ai.llm import LLMClient, set_llm_client
-from app.ai.state import TurnAnalysis, WriterTurn
+from app.ai.llm import set_llm_client
 from app.core.config import settings
 from app.core.supabase import get_supabase_admin_client
 from app.models.enums import UserRole
-
-QUESTION_GOALS = ("severity", "duration", "daily_impact", "care_preference")
-
-
-class NoDetailsLLM(LLMClient):
-    """Never finds a duration or location, so every turn needs a follow-up."""
-
-    def __init__(self):
-        super().__init__(api_key="mock", model="mock")
-
-    def generate_structured(
-        self, messages, response_model, system_prompt=None, temperature=None, **_options
-    ):
-        if response_model is WriterTurn:
-            return WriterTurn(reply="Tell me a little more.")
-        # A new goal each turn, because a question already asked is never asked again
-        self.turns = getattr(self, "turns", -1) + 1
-        goal = QUESTION_GOALS[self.turns % len(QUESTION_GOALS)]
-        return TurnAnalysis(symptoms=["itchy skin"], location="Dhaka", next_question=goal)
 
 
 @pytest.fixture
@@ -40,7 +21,7 @@ def patient_headers() -> dict:
 
 @pytest.fixture(autouse=True)
 def mock_llm():
-    set_llm_client(NoDetailsLLM())
+    set_llm_client(ScriptedLLM(assessment(findings=["itchy skin"], city="Dhaka", confidence=30)))
     yield
     set_llm_client(None)
 
@@ -59,7 +40,7 @@ def send(client, headers, conversation, text="itchy skin"):
 
 
 def test_question_progress_survives_a_restart(client, patient_headers, monkeypatch):
-    monkeypatch.setattr(settings, "CONVERSATION_SOFT_QUESTION_LIMIT", 3)
+    monkeypatch.setattr(settings, "MAX_QUESTIONS", 3)
     conversation = client.post("/chat/conversations", headers=patient_headers, json={}).json()["id"]
 
     for _ in range(3):
@@ -82,7 +63,6 @@ def test_saved_state_holds_progress_but_no_messages(client, patient_headers):
     )
     state = row.data[0]["graph_state"]
     assert state["question_count"] == 1
-    assert "emotional_state" not in state
     assert "messages" not in state
 
 

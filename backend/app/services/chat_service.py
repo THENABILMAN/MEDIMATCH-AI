@@ -5,6 +5,7 @@ persists message history, and coordinates LangGraph workflow execution.
 """
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -23,12 +24,15 @@ from app.core.supabase import get_supabase_admin_client
 
 logger = logging.getLogger("medimatch.chat_service")
 
+# Each database call is a network round trip, so independent ones run side by side
+_DB_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="chat-db")
+
 DISCLAIMER_MESSAGE = (
-    "Hello! I am your MediMatch Assistant.\n\n"
-    "Medical Disclaimer: I am an AI assistant designed solely to help you find qualified medical specialists. "
-    "I do not provide medical diagnosis, clinical treatment plans, or drug prescriptions. "
-    "If you are experiencing a life-threatening medical emergency, please call 999 immediately.\n\n"
-    "What's been going on?"
+    "Hey, I'm Medi! Tell me what's bothering you and I'll ask questions until I have a good idea "
+    "of what it is, then point you to the right doctor in Bangladesh. I'm an AI, so a doctor has the "
+    "final word, and in an emergency please call 999. "
+    "Everything else, tell me in English, Bangla or Banglish.\n\n"
+    "So, what's been going on with you?"
 )
 
 
@@ -194,7 +198,7 @@ def _emergency_turn(
             ).execute()
             if kind == "self_harm":
                 client.table("conversations").update(
-                    {"graph_state": {**state, "crisis_active": True, "pending_chips": []}}
+                    {"graph_state": {**state, "crisis_active": True}}
                 ).eq("id", conversation_id).execute()
     except HTTPException:
         raise
@@ -244,7 +248,14 @@ def send_patient_message(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database service unavailable"
         )
 
-    # 1. Enforce ownership
+    # 1. Enforce ownership. The history is read at the same time, and used only once this passes
+    history = _DB_POOL.submit(
+        client.table("messages")
+        .select("sender, content")
+        .eq("conversation_id", conversation_id)
+        .order("created_at", desc=False)
+        .execute
+    )
     conv_res = client.table("conversations").select("*").eq("id", conversation_id).execute()
     if not conv_res.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
@@ -258,13 +269,7 @@ def send_patient_message(
 
     # 2. Load past message history. The new message is saved only once it has an answer, so a
     # retry after a model failure does not repeat it
-    history_res = (
-        client.table("messages")
-        .select("sender, content")
-        .eq("conversation_id", conversation_id)
-        .order("created_at", desc=False)
-        .execute()
-    )
+    history_res = history.result()
 
     formatted_messages = [
         {
@@ -277,7 +282,7 @@ def send_patient_message(
 
     # 3. Invoke LangGraph
     initial_state = {
-        **(conv.get("graph_state") or {}),
+        **{k: v for k, v in (conv.get("graph_state") or {}).items() if k in PERSISTED_STATE_FIELDS},
         "conversation_id": conversation_id,
         "patient_id": patient_id,
         "messages": formatted_messages,
@@ -301,9 +306,18 @@ def send_patient_message(
         }
     ).execute()
 
-    client.table("conversations").update(
-        {"graph_state": {k: result_state[k] for k in PERSISTED_STATE_FIELDS if k in result_state}}
-    ).eq("id", conversation_id).execute()
+    saved_progress = _DB_POOL.submit(
+        client.table("conversations")
+        .update(
+            {
+                "graph_state": {
+                    k: result_state[k] for k in PERSISTED_STATE_FIELDS if k in result_state
+                }
+            }
+        )
+        .eq("id", conversation_id)
+        .execute
+    )
 
     assistant_reply = result_state["assistant_reply"]
     current_step = result_state["current_step"]
@@ -341,6 +355,7 @@ def send_patient_message(
                 "emergency_flag": is_emergency,
             }
         ).execute()
+    saved_progress.result()
 
     return {
         "conversation_id": conversation_id,

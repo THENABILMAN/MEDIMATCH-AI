@@ -1,0 +1,6 @@
+# The assistant's model: Google's Gemma 4 E4B from Hugging Face, with Ollama's Gemma 4 chat format.
+# Build it once with: ollama create medimatch -f backend/models/Modelfile
+FROM hf.co/google/gemma-4-E4B-it-qat-q4_0-gguf
+TEMPLATE {{ .Prompt }}
+RENDERER gemma4
+PARSER gemma4

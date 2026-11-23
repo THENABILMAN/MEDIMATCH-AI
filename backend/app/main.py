@@ -1,6 +1,7 @@
 import logging
 import re
 import sys
+import threading
 import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -20,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.ai.graph import warm_up
 from app.api.v1 import (
     admin,
     appointments,
@@ -108,6 +110,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         logger.warning(
             "CRISIS_HELPLINES is empty, so crisis messages show only the emergency number"
         )
+    if settings.EMBEDDING_PROVIDER == "ollama":
+        threading.Thread(target=warm_up, daemon=True, name="warm-up").start()
     yield
     wait_for_background_syncs()
 

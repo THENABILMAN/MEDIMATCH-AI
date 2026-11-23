@@ -9,7 +9,6 @@ anyio==4.16.0
     #   httpx
     #   httpx2
     #   langsmith
-    #   pinecone
     #   starlette
     #   watchfiles
 certifi==2026.10.23
@@ -33,7 +32,9 @@ deprecation==2.1.0
 distro==1.9.0
     # via langsmith
 dnspython==2.9.2
-    # via email-validator
+    # via
+    #   email-validator
+    #   pymongo
 email-validator==2.3.0
     # via pydantic
 fastapi==0.162.0
@@ -58,7 +59,6 @@ httpx==0.28.1
     #   medimatch-backend (pyproject.toml)
     #   langchain-core
     #   langgraph-sdk
-    #   pinecone
     #   postgrest
     #   realtime
     #   storage3
@@ -105,8 +105,6 @@ langgraph-sdk==0.4.12
     # via langgraph
 langsmith==0.14.17
     # via langchain-core
-msgspec==0.22.0
-    # via pinecone
 multidict==7.2.1
     # via yarl
 opentelemetry-api==1.45.2
@@ -115,7 +113,6 @@ orjson==3.13.0
     # via
     #   langgraph-sdk
     #   langsmith
-    #   pinecone
 ormsgpack==1.13.0
     # via langgraph-checkpoint
 packaging==26.3
@@ -123,8 +120,6 @@ packaging==26.3
     #   deprecation
     #   langchain-core
     #   langsmith
-pinecone==10.3.0
-    # via medimatch-backend (pyproject.toml)
 postgrest==2.34.0
     # via supabase
 propcache==0.5.4
@@ -153,6 +148,8 @@ pyjwt==2.15.1
     # via
     #   medimatch-backend (pyproject.toml)
     #   supabase-auth
+pymongo==4.20.1
+    # via medimatch-backend (pyproject.toml)
 python-dotenv==1.2.4
     # via
     #   pydantic-settings
@@ -161,8 +158,8 @@ python-multipart==0.0.33
     # via medimatch-backend (pyproject.toml)
 pyyaml==6.0.3
     # via
-    #   langchain-core
     #   medimatch-backend (pyproject.toml)
+    #   langchain-core
     #   uvicorn
 realtime==2.34.0
     # via supabase

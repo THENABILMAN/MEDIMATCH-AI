@@ -16,7 +16,7 @@ from psycopg2 import errors
 from app.core.config import settings
 from app.search.embeddings import FakeEmbeddingProvider, set_embedding_provider
 from app.search.recommend import recommend_doctors
-from app.search.sync import set_pinecone_index_client
+from app.search.vector_store import set_vector_store
 
 ENT = "11111111-0000-0000-0000-000000000010"
 
@@ -61,15 +61,15 @@ def listings() -> Iterator[dict[str, str]]:
 
 
 @pytest.fixture
-def no_pinecone() -> Iterator[MagicMock]:
-    """Pinecone fails, so recommendations come from the database alone."""
+def no_vectors() -> Iterator[MagicMock]:
+    """MongoDB fails, so recommendations come from the database alone."""
     set_embedding_provider(FakeEmbeddingProvider(dimension=1024))
     index = MagicMock()
     index.query.side_effect = RuntimeError("down")
-    set_pinecone_index_client(index)
+    set_vector_store(index)
     yield index
     set_embedding_provider(None)
-    set_pinecone_index_client(None)
+    set_vector_store(None)
 
 
 def names(response) -> set[str]:
@@ -105,7 +105,7 @@ def test_a_listing_has_its_own_page(client: TestClient, listings):
     assert res.json()["specialties"][0]["name"] == "ENT"
 
 
-def test_listings_are_suggested_with_no_online_booking(listings, no_pinecone):
+def test_listings_are_suggested_with_no_online_booking(listings, no_vectors):
     found = recommend_doctors(
         {"candidate_specialties": ["ENT"], "city": "Sylhet", "strict_specialty": True}
     ).recommendations
@@ -118,14 +118,14 @@ def test_listings_are_suggested_with_no_online_booking(listings, no_pinecone):
     assert doctor.match_explanation == "Specializes in ENT."
 
 
-def test_any_city_includes_listings_with_no_city(listings, no_pinecone):
+def test_any_city_includes_listings_with_no_city(listings, no_vectors):
     found = recommend_doctors(
         {"candidate_specialties": ["ENT"], "city": "Bangladesh", "strict_specialty": True}
     ).recommendations
     assert "Dr. Unknown City Listing" in {doctor.full_name for doctor in found}
 
 
-def test_a_listing_in_another_city_is_not_suggested(listings, no_pinecone):
+def test_a_listing_in_another_city_is_not_suggested(listings, no_vectors):
     found = recommend_doctors(
         {"candidate_specialties": ["ENT"], "city": "Rajshahi", "strict_specialty": True}
     ).recommendations
@@ -135,16 +135,16 @@ def test_a_listing_in_another_city_is_not_suggested(listings, no_pinecone):
 def test_vector_search_is_filtered_by_specialty_and_city(listings):
     set_embedding_provider(FakeEmbeddingProvider(dimension=1024))
     index = MagicMock()
-    index.query.return_value = MagicMock(matches=[MagicMock(id=listings["sylhet"], score=0.9)])
-    set_pinecone_index_client(index)
+    index.query.return_value = [MagicMock(id=listings["sylhet"], score=0.9)]
+    set_vector_store(index)
     try:
         found = recommend_doctors(
             {"candidate_specialties": ["ENT"], "city": "Sylhet", "strict_specialty": True}
         )
     finally:
         set_embedding_provider(None)
-        set_pinecone_index_client(None)
-    vector_filter = index.query.call_args.kwargs["filter"]
+        set_vector_store(None)
+    vector_filter = index.query.call_args.kwargs["where"]
     assert vector_filter["specialty_names"] == {"$in": ["ENT"]}
     assert vector_filter["city"] == {"$eq": "Sylhet"}
     assert found.retrieval_mode == "hybrid"
